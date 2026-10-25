@@ -10948,3 +10948,69 @@ one place, and the hold had come to mean "open the card", so a hold could never 
 - **Auto-scroll at the list's edge,** deferred to the Backlog: Today is sized to be doable, and a move longer than a
   screen still has the rail. Trigger: a report of a list too long to drag across.
 - **Drag in the shared list, Routines or the Later folds:** Today first; each of those has its own order rules.
+
+## 2026-10-25: store screenshots in every language, on both stores
+
+Melroy, after the drag grip changed every Today screen: "I want to commission you generating screenshots in every
+language too please. For both iOS and Android please." Until now both stores showed English screens everywhere
+(the App Store set was English only; the Play set had translated nothing).
+
+**Decided:**
+- **Each language shows its own app,** never English screens under a translated caption. The one generator
+  (`scripts/play-assets.mjs`) renders the web app in that language, with that language's cast, for both stores:
+  `LOCALES=en,de,fr,es,it`. Spanish is one neutral set, uploaded to both Spanish localisations on each store, as
+  the listings already are; English goes to both English localisations on the App Store.
+- **Play moved to per-language folders,** `docs/play-store/<device>/<lang>/NN-name.png`, numbered in upload order
+  like the App Store's, and the flat English files went. Its captions left the script for
+  `docs/play-store/captions.json`, natively read, behind the same caption gate as `docs/appstore/captions.json`.
+- **Play tablets in English only** (Melroy: "Why are there 120 images? That seems overkill?"). Phones in every
+  language, tablets for the default listing alone, which a translated listing shows when it has none of its own.
+  That is 64 uploads instead of 144, and about 48 MB less in a public repo, for an audience that barely runs this
+  app on a tablet. `TABLETS=all` makes the rest if Play turns out not to fall back. Apple needs two sizes per
+  language (the large Dynamic Island and Face ID slots, which it scales down), so the 6.3 set is a spare.
+- **Today seeds four tasks, not five.** With five, German, French and Italian could not reach the + button's own
+  slot at the list's end without carrying the date and Menu off the top (the first German run sliced the heading).
+  Four sits closer to the promise anyway. A cap at the Menu pill stays as the safety net for a longer language.
+- **The Calendar seeds a real keepsake:** `docs/brand/keepsake-store-crop.jpg`, the lower-left square of
+  `premium-keepsake.jpg`. The frame ends a little way into this week's keepsake, and an empty one (or the original,
+  whose top third is bare wall) read there as a broken box. The scrapbook is free (monthly), so it is not a Premium
+  surface on Play.
+- **The shared-day shot sets Tomorrow, on the shortest row,** so the sheet shows what its caption promises (both
+  people see it on the day) instead of Anytime, and the title fits its field in every language.
+- **Play captions wrap only after a comma or a full stop, balanced, inside a two-line box,** so no "para", "quand"
+  or "wenn" hangs at a line's end and the phone sits in the same place on every slide. A sentence with neither may
+  name its own break as an array in the json (the Spanish Settle line does). French captions take the typographic
+  apostrophe, which the serif draws as one rather than as a tick.
+- **The shared list tells the same Sunday as Today.** The QA found the room showing a parcel dated today and bins
+  repeating today, neither on the Today slide, plus Today's own pharmacy row again, and in Spanish, French and
+  Italian the room's bin row used the very words of Today's ticked bins, so it read as one task left open. The
+  store shots' room now holds a Saturday chore (changing the sheets) in place of bin night, the parcel tomorrow,
+  and no duplicate. The landing keeps its own rows: it pairs the room with no Today.
+- **The Calendar's frame ends inside the keepsake** (a `fold` scroll), because at Play's shorter phone, and
+  wherever a language wraps a line more, the picture fell below the frame and its heading sat over nothing. The
+  scroll never leaves anything sliced at the top edge: it steps back to keep the title whole where the keepsake can
+  spare the room, and otherwise carries on past it (the first try cut the title and the header art in half).
+- **The held card's top edge is clean too.** A 1px line of the selected energy chip sat at the top edge whatever the
+  offset, because in four languages the list was already at its furthest scroll, so the shot now steps back until
+  everything the edge cuts shows whole (the energy row, with its label, above the card). The same rule as the
+  Calendar: a slide never shows a sliver of anything.
+- **The shared list's later row is the dentist,** not "Water the plants", which the capture slide types into Today.
+- **The dev server's fast-refresh badge is hidden** with its error toast: it covered the capture panel's When pill
+  in the first English set.
+- **Three QA rounds, a native reviewer per store and language each time** (round one found the faults above, round
+  two the Calendar title cut and the held-card line, round three nothing that blocks). Their copy notes on the app
+  itself are parked in BUILD-PLAN's Backlog ("App copy the screenshot QA turned up"), each needing its own native
+  read before it ships.
+- **Two German app lines fixed on the way:** `capture.aiNoteBoth` was garbled ("Sortier das für mich, Aufteilen
+  und Scannen senden, …") and `aiNoteScan` used a different pattern from its siblings. Both now match `aiNote`. They
+  are app strings, so the web gets them on its next deploy and the phones with the next build; the screenshots
+  already show them.
+- **The upload guide lives in the release notes** (`docs/release-notes/1.10.0.md`), with every localisation's
+  folder, and `docs/appstore/listing-copy.md` now says five languages.
+
+**Decided against:**
+- **Translated captions over English screens:** quicker, and a German shopper would meet an English app.
+- **Hiding the keepsake section, or touching the UI for a shot:** a screenshot shows the app as it is.
+- **Flipping or retouching the keepsake art:** a crop is a framing choice, a doctored picture is not.
+- **A localised Play feature graphic, for now:** its subline is a sentence no language has yet, so it waits for a
+  native read; the English one stays on every listing until Melroy wants it.

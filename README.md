@@ -17,13 +17,13 @@ DoubleDone is live and has paying subscribers.
 The daily loop is free. Premium is sold through each platform's own checkout: Stripe on the web, Apple in-app purchase on iOS and Google Play Billing on Android, with RevenueCat carrying the two store purchases to the server. 1.8.0 adds "Where you left off" and a round of finishing fixes ([release notes](docs/release-notes/1.8.0.md)).
 
 <p align="center">
-  <img src="docs/play-store/phone/today-light.png" alt="Today: a short list, a gentle day gauge, an energy choice and one Right now tool" width="200" />
+  <img src="docs/play-store/phone/en/02-today-light.png" alt="Today: four tasks with their drag grips, a gentle day gauge, an energy choice and one Right now tool" width="200" />
   &nbsp;
-  <img src="docs/play-store/phone/capture.png" alt="Capture: the Add to Today panel with three lines typed, Speak, Scan and Sort for me" width="200" />
+  <img src="docs/play-store/phone/en/03-capture.png" alt="Capture: the Add to Today panel with three lines typed, Scan and Sort for me" width="200" />
   &nbsp;
-  <img src="docs/play-store/phone/lookback-light.png" alt="The Calendar: a month of finished days, and the tasks finished today" width="200" />
+  <img src="docs/play-store/phone/en/05-lookback-light.png" alt="The Calendar: a month of finished days, the tasks finished today, and this week's keepsake" width="200" />
   &nbsp;
-  <img src="docs/play-store/phone/ours-room.png" alt="Ours: a shared list for two people beside Today" width="200" />
+  <img src="docs/play-store/phone/en/04-ours-room.png" alt="Ours: a shared list for two people beside Today" width="200" />
 </p>
 <p align="center"><em>Today, capture, the Calendar of everything finished, and Ours, the list you share with one other person.</em></p>
 

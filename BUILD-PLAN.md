@@ -62,8 +62,12 @@ right). The feedback cases passed on Android too (2026-10-25): Settings' note sc
 sign-in trip, the screen's rules, the mash stopped by the check, a real note given its month with the call line,
 offline, the keyboard, and the Today card with Not now (seen by moving the phone's clock 8 days on, signed out).
 MON-08, the end line, was skipped on Melroy's call ("I feel it's excessive"): it is covered by month-end.test.ts
-and was checked in the browser during the build. The drag cases passed on the iPhone as well. Next: the iPhone
-feedback pass if wanted, then submit both, then bump `version.json` per store once live.
+and was checked in the browser during the build. The drag cases passed on the iPhone as well. **Screenshots in
+every store language (2026-10-25, on Melroy's ask):** both stores, en, de, fr, es and it, each language's own app
+and cast, visually QA'd by a native reviewer per store and language (Play: phones per language, tablets English
+only; App Store: the 6.9 and 6.5 sets, 6.3 spare). Upload guide: `docs/release-notes/1.10.0.md`. Next: upload them
+(on iOS BEFORE Add for Review, since screenshots lock on submission), the iPhone feedback pass if wanted, then
+submit both, then bump `version.json` per store once live.
 
 **LIVE ON THE WEB 2026-10-25: "A month on us" phase 1** (decision log, the same day). Merged to main as `edb3c54` on
 Melroy's "Merge" (a fast-forward of `premium`), after its Worker went live (`84cded96`, rollback `6112b1c7`). Checked:
@@ -245,6 +249,44 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **App copy the screenshot QA turned up (parked 2026-10-25).** Ten native reviewers read every store slide in five
+  languages; these are UI strings, not slide faults, so each needs its own native read before it ships. Grouped,
+  most-seen first:
+  1. **The AI-disclosure line** (`capture.aiNoteBoth`, `aiNote`): English reads as a garden path ("...and Scan
+     send what you type"), Spanish mixes two imperatives and an infinitive with no quotes, and Italian "Ordina tu per
+     me" first reads as "you order for me". English names "Break it down" where the held card's button says "Break
+     down", and French quotes « Décompose-la » where it says « Décomposer ». German was fixed on 2026-10-25 and is
+     the model: quote the names exactly as the buttons show them. Suggested English: "When you use Sort for me,
+     Break down or Scan, what you type or photograph goes to Anthropic's Claude."
+  2. **The Ours subtitle** (`sharedLine`, with `m4Body`, `lead`, `sharedLead2`, `line3`): English says "day" twice
+     and strands "day." on its own line; German "in euren beiden Heute" and French "vos deux Aujourd'hui" use the
+     screen name as a plural; Spanish "Lo que tiene día" wants "fecha". One rewrite across the five.
+  3. **A one-day repeat in short form** ("Every Sun", "Cada dom", "Ogni dom"): join the parked German "Jeden So" and
+     French "Tous les dim.", and spell the weekday out when a repeat has one day.
+  4. **The "a lot" row** (`markAsALot`, `weightHint`): German "Gewicht", French "poids" and Spanish "Es mucho" /
+     "peso" join the parked English and Italian.
+  5. **Settle:** German exit "Gehen" (read as "walk"; "Zurück"); the guide's state reads as a lamp switched on in
+     three languages, French "allumé", Spanish "encendida", Italian "accesa" ("activé", "activada", "attiva");
+     German breath "ein, ganz sanft…" (read as the article first).
+  6. **The When sheet:** German "Setzen" and Spanish "Poner" for Set ("Festlegen", "Fijar"); Spanish "Diaria"
+     against the masculine "ritmo"; Italian "Ogni pochi giorni" ("Ogni qualche giorno") and "Mensile" beside "Ogni
+     giorno"; French "À tout moment" (reads as imminent) and "Hebdo"; German and Italian "you both see it" word order.
+  7. **The welcome, in four languages:** French serial comma; Italian calques ("abbia mai sentito che la lista era
+     troppa", "solo perché") and a comma before "e conserva"; Spanish "su lista era demasiado"; German "Es zeigt
+     dir" (the app is "die App"), "Eine ruhigere Art von To-do" (a "To-do" is one task) and the "jemals ...
+     beschämen" calques.
+  8. **Smaller:** French "Te concentrer sur une seule chose" (Right now), Italian "Falla minuscola" (also "make it
+     lowercase", in the store listings too), English "You'll both see it that day" under a named day ("tomorrow"),
+     an Ours row due today or tomorrow showing a short date where the sheet says "Today" / "Tomorrow", English
+     "Turn on daily reminder" (drops "the", which the catalogue elsewhere keeps), the French Calendar subtitle "Pour
+     quand ta tête…" (reads as a question; "Pour les jours où…"), and the French catalogue's straight apostrophe
+     beside the captions' typographic one.
+  9. **Seed rows shared with the landing** (`scripts/landing-shots.mjs` and `play-assets.mjs`): Spanish "la de
+     riñón" ("la renal") and "canalón" (Spain only), German "Katzenfutter, das für die Nieren" (the "das" waits for a
+     verb), French "Trier le recyclage" and "Demander pour la gouttière".
+     Change both scripts, then regenerate the landing pictures and the store sets.
+  Trigger: the next catalogue copy pass, or before the next release's native read, whichever comes first. The
+  suggested wordings are the reviewers', not yet checked against each catalogue's other uses.
 - **Auto-scroll while dragging a task by its grip (parked 2026-10-25).** The grip carries a row only within what is
   on screen; a row dragged to the list's edge does not scroll the list along. Parked because Today is sized to be
   doable and the card's Move up / Move down still moves a task any distance. Trigger: a report of a list too long to

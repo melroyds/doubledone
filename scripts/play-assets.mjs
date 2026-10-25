@@ -1,14 +1,18 @@
 // DoubleDone store asset generator, Google Play and (STORE=ios) the App Store's captioned slides.
 //
 // Play (the default, STORE unset). Produces store-ready graphics from the running web app + brand assets:
-//   docs/play-store/icon/icon-512.png            512x512 hi-res icon
-//   docs/play-store/feature/feature-1024x500.png feature graphic
-//   docs/play-store/phone/*.png                  1080x1920 framed screenshots
-//   docs/play-store/tablet7/*.png                1200x1920 framed screenshots
-//   docs/play-store/tablet10/*.png               1600x2560 framed screenshots
+//   docs/play-store/icon/icon-512.png                       512x512 hi-res icon
+//   docs/play-store/feature/feature-1024x500.png            feature graphic
+//   docs/play-store/phone/<locale>/01-welcome.png ..        1080x1920 framed screenshots
+//   docs/play-store/tablet7/en/..                           1200x1920 framed screenshots (English only; TABLETS=all)
+//   docs/play-store/tablet10/en/..                          1600x2560 framed screenshots (English only; TABLETS=all)
 //
 // Each Play screenshot is the real app (seeded via localStorage, like screenshots.mjs) composited onto a calm
 // slide with a one-line caption, so every asset is an exact valid Play size (well within the 2:1 ratio cap).
+// Since 1.10.0 (2026-10-25) both stores render every language the app ships: the app's own screens in that
+// language, with the same per-language cast of tasks, and captions from docs/play-store/captions.json (Play) and
+// docs/appstore/captions.json (App Store), each natively read. Files are numbered, so file order is upload order.
+// Spanish is one neutral set, uploaded to both es-419 and es-ES on Play, and to Mexico and Spain on the App Store.
 //
 // App Store (STORE=ios). Six captioned slides, numbered so file order is upload order:
 //   docs/appstore/captioned/6.9/<locale>/01-today.jpeg .. 06-ours.jpeg   1320x2868
@@ -22,7 +26,8 @@
 //   node scripts/play-assets.mjs                         # the whole Play set
 //   NAMES=capture,ours-room node scripts/play-assets.mjs # just those Play slides (no icon or feature graphic)
 //   STORE=ios node scripts/play-assets.mjs               # the six App Store slides, English
-//   PowerShell: $env:STORE='ios'; node scripts/play-assets.mjs
+//   LOCALES=en,de,fr,es,it node scripts/play-assets.mjs  # any store, any languages (default: en)
+//   PowerShell: $env:STORE='ios'; $env:LOCALES='en,de,fr,es,it'; node scripts/play-assets.mjs
 //
 // NOTHING real is contacted, in either mode (copied from scripts/landing-shots.mjs, which found each of these
 // the hard way): every Supabase read is answered from a fixture, the AI host is refused outright (so a run never
@@ -43,11 +48,12 @@ const BASE = process.env.SHOT_URL ?? 'http://localhost:8081';
 const ROOT = process.cwd();
 const STORE = process.env.STORE === 'ios' ? 'ios' : 'play';
 const NAMES = process.env.NAMES ? new Set(process.env.NAMES.split(',').map((s) => s.trim())) : null;
-// The App Store set is English this version. A locale is only rendered once captions.json carries it (the gate).
-const LOCALES = STORE === 'ios' ? (process.env.LOCALES ?? 'en').split(',').map((s) => s.trim()) : ['en'];
+// A locale is only rendered once its store's captions file carries it (the gate).
+const LOCALES = (process.env.LOCALES ?? 'en').split(',').map((s) => s.trim());
 const OUT = path.join(ROOT, 'docs', 'play-store');
 const IOS_OUT = path.join(ROOT, 'docs', 'appstore', 'captioned');
 const CAPTIONS_FILE = path.join(ROOT, 'docs', 'appstore', 'captions.json');
+const PLAY_CAPTIONS_FILE = path.join(ROOT, 'docs', 'play-store', 'captions.json');
 // The raw captures, kept outside the repo so they can be looked at (the corner check) without being committed.
 const RAW_DIR = path.join(os.tmpdir(), 'dd-store-shots');
 const TZ = 'Australia/Melbourne';
@@ -98,6 +104,11 @@ function b64(p) {
   }
 }
 const ICON = b64('client/assets/images/icon.png');
+// A keepsake the scrapbook pipeline really made, seeded as this week's page on the Calendar shots, whose frame ends
+// a little way into it. keepsake-store-crop.jpg is the lower-left square of docs/brand/premium-keepsake.jpg (624px
+// from y=400, scaled to 768): the original's top third is bare wall, which at the fold read as an empty box. No
+// caption, so it reads the same in every language (the Calendar draws a caption only if one is set).
+const KEEPSAKE = b64('docs/brand/keepsake-store-crop.jpg');
 const FONT_SERIF = b64('client/assets/fonts/Newsreader_600SemiBold.ttf');
 const FONT_SANS = b64('client/assets/fonts/AtkinsonHyperlegible_400Regular.ttf');
 
@@ -117,39 +128,7 @@ const noon = at(18, 12);
 /** The Melbourne calendar day of a timestamp (every seed time sits near midday, so +11h never flips a day). */
 const isoDay = (ms) => new Date(ms + 11 * 3600000).toISOString().slice(0, 10);
 
-// --- Play seed data (mirrors screenshots.mjs so the screens look populated and calm) -----------------------------
-const TODAY_TASKS = [
-  { id: 's1', title: 'Drink a glass of water', done: false, createdAt: now - 2 * DAY, updatedAt: now },
-  { id: 's2', title: "Reply to Sam's message", done: false, createdAt: now - DAY, updatedAt: now },
-  { id: 's3', title: 'Start the laundry, just sort the pile', done: false, createdAt: now - DAY, updatedAt: now },
-  { id: 's4', title: 'Book the dentist', done: false, due: TODAY_ISO, createdAt: now - 3 * DAY, updatedAt: now },
-  { id: 's5', title: 'Take the bins out', done: true, completedAt: noon, createdAt: now - DAY, updatedAt: now },
-];
-
-const LOOKBACK_TASKS = [
-  { id: 'l1', title: 'Water the plants', done: true, completedAt: noon, createdAt: noon - DAY, updatedAt: now },
-  // More finished today, so the Calendar shot shows a day's worth kept rather than an empty scrapbook box.
-  { id: 'l7', title: 'Call the plumber', done: true, completedAt: noon - 3600000, createdAt: noon - DAY, updatedAt: now },
-  { id: 'l8', title: 'Pick up the dry cleaning', done: true, completedAt: noon - 7200000, createdAt: noon - DAY, updatedAt: now },
-  { id: 'l9', title: 'Answer the school email', done: true, completedAt: noon - 10800000, createdAt: noon - 2 * DAY, updatedAt: now },
-  { id: 'l2', title: "Reply to Sam's message", done: true, completedAt: noon - DAY, createdAt: noon - 2 * DAY, updatedAt: now },
-  { id: 'l3', title: 'Sort the recycling', done: true, completedAt: noon - 2 * DAY, createdAt: noon - 2 * DAY, updatedAt: now },
-  { id: 'l4', title: 'Do the tax return', done: true, completedAt: noon - DAY, complexity: 40, createdAt: noon - 12 * DAY, updatedAt: now },
-  { id: 'l5', title: 'Take a short walk', done: true, completedAt: noon - 3 * DAY, createdAt: noon - 3 * DAY, updatedAt: now },
-  { id: 'l6', title: 'Book the dentist', done: false, due: TODAY_ISO, createdAt: noon - 3 * DAY, updatedAt: now },
-];
-
-/** Play's shared list: reads like a real household's, because strangers on a store page see it. English only. */
-const PLAY_OURS_ROWS = [
-  ['Bin night', { weekly: true }],
-  ['Pick up the parcel', { due: TODAY_ISO }],
-  ['Cat food, the kidney one'],
-  ['Ask about the gutter'],
-  ['Batteries, the small ones'],
-  ['Book the car service', { due: isoDay(noon + 3 * DAY) }],
-];
-
-// --- App Store seed data, per language, from the catalogue's landing cast and landing-shots.mjs's tables ---------
+// --- the seed data, per language (both stores since 1.10.0), from the catalogue's landing cast and landing-shots.mjs ---
 // Copied, not imported, from scripts/landing-shots.mjs (the decision log's rule against a shared scripts/ module:
 // the duplication is loud and greppable, a shared import would break both at once). If one changes, check the other.
 const OURS_ROWS = {
@@ -173,17 +152,17 @@ const cast = (loc) => ({
   bins: tr(loc, 'landing.castBins'),
   taxes: tr(loc, 'landing.castTaxes'),
   sam: tr(loc, 'landing.castSam'),
-  dentist: OTHER_DAYS[loc][2],
 });
 
-/** Today at 14:00: three open, one due today, one already done. The taxes are three weeks old, the held one. */
+/** Today at 14:00: three open, one already done. The taxes are three weeks old, the held one. Four rows, not five
+ *  (1.10.0): with a fifth, the longer languages could not reach the + button's own slot at the list's end without
+ *  carrying the date and Menu off the top, and a list sized to be doable is the point of the shot anyway. */
 const iosToday = (loc) => {
   const c = cast(loc);
   return [
     { id: 't1', title: c.pharmacy, done: false, createdAt: at(17, 9), updatedAt: at(18, 9) },
     { id: 't2', title: c.sam, done: false, createdAt: at(17, 18), updatedAt: at(18, 9) },
     { id: 't3', title: c.taxes, done: false, createdAt: at(18, 9) - 21 * DAY, updatedAt: at(18, 9) },
-    { id: 't4', title: c.dentist, done: false, due: TODAY_ISO, createdAt: at(15, 9), updatedAt: at(18, 9) },
     { id: 't5', title: c.bins, done: true, completedAt: at(18, 9), createdAt: at(17, 9), updatedAt: at(18, 9) },
   ];
 };
@@ -205,32 +184,47 @@ const iosCalendar = (loc) => {
   ];
 };
 
-/** The joined room's rows: bin night every Sunday, a parcel for today, three that wait, and one with a later day. */
+/** The store shots' shared weekly chore, in place of OURS_ROWS' bin night (which stays on the landing): the slides
+ *  pair this room with a Today that has already ticked its own bins, and in four languages the two read as one task
+ *  left open (es, fr and it used the very same words). */
+const SHARED_CHORE = {
+  en: 'Change the sheets',
+  de: 'Bettwäsche wechseln',
+  es: 'Cambiar las sábanas',
+  fr: 'Changer les draps',
+  it: 'Cambiare le lenzuola',
+};
+
+/** The joined room's rows, true to the same Sunday as Today: the sheets every Saturday, the parcel tomorrow, two that
+ *  wait, and the dentist later in the week. Nothing is dated today, because anything dated today would be on Today's slide
+ *  too ("Anything with a day reaches both your Todays"), and nothing repeats what Today already shows. */
 const iosOurs = (loc) => [
-  [OURS_ROWS[loc][0], { weekly: true }],
-  [OURS_ROWS[loc][1], { due: TODAY_ISO }],
+  [SHARED_CHORE[loc], { weekly: true }],
+  [OURS_ROWS[loc][1], { due: isoDay(noon + DAY) }],
   [OURS_ROWS[loc][2]],
   [OURS_ROWS[loc][3]],
-  [cast(loc).pharmacy],
-  [OTHER_DAYS[loc][0], { due: isoDay(noon + 3 * DAY) }],
+  [OTHER_DAYS[loc][2], { due: isoDay(noon + 3 * DAY) }], // not [0] or [1] or [3]: the capture slide types those
 ];
 
 // --- the shots ---------------------------------------------------------------------------------------------------
-// Play: listed in the order they should be UPLOADED to the Console, which is the order a shopper swipes.
-// Captions are user-facing: no em-dashes. They go through the same caption gate as the App Store's.
+// Play: listed in the order they should be UPLOADED to the Console, which is the order a shopper swipes. `name` is
+// the docs/play-store/captions.json key. Every wait is a catalogue string or a fixture title, never English UI copy,
+// so every language renders. Since 1.10.0 the screens carry the same per-language cast as the App Store set.
 const PLAY_SHOTS = [
-  { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do', caption: 'Today is finite and achievable.' },
-  { name: 'today-light', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', scrollEnd: true, caption: 'Only today, sized to feel possible.' },
+  { name: 'welcome', route: '/welcome', tasks: iosToday, theme: 'light', ready: (loc) => tr(loc, 'welcome.tagline') },
+  { name: 'today-light', route: '/today', tasks: iosToday, theme: 'light', ready: (loc) => cast(loc).pharmacy, scrollEnd: true },
   // Today v3's headline: the floating + and the panel it raises, with a few lines typed in. "In one go", not
   // "One tap to add": the + opens the box and Add is a second tap, so the old caption stretched it.
-  { name: 'capture', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Drink a glass of water', pill: 'Call the plumber\nWater the fern\nPick up the dry cleaning', caption: 'Empty your head in one go.' },
-  { name: 'ours-room', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: PLAY_OURS_ROWS, waitText: 'Bin night', caption: 'One shared list. Never a scoreboard.' },
-  { name: 'lookback-light', route: '/lookback', tasks: LOOKBACK_TASKS, theme: 'light', waitText: 'Water the plants', caption: 'Everything you finish, you keep.' },
-  { name: 'ours-when', route: '/ours-list', tasks: TODAY_TASKS, theme: 'light', ours: PLAY_OURS_ROWS, waitText: 'Cat food', hold: 'Cat food', then: 'when-door', caption: 'A shared day, set from either phone.' },
-  { name: 'today-dark', route: '/today', tasks: TODAY_TASKS, theme: 'dark', waitText: 'Drink a glass of water', scrollEnd: true, caption: 'A calm home screen, day or night.' },
+  { name: 'capture', route: '/today', tasks: iosToday, theme: 'light', ready: (loc) => cast(loc).pharmacy, pill: (loc) => [OTHER_DAYS[loc][0], OTHER_DAYS[loc][1], OTHER_DAYS[loc][3]].join('\n') },
+  { name: 'ours-room', route: '/ours-list', tasks: () => [], theme: 'light', ours: iosOurs, ready: (loc) => SHARED_CHORE[loc] },
+  { name: 'lookback-light', route: '/lookback', tasks: iosCalendar, theme: 'light', ready: (loc) => cast(loc).sam, keepsake: true, fold: 'scrapbook-card' },
+  // Held on the gutter (short in every language, so the sheet's title field never clips), and set to Tomorrow, so the
+  // sheet says the day reaches both people, which is what the caption promises (Anytime "reaches nobody's day").
+  { name: 'ours-when', route: '/ours-list', tasks: () => [], theme: 'light', ours: iosOurs, ready: (loc) => OURS_ROWS[loc][3], hold: (loc) => OURS_ROWS[loc][3], then: 'when-door', pick: (loc) => tr(loc, 'common.tomorrow') },
+  { name: 'today-dark', route: '/today', tasks: iosToday, theme: 'dark', ready: (loc) => cast(loc).pharmacy, scrollEnd: true },
   // Settle breathes on a chained Animated loop, so it needs longer than the others to reach a frame
   // worth photographing. `motion: 'system'` on purpose: 'reduce' stops the breathing this shot is OF.
-  { name: 'settle-light', route: '/settle', tasks: TODAY_TASKS, theme: 'light', motion: 'system', realClock: true, waitText: 'Breathing guide', delay: 2600, caption: 'A quiet room, for when today gets loud.' },
+  { name: 'settle-light', route: '/settle', tasks: () => [], theme: 'light', motion: 'system', realClock: true, ready: (loc) => tr(loc, 'settle.guidePillOn'), delay: 2600 },
   // No settings-light since Path C (2026-09-27): it showed "Colour theme PREMIUM", and no Play screenshot
   // may show a Premium surface. The capture shot took its seat.
 ];
@@ -244,21 +238,26 @@ const IOS_SHOTS = [
   // `topAnchor`, not `scrollEnd`: the card is too tall for the list's end to show the Right now card whole, and a
   // sliver of it across the top edge reads as a mistake.
   { name: 'held-card', route: '/today', tasks: iosToday, theme: 'light', ready: (loc) => cast(loc).taxes, hold: (loc) => cast(loc).taxes, topAnchor: (loc) => tr(loc, 'today.rightNow') },
-  { name: 'calendar', route: '/lookback', tasks: iosCalendar, theme: 'light', ready: (loc) => cast(loc).sam },
+  { name: 'calendar', route: '/lookback', tasks: iosCalendar, theme: 'light', ready: (loc) => cast(loc).sam, keepsake: true, fold: 'scrapbook-card' },
   // Kept focused: the box's accent edge is the point of this one. No Speak: the phones never draw it.
   { name: 'capture', route: '/today', tasks: iosToday, theme: 'light', ready: (loc) => cast(loc).pharmacy, pill: (loc) => [OTHER_DAYS[loc][0], OTHER_DAYS[loc][1], OTHER_DAYS[loc][3]].join('\n') },
   // Dark, because a cream room on a cream slide washes out, and it shows the night face without its own slot.
   // The real clock (a fake one holds the breathing on its first frame) and real motion (reduce stops it).
   { name: 'settle', route: '/settle', tasks: () => [], theme: 'dark', motion: 'system', realClock: true, ready: (loc) => tr(loc, 'settle.guidePillOn'), delay: 2600 },
   // A joined room for two, so it never reads "Waiting for your person".
-  { name: 'ours', route: '/ours-list', tasks: () => [], theme: 'light', ours: iosOurs, ready: (loc) => OURS_ROWS[loc][0] },
+  { name: 'ours', route: '/ours-list', tasks: () => [], theme: 'light', ours: iosOurs, ready: (loc) => SHARED_CHORE[loc] },
 ];
 
 const PLAY_DEVICES = [
   { dir: 'phone', w: 1080, h: 1920 },
-  { dir: 'tablet7', w: 1200, h: 1920 },
-  { dir: 'tablet10', w: 1600, h: 2560 },
+  { dir: 'tablet7', w: 1200, h: 1920, tablet: true },
+  { dir: 'tablet10', w: 1600, h: 2560, tablet: true },
 ];
+// The tablet slides are made for the default listing's language only (Melroy, 2026-10-25: 120 slides was overkill).
+// A translated Play listing with no tablet shots of its own shows the default's, and almost nobody runs this app on
+// a tablet, so four more tablet sets would cost 64 uploads and about 48 MB of public repo for next to nothing.
+// TABLETS=all makes them anyway.
+const TABLET_LOCALES = process.env.TABLETS === 'all' ? null : new Set(['en']);
 // Apple's iPhone slots, all from the one 1320x2868 raw: 6.9" Dynamic Island large, 6.5" Face ID large (the slot
 // App Store Connect demanded on 2026-08-17), 6.3" Dynamic Island medium (the one Apple's page now calls required).
 const IOS_DEVICES = [
@@ -269,6 +268,10 @@ const IOS_DEVICES = [
 
 const RAW_VP = STORE === 'ios' ? { width: 440, height: 956 } : { width: 412, height: 892 };
 const RAW_SCALE = STORE === 'ios' ? 3 : 2;
+/** How much of a `fold` element the frame shows, in CSS px: the keepsake's heading and the top of its picture. The
+ *  scroll may give back up to the gap between the two to keep whatever it cut at the top edge whole. */
+const FOLD_SHOW = 200;
+const FOLD_MIN = 140;
 const RAW_RATIO = RAW_VP.height / RAW_VP.width;
 
 // --- the caption gate ---------------------------------------------------------------------------------------------
@@ -304,27 +307,34 @@ function captionProblems(entries) {
   return out;
 }
 
-function iosCaptions() {
-  const all = JSON.parse(readFileSync(CAPTIONS_FILE, 'utf8'));
+/** One store's captions, gated. The App Store's are one or two authored lines (arrays); Play's are one sentence each
+ *  (a string, which may wrap on the slide). */
+function loadCaptions(file, shots, store) {
+  const all = JSON.parse(readFileSync(file, 'utf8'));
   const entries = [];
   const problems = [];
   for (const loc of LOCALES) {
     if (!LOCALE_TAG[loc]) problems.push(`${loc}: not a language the app ships`);
     const set = all[loc];
     if (!set) {
-      problems.push(`${loc}: captions.json has no "${loc}" captions`);
+      problems.push(`${loc}: ${path.relative(ROOT, file)} has no "${loc}" captions`);
       continue;
     }
-    for (const shot of IOS_SHOTS) {
-      if (!(shot.name in set)) problems.push(`${loc}/${shot.name}: no caption`);
-      else entries.push({ where: `${loc}/${shot.name}`, loc, lines: set[shot.name] });
+    for (const shot of shots) {
+      if (!(shot.name in set)) problems.push(`${store}/${loc}/${shot.name}: no caption`);
+      else {
+        const c = set[shot.name];
+        entries.push({ where: `${store}/${loc}/${shot.name}`, loc, lines: store !== 'play' ? c : [Array.isArray(c) ? c.join(' ') : c] });
+      }
     }
-    for (const k of Object.keys(set)) if (!IOS_SHOTS.some((s) => s.name === k)) problems.push(`${loc}/${k}: a caption for no shot`);
+    for (const k of Object.keys(set)) if (!shots.some((s) => s.name === k)) problems.push(`${store}/${loc}/${k}: a caption for no shot`);
   }
   problems.push(...captionProblems(entries));
-  if (problems.length) throw new Error(`captions.json fails the caption gate:\n  ${problems.join('\n  ')}`);
+  if (problems.length) throw new Error(`${path.relative(ROOT, file)} fails the caption gate:\n  ${problems.join('\n  ')}`);
   return all;
 }
+const iosCaptions = () => loadCaptions(CAPTIONS_FILE, IOS_SHOTS, 'ios');
+const playCaptions = () => loadCaptions(PLAY_CAPTIONS_FILE, PLAY_SHOTS, 'play');
 
 // --- the capture -------------------------------------------------------------------------------------------------
 const OURS_PAIR = '00000000-1111-2222-3333-444444444444';
@@ -382,14 +392,14 @@ async function stubNetwork(page, loc, shot, ours) {
     title,
     done: false,
     done_at: null,
-    recurrence: o.weekly ? { kind: 'weekly', weekdays: [0], start: '2026-09-06' } : null,
+    recurrence: o.weekly ? { kind: 'weekly', weekdays: [6], start: '2026-09-05' } : null, // Saturdays, from a Saturday
     completions: null,
     due: o.due ?? null,
     created_at: iso(at(10, 9) + i * 60000),
     updated_at: iso(at(17, 9)),
     deleted_at: null,
   }));
-  const pairName = STORE === 'ios' ? tr(loc, 'ours.presetJustUs') : 'Just us';
+  const pairName = tr(loc, 'ours.presetJustUs');
   await page.route('**/rest/v1/**', async (route) => {
     const url = new URL(route.request().url());
     const json = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
@@ -440,6 +450,9 @@ async function captureRaw(browser, shot, loc) {
     const session = oursSession();
     payload[session.key] = session.value;
   }
+  if (shot.keepsake && KEEPSAKE) {
+    payload['doubledone.scrapbooks.v1'] = JSON.stringify([{ weekStart: TODAY_ISO, image: `data:image/jpeg;base64,${KEEPSAKE}`, caption: '', createdAt: at(18, 13) }]);
+  }
   await ctx.addInitScript(seedLocalStorage, payload);
   await ctx.addInitScript(pinRandom);
   await ctx.addInitScript(noSpeech);
@@ -452,8 +465,10 @@ async function captureRaw(browser, shot, loc) {
   if (ready) await page.getByText(ready, { exact: false }).first().waitFor({ timeout: 60000 });
   await page.evaluate(() => document.fonts.ready.then(() => true));
   // The dev server's error toast (#error-toast, Expo's web LogBox) floats in the bottom-left corner whenever
-  // anything logged a warning. It is not the app, so it never belongs in a shot. Nor does a caret caught mid-blink.
-  await page.addStyleTag({ content: '#error-toast { display: none !important; } * { caret-color: transparent !important; }' });
+  // anything logged a warning, and its fast-refresh badge (.__expo_fast_refresh, a lightning bolt) sits there for
+  // the first moments of a run (it covered the capture panel's When pill in 1.10.0's first English set). Neither is
+  // the app, so neither belongs in a shot. Nor does a caret caught mid-blink.
+  await page.addStyleTag({ content: '#error-toast, .__expo_fast_refresh { display: none !important; } * { caret-color: transparent !important; }' });
   await page.waitForTimeout(shot.delay ?? 700); // let the calm fades settle
 
   // `hold`: long-press a row by its words, then tap something on the card that opens. The held card and the
@@ -475,6 +490,13 @@ async function captureRaw(browser, shot, loc) {
       await page.locator(`[data-testid="${shot.then}"]`).first().click({ timeout: 15000 });
       await page.waitForTimeout(700);
     }
+    const pick = val(shot.pick, loc);
+    if (pick) {
+      // Visible only: in English the last "Tomorrow" on the page is a hidden one, and `.last()` alone waited on it
+      // until the timeout (German happened to pass).
+      await page.getByText(pick, { exact: true }).filter({ visible: true }).last().click({ timeout: 15000 });
+      await page.waitForTimeout(500);
+    }
   }
 
   // `pill`: open the capture panel from the floating + and type into it (the Today v3 capture is state, not a
@@ -492,11 +514,50 @@ async function captureRaw(browser, shot, loc) {
   if (!pill) await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
   // `scrollEnd`: bring the list to its end, where the floating + rests in its own slot below the last line.
   if (shot.scrollEnd) {
-    await page.evaluate(() => {
+    const menu = page.getByText(tr(loc, 'today.menu'), { exact: true }).first();
+    const menuTop = (await menu.count()) ? ((await menu.boundingBox())?.y ?? null) : null;
+    await page.evaluate((menuTop) => {
       const els = [...document.querySelectorAll('div')].filter((d) => /auto|scroll/.test(getComputedStyle(d).overflowY) && d.scrollHeight > d.clientHeight + 4);
       const el = els.sort((a, b) => b.clientHeight - a.clientHeight)[0];
-      if (el) el.scrollTop = el.scrollHeight;
-    });
+      if (!el) return;
+      // The Menu pill's top, measured unscrolled, less a little air: the furthest the list may go.
+      const cap = menuTop == null ? el.scrollHeight : Math.max(0, menuTop + el.scrollTop - 12);
+      el.scrollTop = Math.min(el.scrollHeight, cap);
+    }, menuTop);
+    await page.waitForTimeout(400);
+  }
+  // `fold`: scroll (down only) until that element's top sits FOLD_SHOW px above the bottom edge, so the frame ends
+  // inside it. The Calendar needs it: at Play's shorter viewport, and wherever a longer language wraps the subtitle or
+  // the day list, the keepsake fell below the frame and its heading read as an empty box.
+  if (shot.fold) {
+    await page.locator(`[data-testid="${shot.fold}"]`).first().evaluate((el, { show, min }) => {
+      let s = el.parentElement;
+      while (s && !(/auto|scroll/.test(getComputedStyle(s).overflowY) && s.scrollHeight > s.clientHeight + 4)) s = s.parentElement;
+      if (!s) return;
+      const over = el.getBoundingClientRect().top - (s.getBoundingClientRect().bottom - show);
+      if (over <= 0) return;
+      s.scrollTop += over;
+      // Never leave anything sliced at the top edge (the Calendar's title and header art read as broken strips).
+      // For the topmost thing the edge cuts, step back until it is whole if the frame still shows enough of `el`,
+      // else carry on until it is gone. Repeat, since a step can cut the next thing.
+      const box = () => s.getBoundingClientRect();
+      const cutAtTop = () => {
+        const t = box().top;
+        return [...s.querySelectorAll('*')]
+          .filter((d) => d.tagName === 'IMG' || getComputedStyle(d).backgroundImage !== 'none' || (d.children.length === 0 && d.textContent.trim()))
+          .map((d) => d.getBoundingClientRect())
+          .filter((r) => r.height > 4 && r.height < box().height / 2 && r.top < t - 1 && r.bottom > t + 1) // not a backdrop
+          .sort((a, b) => a.top - b.top)[0];
+      };
+      for (let i = 0; i < 6; i++) {
+        const r = cutAtTop();
+        if (!r) break;
+        const t = box().top;
+        const back = t - r.top + 6;
+        const shownAfterBack = box().bottom - (el.getBoundingClientRect().top + back);
+        s.scrollTop += shownAfterBack >= min ? -back : r.bottom - t + 6;
+      }
+    }, { show: FOLD_SHOW, min: FOLD_MIN });
     await page.waitForTimeout(400);
   }
   // `topAnchor`: scroll so the card holding that catalogue string sits just under the top edge.
@@ -514,7 +575,21 @@ async function captureRaw(browser, shot, loc) {
       const card = n && n !== document.body ? n : el;
       let s = card.parentElement;
       while (s && !(/auto|scroll/.test(getComputedStyle(s).overflowY) && s.scrollHeight > s.clientHeight + 4)) s = s.parentElement;
-      if (s) s.scrollTop += card.getBoundingClientRect().top - 14;
+      if (!s) return;
+      s.scrollTop += card.getBoundingClientRect().top - 10;
+      // Whatever sits above the card must not peek in. The selected energy chip's bottom border showed as a 1px line
+      // at the top edge whatever the offset (14, 10, 6), because in four languages the list was already at its
+      // furthest scroll. So step BACK until each thing the edge cuts shows whole (the energy row, then its label),
+      // which works at the scroll limit too. Small things only: a backdrop or a section always straddles.
+      for (let i = 0; i < 4; i++) {
+        const t = s.getBoundingClientRect().top;
+        const cut = [...s.querySelectorAll('*')]
+          .filter((d) => !d.contains(card))
+          .map((d) => d.getBoundingClientRect())
+          .filter((r) => r.height > 0 && r.height < 80 && r.top < t - 0.5 && r.bottom > t + 0.5);
+        if (!cut.length) break;
+        s.scrollTop -= t - Math.min(...cut.map((r) => r.top)) + 8;
+      }
     });
     await page.waitForTimeout(400);
   }
@@ -536,6 +611,14 @@ async function captureRaw(browser, shot, loc) {
 }
 
 // --- the slides --------------------------------------------------------------------------------------------------
+/** A Play caption as unbreakable pieces, so a wrap falls after a comma or a full stop rather than stranding "para",
+ *  "quand" or "wenn" at a line's end (the 1.10.0 native read). A string splits itself there; an array in the json
+ *  names its own pieces, for a sentence with no comma to break at. One line when it fits, either way. */
+function captionPieces(c) {
+  const pieces = Array.isArray(c) ? c : c.split(/(?<=[,.;:?]) +/);
+  return pieces.map((p) => `<span class="seg">${escapeHTML(p)}</span>`).join(' ');
+}
+
 function slideHTML({ w, h, caption, rawB64 }) {
   const phoneH = Math.round(h * 0.67);
   const phoneW = Math.round(phoneH / RAW_RATIO);
@@ -549,7 +632,10 @@ ${FONT_FACE}
 html,body{width:${w}px;height:${h}px;overflow:hidden}
 .slide{width:${w}px;height:${h}px;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:${Math.round(h * 0.045)}px;background:linear-gradient(165deg,#FBF8F2 0%,#F2EADB 58%,#E8DDC8 100%);position:relative}
-.cap{font-family:${SERIF};font-weight:600;color:#4a4034;font-size:${capSize}px;line-height:1.22;text-align:center;max-width:${Math.round(w * 0.82)}px}
+.cap{font-family:${SERIF};font-weight:600;color:#4a4034;font-size:${capSize}px;line-height:1.22;width:${Math.round(w * 0.82)}px;
+  height:${Math.round(capSize * 1.22 * 2)}px;display:flex;align-items:flex-end;justify-content:center}
+.capt{text-align:center;text-wrap:balance}
+.seg{display:inline-block}
 .phone{width:${phoneW}px;height:${phoneH}px;background:#2b2b2e;border-radius:${radius}px;padding:${bezel}px;
   box-shadow:0 ${Math.round(h * 0.016)}px ${Math.round(h * 0.05)}px rgba(74,52,38,.20)}
 .phone img{width:100%;height:100%;display:block;border-radius:${radius - bezel}px;object-fit:cover}
@@ -557,7 +643,7 @@ html,body{width:${w}px;height:${h}px;overflow:hidden}
   font-weight:600;color:#a4988388;color:rgba(120,108,90,.65);font-size:${wordSize}px;letter-spacing:.5px}
 </style></head><body>
 <div class="slide">
-  <div class="cap">${caption}</div>
+  <div class="cap"><div class="capt">${caption}</div></div>
   <div class="phone"><img src="data:image/png;base64,${rawB64}"></div>
   <div class="word">DoubleDone</div>
 </div></body></html>`;
@@ -687,23 +773,29 @@ function layoutGuard(where) {
   };
 }
 
-async function runPlay(browser) {
-  const shots = PLAY_SHOTS.filter((s) => !NAMES || NAMES.has(s.name));
+async function runPlay(browser, captions) {
+  const shots = PLAY_SHOTS.map((s, i) => ({ ...s, file: `${String(i + 1).padStart(2, '0')}-${s.name}.png` })).filter(
+    (s) => !NAMES || NAMES.has(s.name),
+  );
   if (NAMES && shots.length !== NAMES.size) throw new Error(`NAMES has a slide Play does not: ${[...NAMES].join(', ')}`);
-  for (const d of [...(NAMES ? [] : ['icon', 'feature']), ...PLAY_DEVICES.map((x) => x.dir)]) {
-    await mkdir(path.join(OUT, d), { recursive: true });
-  }
-  console.log('· capturing raw app screens');
-  for (const shot of shots) {
-    shot.raw = await captureRaw(browser, shot, 'en');
-    console.log(`  ✓ ${shot.name}`);
-  }
-  for (const dev of PLAY_DEVICES) {
-    console.log(`· framing ${dev.dir} (${dev.w}x${dev.h})`);
+  for (const d of NAMES ? [] : ['icon', 'feature']) await mkdir(path.join(OUT, d), { recursive: true });
+  for (const loc of LOCALES) {
+    console.log(`· ${loc}: capturing raw app screens (${RAW_VP.width}x${RAW_VP.height} at ${RAW_SCALE})`);
+    const raws = {};
     for (const shot of shots) {
-      const html = slideHTML({ w: dev.w, h: dev.h, caption: shot.caption, rawB64: shot.raw });
-      await renderExact(browser, html, dev.w, dev.h, path.join(OUT, dev.dir, `${shot.name}.png`));
-      console.log(`  ✓ ${dev.dir}/${shot.name}`);
+      raws[shot.name] = await captureRaw(browser, shot, loc);
+      console.log(`  ✓ ${shot.name}`);
+    }
+    for (const dev of PLAY_DEVICES) {
+      if (dev.tablet && TABLET_LOCALES && !TABLET_LOCALES.has(loc)) continue;
+      const dir = path.join(OUT, dev.dir, loc);
+      if (!dir.startsWith(OUT + path.sep)) throw new Error(`refusing to write outside ${OUT}`);
+      await mkdir(dir, { recursive: true });
+      for (const shot of shots) {
+        const html = slideHTML({ w: dev.w, h: dev.h, caption: captionPieces(captions[loc][shot.name]), rawB64: raws[shot.name] });
+        await renderExact(browser, html, dev.w, dev.h, path.join(dir, shot.file));
+        console.log(`  ✓ ${dev.dir}/${loc}/${shot.file}`);
+      }
     }
   }
   // The icon and the feature graphic only on a whole-set run: a NAMES run regenerates just the slides it names.
@@ -713,7 +805,7 @@ async function runPlay(browser) {
     await renderExact(browser, featureHTML(), 1024, 500, path.join(OUT, 'feature', 'feature-1024x500.png'));
     console.log('  ✓ icon-512, feature-1024x500');
   }
-  console.log(`\nwrote Play assets to ${path.relative(ROOT, OUT)}/`);
+  console.log(`\nwrote Play assets to ${path.relative(ROOT, OUT)}/ (raw captures in ${RAW_DIR})`);
 }
 
 async function runIos(browser, captions) {
@@ -745,14 +837,12 @@ async function runIos(browser, captions) {
 
 async function run() {
   // The gate runs before any browser starts, so a bad caption costs nothing.
-  const captions = STORE === 'ios' ? iosCaptions() : null;
-  const playProblems = captionProblems(PLAY_SHOTS.map((s) => ({ where: `play/${s.name}`, loc: 'en', lines: [s.caption] })));
-  if (playProblems.length) throw new Error(`a Play caption fails the caption gate:\n  ${playProblems.join('\n  ')}`);
+  const captions = STORE === 'ios' ? iosCaptions() : playCaptions();
 
   const browser = await chromium.launch({ executablePath: chromePath(), headless: true });
   try {
     if (STORE === 'ios') await runIos(browser, captions);
-    else await runPlay(browser);
+    else await runPlay(browser, captions);
   } finally {
     await browser.close();
   }

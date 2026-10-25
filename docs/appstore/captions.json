@@ -1,11 +1,133 @@
 {
-  "_about": "The App Store slide captions, read by STORE=ios node scripts/play-assets.mjs and its caption gate. One key per shot, in upload order, each one or two authored lines (one line per array item, and each must render as one line). English only for 1.9.0. A language is rendered only once it has all six here, natively reviewed. These move into catalogue storeShots.* keys when the localised sets happen. No dashes, no exclamation marks, no digits or prices, no other platform or biller, nothing a phone does not do, and French keeps its no-break space before ? ! : ;",
+  "_about": "The App Store slide captions, read by STORE=ios node scripts/play-assets.mjs and its caption gate. One key per shot, in upload order, each one or two authored lines (one line per array item, and each must render as one line). All five languages since 1.10.0 (2026-10-25), each translated and then natively read by a second reader. No dashes, no exclamation marks, no digits or prices, no other platform or biller, nothing a phone does not do, and French keeps its no-break space before ? ! : ; and inside guillemets. Spanish is one neutral set for Mexico and Spain.",
   "en": {
-    "today": ["Only today,", "sized to feel possible."],
-    "held-card": ["Too big to start?", "Break it down."],
-    "calendar": ["See everything", "you actually did."],
-    "capture": ["Empty your head", "in one go."],
-    "settle": ["A quiet room", "for loud days."],
-    "ours": ["One shared list.", "Never a scoreboard."]
+    "today": [
+      "Only today,",
+      "sized to feel possible."
+    ],
+    "held-card": [
+      "Too big to start?",
+      "Break it down."
+    ],
+    "calendar": [
+      "See everything",
+      "you actually did."
+    ],
+    "capture": [
+      "Empty your head",
+      "in one go."
+    ],
+    "settle": [
+      "A quiet room",
+      "for loud days."
+    ],
+    "ours": [
+      "One shared list.",
+      "Never a scoreboard."
+    ]
+  },
+  "de": {
+    "today": [
+      "Nur heute,",
+      "in machbarer Größe."
+    ],
+    "held-card": [
+      "Zu groß zum Anfangen?",
+      "Mach Schritte draus."
+    ],
+    "calendar": [
+      "Sieh, was du alles",
+      "geschafft hast."
+    ],
+    "capture": [
+      "Kopf leeren,",
+      "in einem Rutsch."
+    ],
+    "settle": [
+      "Ein stiller Raum",
+      "für laute Tage."
+    ],
+    "ours": [
+      "Eine Liste für zwei.",
+      "Keiner zählt mit."
+    ]
+  },
+  "fr": {
+    "today": [
+      "Juste aujourd’hui,",
+      "à taille humaine."
+    ],
+    "held-card": [
+      "Une tâche énorme ?",
+      "Décompose-la."
+    ],
+    "calendar": [
+      "Tout ce que tu as fait",
+      "est bien là."
+    ],
+    "capture": [
+      "Vide ta tête",
+      "d’un seul coup."
+    ],
+    "settle": [
+      "Une pièce calme",
+      "quand tout déborde."
+    ],
+    "ours": [
+      "Une liste à deux,",
+      "pas une compétition."
+    ]
+  },
+  "es": {
+    "today": [
+      "Solo hoy,",
+      "a tu alcance."
+    ],
+    "held-card": [
+      "¿Demasiado grande?",
+      "Divídela en pasos."
+    ],
+    "calendar": [
+      "Mira todo",
+      "lo que sí hiciste."
+    ],
+    "capture": [
+      "Vacía la cabeza",
+      "de una sola vez."
+    ],
+    "settle": [
+      "Una sala tranquila",
+      "cuando todo es ruido."
+    ],
+    "ours": [
+      "Una lista compartida.",
+      "Nadie lleva la cuenta."
+    ]
+  },
+  "it": {
+    "today": [
+      "Solo oggi,",
+      "alla tua portata."
+    ],
+    "held-card": [
+      "Da dove si comincia?",
+      "Dividi in passaggi."
+    ],
+    "calendar": [
+      "Guarda tutto quello",
+      "che hai fatto davvero."
+    ],
+    "capture": [
+      "Svuota la testa",
+      "in un colpo solo."
+    ],
+    "settle": [
+      "Una stanza tranquilla",
+      "nei giorni rumorosi."
+    ],
+    "ours": [
+      "Una lista in due.",
+      "Mai una classifica."
+    ]
   }
 }

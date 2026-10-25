@@ -208,17 +208,20 @@ second English one) needs its own paste.
   comes out 4+ before saving: a 13+ on a calm to-do app is a real cost.
 - **EULA:** Apple's standard, plus the terms URL already at the end of the description.
 
-## Screenshots (1.9.0: six captioned slides, upload in this order)
+## Screenshots (1.10.0: six captioned slides in five languages, upload in this order)
 
 Each slide is the real app, drawn the way a phone draws it, on a warm slide with a two-line caption above a
 frameless screen card. The files are numbered, so the file order is the upload order. The captions live in
-[captions.json](captions.json), English only this version, and a gate checks them before anything is captured.
+[captions.json](captions.json) in English, German, French, Spanish and Italian (one neutral Spanish set, for both
+Spanish localisations), every language natively read, and a gate checks them before anything is captured. Since
+1.10.0 each language's screens are that language's app with that language's cast, not English screens under a
+translated caption. The English captions:
 
 | # | File | Caption | Why here |
 |---|---|---|---|
-| 1 | `01-today.jpeg` | Only today, / sized to feel possible. | The promise. The gauge on the screen reads "A gentle day. Room to breathe." |
+| 1 | `01-today.jpeg` | Only today, / sized to feel possible. | The promise. Four tasks, one done, the grips showing. The gauge on the screen reads "A gentle day. Room to breathe." |
 | 2 | `02-held-card.jpeg` | Too big to start? / Break it down. | The moment you are stuck. Break down is on every held card, free, with AI on or off. Held on a three-week-old "Do my taxes". |
-| 3 | `03-calendar.jpeg` | See everything / you actually did. | The payoff, in the screen's own words ("For when your brain says you did nothing"). The taxes are the big one. |
+| 3 | `03-calendar.jpeg` | See everything / you actually did. | The payoff, in the screen's own words ("For when your brain says you did nothing"). The taxes are the big one, and this week's keepsake begins at the fold. |
 | 4 | `04-capture.jpeg` | Empty your head / in one go. | The box takes many lines at once and offers "Add 3". No Speak button, because no phone has one. |
 | 5 | `05-settle.jpeg` | A quiet room / for loud days. | Settle is free and never earned. Dark, because a cream room on a cream slide washes out, and it shows the night face without spending a slot on it. |
 | 6 | `06-ours.jpeg` | One shared list. / Never a scoreboard. | Nothing on the list shows who did what. A joined room ("Kept with Sam"), never "Waiting for your person". |
@@ -229,14 +232,17 @@ Optimization test settles that slot later, which needs no new version.
 
 | Folder | Size | Slot |
 |---|---|---|
-| `docs/appstore/captioned/6.9/en/` | 1320x2868 | iPhone 6.9-inch (Dynamic Island, large). Upload this set first. |
-| `docs/appstore/captioned/6.5/en/` | 1284x2778 | iPhone 6.5-inch, the slot App Store Connect demanded on 2026-08-17. |
-| `docs/appstore/captioned/6.3/en/` | 1206x2622 | iPhone 6.3-inch (Dynamic Island, medium), the size Apple's page now names as required. |
+| `docs/appstore/captioned/6.9/<lang>/` | 1320x2868 | iPhone 6.9-inch (Dynamic Island, large). Upload this set first. |
+| `docs/appstore/captioned/6.5/<lang>/` | 1284x2778 | iPhone 6.5-inch, the slot App Store Connect demanded on 2026-08-17. |
+| `docs/appstore/captioned/6.3/<lang>/` | 1206x2622 | iPhone 6.3-inch (Dynamic Island, medium), the size Apple's page now names as required. |
+
+`<lang>` is `en`, `de`, `fr`, `es` or `it`.
 
 Fill every slot App Store Connect marks as required. All three come from one capture, so they show the same thing.
 
-**Regenerate:** `npm run dev`, then `STORE=ios node scripts/play-assets.mjs` in Git Bash, or
-`$env:STORE='ios'; node scripts/play-assets.mjs` in PowerShell. `NAMES=today,ours` renders a subset. The run
+**Regenerate:** `npm run dev`, then `STORE=ios LOCALES=en,de,fr,es,it node scripts/play-assets.mjs` in Git Bash, or
+`$env:STORE='ios'; $env:LOCALES='en,de,fr,es,it'; node scripts/play-assets.mjs` in PowerShell (LOCALES defaults to
+`en`). `NAMES=today,ours` renders a subset. The run
 fails, rather than warns, on any of these:
 - a caption with a dash, "!", a digit or a currency, another platform or a biller (Android, Google, Play,
   Stripe), or a feature a phone does not have (Speak, the widget), or a French line without its no-break space
@@ -249,9 +255,18 @@ the clock is pinned to Sunday 18 October 2026 at 14:00 (Settle keeps the real cl
 and speech recognition is deleted before the app boots. The raw captures land in the system temp folder
 (`dd-store-shots`), for a look at the corners.
 
-**In App Store Connect, on the 1.9.0 version:** delete every old shot that carried over, then upload 01 to 06 in
-order in every size slot it marks. ASC shows the English set in every storefront and localisation until a
-localised set exists (parked in the Backlog).
+**In App Store Connect, on the version being submitted, in each localisation:** delete every old shot that carried
+over, then upload 01 to 06 in order in every size slot it marks, from that localisation's folder:
+
+| Localisation | Folder |
+|---|---|
+| The primary English, and English (U.K.) | `en` |
+| German | `de` |
+| French | `fr` |
+| Spanish (Mexico) and Spanish (Spain) | `es` |
+| Italian | `it` |
+
+Screenshots lock once a version is submitted, so they go up before Add for Review, never after.
 
 **Look before upload.** Open all six on a phone, full screen, at real size (manual case DEP-04). A render that
 passes every check has still not been looked at.
