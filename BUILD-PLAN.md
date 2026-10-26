@@ -42,6 +42,24 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**IMMEDIATE NEXT ACTION (parked 2026-10-27 for token budget, Melroy: "save it to be done first thing"): iOS 27
+bug, typing with the Apple keyboard makes the list scroll up endlessly.** Reported by a friend on an iPhone 16 Pro,
+iOS 27.0.1. Only with Apple's own keyboard (implies a third-party keyboard is fine). Not yet reproduced.
+- **Ask first (cheap, decides the search):** which screen and field (the capture panel, a task card's "Where you
+  left off" line, rename, the note screen?), which app version (1.10.0 or older), does it stop when he stops typing,
+  and does it stop with Predictive text off (Settings > General > Keyboard).
+- **Leads found in the code (not yet tested):** (1) Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
+  (today.tsx, near the `keyboardDismissMode` comment), and iOS re-adjusts the inset on every keyboard frame
+  change. If iOS 27's Apple keyboard changes its frame per keystroke (the suggestion bar), a multiline field
+  inside the list could be scrolled into view again and again. (2) The `keyboardDidShow` listener for
+  `revealField` / `liftAboveKeyboard` (today.tsx, about line 470) has NO dependency array, so it re-subscribes on
+  every render, and it scrolls by `listScrollY + overlap`; repeated keyboard events plus a stale `listScrollY`
+  would ratchet the list up. (3) CaptureSheet's `keyboardWillShow` lift (CaptureSheet.tsx about line 253) and
+  note.tsx's `keyboardDidShow` kbHeight, the same per-event shape.
+- **How:** iOS-only, so the build loop, not the web preview (memory: Android-only bugs need the build loop; the
+  same holds here). Reproduce on a device or the iOS 27 simulator, log keyboard events per keystroke, fix, test,
+  and only then an iOS build, on Melroy's explicit ask (the quota rule).
+
 **DATED: rerun the store search ranks on 2026-11-01, then around 2026-11-22** (`python scripts/store-ranks.py
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
 Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
