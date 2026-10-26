@@ -68,8 +68,9 @@ and cast, visually QA'd by a native reviewer per store and language (Play: phone
 only; App Store: the 6.5 and 6.3 sets, the console's two slots, with 6.9 the spare; 6.5 re-rendered at 1260x2736
 on 2026-10-26 when the slot refused 1284x2778). Upload guide: `docs/release-notes/1.10.0.md`. **iOS 1.10.0
 SUBMITTED for App Review on 2026-10-26 (Melroy), with the new screenshots in every localisation. Android 1.10.0
-LIVE on Google Play the same day (Melroy), so `version.json` android went 1.9.0 to 1.10.0; ios stays 1.9.0 until
-Apple releases it.** Next: the Play
+LIVE on Google Play the same day (Melroy), so `version.json` android went 1.9.0 to 1.10.0. iOS 1.10.0 LIVE on
+the App Store the same day too (Melroy), so ios went 1.9.0 to 1.10.0. Both stores now carry drag by the grip and
+"A month on us".** Next: the Play
 screenshots, uploaded when Melroy has the time (64 uploads, the Play half of the guide; a Play listing change
 reviews on its own and locks nothing), then bump `version.json` per store once each 1.10.0 is genuinely live.
 
