@@ -45,9 +45,13 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 **IMMEDIATE NEXT ACTION (parked 2026-10-27 for token budget, Melroy: "save it to be done first thing"): iOS 27
 bug, typing with the Apple keyboard makes the list scroll up endlessly.** Reported by a friend on an iPhone 16 Pro,
 iOS 27.0.1. Only with Apple's own keyboard (implies a third-party keyboard is fine). Not yet reproduced.
-- **Ask first (cheap, decides the search):** which screen and field (the capture panel, a task card's "Where you
-  left off" line, rename, the note screen?), which app version (1.10.0 or older), does it stop when he stops typing,
-  and does it stop with Predictive text off (Settings > General > Keyboard).
+- **Answers (Melroy, 2026-10-27):** the ADD PANEL (the capture box); on 1.10.0 AND an older build, so not the
+  drag code; it moves on KEYSTROKES only. Predictive-off untested (optional confirm: if it stops, the per-keystroke
+  keyboard-frame event is proven). **Melroy has a screen video**: ask for it first, it shows WHICH thing scrolls
+  (the panel, its text box, or Today behind it).
+- **So start with lead (3):** CaptureSheet.tsx's iOS `keyboardWillShow` lift, and the capture box's ScrollView
+  in BrainDump.tsx (`doorScroll`). Check whether the lift ADDS to its offset per event rather than setting it,
+  and whether iOS 27 fires `keyboardWillShow` / `keyboardWillChangeFrame` per keystroke with Predictive on.
 - **Leads found in the code (not yet tested):** (1) Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
   (today.tsx, near the `keyboardDismissMode` comment), and iOS re-adjusts the inset on every keyboard frame
   change. If iOS 27's Apple keyboard changes its frame per keystroke (the suggestion bar), a multiline field
