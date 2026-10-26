@@ -50,9 +50,18 @@ iOS 27.0.1. Only with Apple's own keyboard (implies a third-party keyboard is fi
   keyboard-frame event is proven). **The friend's screen video is on Melroy's machine** (its path is in Claude's
   private memory, `ios27-keyboard-scroll-video`, kept out of this public repo): watch it first (pull frames with
   ffmpeg), it shows WHICH thing scrolls (the panel, its text box, or Today behind it).
-- **So start with lead (3):** CaptureSheet.tsx's iOS `keyboardWillShow` lift, and the capture box's ScrollView
-  in BrainDump.tsx (`doorScroll`). Check whether the lift ADDS to its offset per event rather than setting it,
-  and whether iOS 27 fires `keyboardWillShow` / `keyboardWillChangeFrame` per keystroke with Predictive on.
+- **DIAGNOSED from the video (2026-10-27, 21s, frames at 1/s):** the panel and its text box never move. It is
+  TODAY'S LIST BEHIND THE PANEL that steps on every keystroke, climbing from its footer through the tasks to the
+  Today heading and the top. So it is lead (1), not (3): Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
+  (added with "Where you left off", 1.8.0, hence the older build too), and Apple's iOS 27 keyboard changes its frame
+  per keystroke (the suggestion row), so UIKit re-adjusts the list each time although the focused field is in the
+  panel, not the list.
+- **The fix (one prop, not yet made):** `automaticallyAdjustKeyboardInsets={!sheetOpen}` on Today's ScrollView in
+  today.tsx. While the panel is up the list is a modal backdrop with its own panel padding, and Android already
+  skips `listKb` while `sheetOpen`; the card's line field (the reason the prop exists) keeps it, since no panel is
+  open then. Then: an E2E case (iOS, type in the add panel on Apple's keyboard, the list behind never moves), check
+  the card's line field still lifts above the keyboard, and an iOS build only on Melroy's ask. If the line field
+  shows the same creep, the wider fix is to own the lift (revealField already does) and drop the prop entirely.
 - **Leads found in the code (not yet tested):** (1) Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
   (today.tsx, near the `keyboardDismissMode` comment), and iOS re-adjusts the inset on every keyboard frame
   change. If iOS 27's Apple keyboard changes its frame per keystroke (the suggestion bar), a multiline field
