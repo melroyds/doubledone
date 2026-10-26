@@ -47,8 +47,9 @@ bug, typing with the Apple keyboard makes the list scroll up endlessly.** Report
 iOS 27.0.1. Only with Apple's own keyboard (implies a third-party keyboard is fine). Not yet reproduced.
 - **Answers (Melroy, 2026-10-27):** the ADD PANEL (the capture box); on 1.10.0 AND an older build, so not the
   drag code; it moves on KEYSTROKES only. Predictive-off untested (optional confirm: if it stops, the per-keystroke
-  keyboard-frame event is proven). **Melroy has a screen video**: ask for it first, it shows WHICH thing scrolls
-  (the panel, its text box, or Today behind it).
+  keyboard-frame event is proven). **The friend's screen video is on Melroy's machine** (its path is in Claude's
+  private memory, `ios27-keyboard-scroll-video`, kept out of this public repo): watch it first (pull frames with
+  ffmpeg), it shows WHICH thing scrolls (the panel, its text box, or Today behind it).
 - **So start with lead (3):** CaptureSheet.tsx's iOS `keyboardWillShow` lift, and the capture box's ScrollView
   in BrainDump.tsx (`doorScroll`). Check whether the lift ADDS to its offset per event rather than setting it,
   and whether iOS 27 fires `keyboardWillShow` / `keyboardWillChangeFrame` per keystroke with Predictive on.
