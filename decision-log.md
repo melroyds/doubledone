@@ -11026,3 +11026,22 @@ down, so nothing softens). Also learned at this upload: the console shows only t
 6.3-inch, and no 6.9 one, so the guides now map `6.5/` and `6.3/` to them and call `6.9/` the spare (they had it
 the other way round). **Decided against:** uploading the 6.9 set into that slot as well (it would pass, but
 the 6.5 folder would then be a set nobody can use), and leaving the slot to scale the 6.3 set up.
+
+## 2026-11-01: the add panel no longer moves the list behind it on iOS 27
+
+A friend's iPhone 16 Pro (iOS 27.0.1, 1.10.0 and 1.9, screen video 2026-10-27): typing in the add panel on Apple's
+keyboard made Today's list behind it climb one step per keystroke to its top. Two independent reviews of React
+Native 0.85.3's source confirmed the cause: the list's `automaticallyAdjustKeyboardInsets` handler shifts it by each
+keyboard frame change while a field OUTSIDE it with an input accessory view is focused, the panel's box is the only
+such field, and iOS 27's keyboard posts a frame change per keystroke.
+
+**Decided:** the prop is off while the panel is up (`!sheetOpen`); the panel reports itself open in the same
+handler that opens it, so a share's 60ms focus cannot beat the flag and strand a keyboard-high gap, re-reports after
+every commit so an early report that never landed is corrected (a reviewer's find: a share into a closed day's cold
+start left the web list inert), puts its keyboard away when `hidden` shuts it, and skips a delayed focus onto a panel
+hidden meanwhile. CAP-20 covers it, three ways in.
+
+**Decided against:** dropping the box's Done bar (`inputAccessoryViewID`), which also zeroes the shift but takes a
+way to put the keyboard down from a multiline box where Return makes a new line; dropping the prop entirely and
+owning every keyboard lift by hand, a bigger change for a field (the card's line) the prop already serves and that
+cannot climb; reading the frame events and undoing them, which fights React Native instead of switching it off.

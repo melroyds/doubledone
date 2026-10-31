@@ -128,7 +128,31 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   const [pillW] = useState(() => new Animated.Value(PILL_W));
   const [kbLift] = useState(() => new Animated.Value(0));
 
-  const openSheet = useCallback(() => setOpen(true), []);
+  // Reported on a CHANGE only (a parent's handler is a fresh function every render). Reported in the same
+  // handler as the open as well, not only by the effect below: Today switches its list's iOS keyboard insets
+  // off while the panel is up, and a share or the Brain dump shortcut focuses the box 60ms after opening, so
+  // a report that waited for an effect and a second Today render could lose that race, leaving the list a
+  // keyboard-high gap after Close (the 2026-11-01 review of the iOS 27 fix).
+  const lastOpen = useRef(false);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  });
+  // The share's delayed focus re-checks this, so it never lands on a panel hidden in the meantime.
+  const hiddenRef = useRef(hidden);
+  useEffect(() => {
+    hiddenRef.current = hidden;
+  });
+  const report = useCallback((next: boolean) => {
+    if (lastOpen.current === next) return;
+    lastOpen.current = next;
+    onOpenChangeRef.current?.(next);
+  }, []);
+
+  const openSheet = useCallback(() => {
+    setOpen(true);
+    if (!hidden) report(true);
+  }, [hidden, report]);
   const closeSheet = useCallback(() => {
     dumpRef.current?.stopListening(); // a closed panel never keeps a hot mic writing into it
     dumpRef.current?.blurField();
@@ -148,9 +172,10 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
         return;
       }
       setOpen(true);
+      report(true);
       // After the panel has started to rise, so a focus that raises the keyboard lands on a field that is
       // on its way up rather than one still below the screen.
-      setTimeout(() => dumpRef.current?.seed(text, focus), focus ? 60 : 0);
+      setTimeout(() => dumpRef.current?.seed(text, focus && !hiddenRef.current), focus ? 60 : 0);
     },
     clear: () => dumpRef.current?.clear(),
   }));
@@ -158,13 +183,15 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   // A hidden sheet is a shut one (select mode, a closed day): the pill goes, the words stay.
   const shown = open && !hidden;
 
-  // Reported on a CHANGE only (a parent's handler is a fresh function every render).
-  const lastOpen = useRef(false);
+  // Every other change (Close, Sort, `hidden` flipping either way) is reported here, once. After EVERY commit,
+  // not only when `shown` changes: an early report(true) from seed whose open lands in the same render as
+  // `hidden` turning true (a share into a closed day's cold start, where the closed date loads at once) leaves
+  // `shown` false to false, and only this run puts Today's sheetOpen back, or its list stays inert behind a
+  // panel nobody can see. The change-only guard keeps it cheap.
   useEffect(() => {
-    if (lastOpen.current === shown) return;
-    lastOpen.current = shown;
-    onOpenChange?.(shown);
-  }, [shown, onOpenChange]);
+    report(shown);
+  });
+
 
   // The rise, the scrim and the pill, together. Reduced motion: no travel, a 90ms cross-fade.
   useEffect(() => {
@@ -194,6 +221,13 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
     }
     if (!shown && was) {
       dumpRef.current?.stopListening(); // however it shut (Close, Sort, select mode), the mic goes with it
+      // Shut by `hidden` (select mode, a closed day, a held card) rather than by Close, which puts the keyboard
+      // away itself: the field could keep the keyboard over a panel nobody can see, and with the panel reported
+      // shut Today's list takes its keyboard insets back, so the per-keystroke climb would resume behind it.
+      if (hidden) {
+        dumpRef.current?.blurField();
+        Keyboard.dismiss();
+      }
       const id = setTimeout(() => {
         const pill = pillRef.current;
         if (!pill) return;
@@ -202,7 +236,7 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
       }, reduced ? 100 : 220);
       return () => clearTimeout(id);
     }
-  }, [shown, reduced]);
+  }, [shown, reduced, hidden]);
 
   // Words waiting: the pill widens (instantly under reduced motion) and grows its three dots.
   const waiting = draft && !shown;

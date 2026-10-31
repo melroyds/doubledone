@@ -3472,8 +3472,17 @@ export default function TodayScreen() {
         ]}
         // iOS lifts the list above the keyboard on its own, so a card's editor low on the screen stays in
         // reach (the "Where you left off" field made the card's editor taller). Android, which ignores
-        // resize, gets the keyboard's height as room at the end instead (listKb).
-        automaticallyAdjustKeyboardInsets
+        // resize, gets the keyboard's height as room at the end instead (listKb). NOT while the capture
+        // panel is up. React Native's handler for this prop (RCTScrollViewComponentView's
+        // _keyboardWillChangeFrame, RN 0.85) shifts the list's offset by the keyboard's frame change whenever
+        // the focused field sits OUTSIDE the list and carries an input accessory view, and the panel's box is
+        // the one field in the app that does (its Done bar). On iOS 27, Apple's keyboard posts a frame change
+        // on every keystroke, so the list behind the panel climbed a step per letter to its top (a friend's
+        // iPhone 16 Pro, iOS 27.0.1, 1.10.0 and 1.9, screen video 2026-10-27). The panel reports itself open
+        // in the same handler that opens it (CaptureSheet), before a share's 60ms focus can raise the keyboard,
+        // and puts the keyboard away before it reports shut, so no inset is applied with this on and left
+        // behind with it off. Android skips listKb while the panel is up the same way.
+        automaticallyAdjustKeyboardInsets={!sheetOpen}
         keyboardShouldPersistTaps="handled"
         onScroll={(e) => {
           listScrollY.current = e.nativeEvent.contentOffset.y;

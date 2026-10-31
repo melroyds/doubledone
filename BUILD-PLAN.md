@@ -42,37 +42,22 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**IMMEDIATE NEXT ACTION (parked 2026-10-27 for token budget, Melroy: "save it to be done first thing"): iOS 27
-bug, typing with the Apple keyboard makes the list scroll up endlessly.** Reported by a friend on an iPhone 16 Pro,
-iOS 27.0.1. Only with Apple's own keyboard (implies a third-party keyboard is fine). Not yet reproduced.
-- **Answers (Melroy, 2026-10-27):** the ADD PANEL (the capture box); on 1.10.0 AND an older build, so not the
-  drag code; it moves on KEYSTROKES only. Predictive-off untested (optional confirm: if it stops, the per-keystroke
-  keyboard-frame event is proven). **The friend's screen video is on Melroy's machine** (its path is in Claude's
-  private memory, `ios27-keyboard-scroll-video`, kept out of this public repo): watch it first (pull frames with
-  ffmpeg), it shows WHICH thing scrolls (the panel, its text box, or Today behind it).
-- **DIAGNOSED from the video (2026-10-27, 21s, frames at 1/s):** the panel and its text box never move. It is
-  TODAY'S LIST BEHIND THE PANEL that steps on every keystroke, climbing from its footer through the tasks to the
-  Today heading and the top. So it is lead (1), not (3): Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
-  (added with "Where you left off", 1.8.0, hence the older build too), and Apple's iOS 27 keyboard changes its frame
-  per keystroke (the suggestion row), so UIKit re-adjusts the list each time although the focused field is in the
-  panel, not the list.
-- **The fix (one prop, not yet made):** `automaticallyAdjustKeyboardInsets={!sheetOpen}` on Today's ScrollView in
-  today.tsx. While the panel is up the list is a modal backdrop with its own panel padding, and Android already
-  skips `listKb` while `sheetOpen`; the card's line field (the reason the prop exists) keeps it, since no panel is
-  open then. Then: an E2E case (iOS, type in the add panel on Apple's keyboard, the list behind never moves), check
-  the card's line field still lifts above the keyboard, and an iOS build only on Melroy's ask. If the line field
-  shows the same creep, the wider fix is to own the lift (revealField already does) and drop the prop entirely.
-- **Leads found in the code (not yet tested):** (1) Today's ScrollView sets `automaticallyAdjustKeyboardInsets`
-  (today.tsx, near the `keyboardDismissMode` comment), and iOS re-adjusts the inset on every keyboard frame
-  change. If iOS 27's Apple keyboard changes its frame per keystroke (the suggestion bar), a multiline field
-  inside the list could be scrolled into view again and again. (2) The `keyboardDidShow` listener for
-  `revealField` / `liftAboveKeyboard` (today.tsx, about line 470) has NO dependency array, so it re-subscribes on
-  every render, and it scrolls by `listScrollY + overlap`; repeated keyboard events plus a stale `listScrollY`
-  would ratchet the list up. (3) CaptureSheet's `keyboardWillShow` lift (CaptureSheet.tsx about line 253) and
-  note.tsx's `keyboardDidShow` kbHeight, the same per-event shape.
-- **How:** iOS-only, so the build loop, not the web preview (memory: Android-only bugs need the build loop; the
-  same holds here). Reproduce on a device or the iOS 27 simulator, log keyboard events per keystroke, fix, test,
-  and only then an iOS build, on Melroy's explicit ask (the quota rule).
+**IMMEDIATE NEXT ACTION: an iOS build for the add-panel scroll fix, on Melroy's ask, then CAP-20 on a device.**
+The bug (a friend's iPhone 16 Pro, iOS 27.0.1, 1.10.0 and 1.9, screen video 2026-10-27): typing in the add panel
+on Apple's keyboard made Today's list BEHIND the panel climb one step per keystroke to its top. **FIXED on main
+2026-11-01, not yet on any phone** (it is native behaviour, so the web deploy changes nothing for iPhones).
+- **Cause, confirmed in React Native 0.85.3's source by two independent reviews:** Today's ScrollView set
+  `automaticallyAdjustKeyboardInsets`, and RN's handler for it (`RCTScrollViewComponentView`'s
+  `_keyboardWillChangeFrame`) shifts the list's offset by each keyboard frame change while the focused field is
+  OUTSIDE the list and carries an input accessory view. The panel's box is the one field in the app that does (its
+  Done bar), and iOS 27's keyboard posts a frame change per keystroke. Card editors inside the list cannot climb.
+- **The fix:** `automaticallyAdjustKeyboardInsets={!sheetOpen}` (today.tsx), plus two holes the reviews found in
+  CaptureSheet.tsx: the panel now reports itself open in the same handler that opens it (a share or the Brain dump
+  shortcut focuses the box 60ms after opening, which could beat an effect-delayed report and strand a keyboard-high
+  gap after Close), and a panel shut by `hidden` puts its keyboard away (else the climb resumed behind it).
+- **Device test:** CAP-20 (pill, a Notes share and the Brain dump shortcut, each typed in and closed; no step per
+  keystroke, no gap after Close) and LEFT-10 (the card's line field still rises above the keyboard). If CAP-20
+  still climbs, the sharp A/B is to drop the box's `inputAccessoryViewID` (BrainDump.tsx): the shift becomes zero.
 
 **DATED: rerun the store search ranks on 2026-11-01, then around 2026-11-22** (`python scripts/store-ranks.py
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
