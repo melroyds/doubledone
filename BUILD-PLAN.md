@@ -61,7 +61,7 @@ on Apple's keyboard made Today's list BEHIND the panel climb one step per keystr
   keystroke, no gap after Close) and LEFT-10 (the card's line field still rises above the keyboard). If CAP-20
   still climbs, the sharp A/B is to drop the box's `inputAccessoryViewID` (BrainDump.tsx): the shift becomes zero.
 
-**DATED: rerun the store search ranks on 2026-11-01, then around 2026-11-22** (`python scripts/store-ranks.py
+**DATED: rerun the store search ranks around 2026-11-22** (the 2026-11-01 rerun is done and read: mostly up, Spanish still invisible) (`python scripts/store-ranks.py
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
 Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
 

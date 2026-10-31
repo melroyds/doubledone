@@ -34,6 +34,19 @@ by search term (what people actually typed), and Apple Ads keyword popularity, w
 - **Decided: change nothing on six days of data.** Rerun on 2026-11-01, then again around 2026-11-22, and only then
   judge the keyword sets.
 
+## Reading the first rerun (2026-11-01, thirteen days after 1.9.0)
+
+Too early to judge (the two to four weeks above), so this is a direction, not a verdict. **Mostly up.**
+- **Up:** "audhd" in all three English stores (Australia 21 to 14, the US 60 to 48, the UK 35 to 31), "adhd to do
+  list" in the UK (43 to 29), "adhd planner" in Australia (108 to 79), "to do list" in Australia (93 to 78), Germany's
+  "adhs to do liste" (12 to 8) and Italy's "lista cose da fare" (61 to 42).
+- **New:** the UK now shows DoubleDone at 38 for plain "adhd", a broad search it was absent from.
+- **Flat:** "adhd to do list" in Australia (18) and the US (29 to 31), Italy's "adhd lista" (10 to 9), France's
+  "tdah liste de tâches" (109 to 114), and the Australian keyword-field tail (ocd, neurodivergent).
+- **Lost:** Germany's plain "adhs" (87 to outside 188) and Australia's "autism planner" (179, at the edge, now outside).
+- **Spain and Mexico: still nothing,** a fortnight in. The pre-decided call: if they are still invisible at the
+  second rerun (about 22 November), rework the Spanish name, subtitle and keywords in the next version.
+
 ## Runs
 
 ### 2026-10-25
@@ -105,3 +118,73 @@ by search term (what people actually typed), and Apple Ads keyword popularity, w
 | MX | doubledone | **1** | **1** |
 | MX | tdah | not in 195 | not in 30 |
 | MX | lista de tareas | not in 186 | not in 30 |
+
+### 2026-11-01
+
+| Store | Search | App Store |
+|---|---|---|
+| AU | doubledone | **1** |
+| AU | adhd to do list | **18** |
+| AU | adhd planner | **79** |
+| AU | adhd | not in 194 |
+| AU | to do list | **78** |
+| AU | calm planner | not in 186 |
+| AU | autism planner | not in 180 |
+| AU | audhd | **14** |
+| AU | ocd planner | **163** |
+| AU | neurodivergent planner | **154** |
+| AU | brain dump | not in 179 |
+| AU | task breakdown | not in 135 |
+| AU | shared to do list | not in 183 |
+| AU | couples to do list | not in 191 |
+| AU | household chores | not in 186 |
+| AU | low energy planner | not in 183 |
+| US | doubledone | **1** |
+| US | adhd to do list | **31** |
+| US | adhd planner | not in 192 |
+| US | adhd | not in 191 |
+| US | to do list | not in 184 |
+| US | calm planner | not in 189 |
+| US | autism planner | not in 184 |
+| US | audhd | **48** |
+| US | ocd planner | not in 184 |
+| US | neurodivergent planner | not in 193 |
+| US | brain dump | not in 173 |
+| US | task breakdown | not in 153 |
+| US | shared to do list | not in 158 |
+| US | couples to do list | not in 192 |
+| US | household chores | not in 188 |
+| US | low energy planner | not in 187 |
+| GB | doubledone | **1** |
+| GB | adhd to do list | **29** |
+| GB | adhd planner | not in 196 |
+| GB | adhd | **38** |
+| GB | to do list | not in 182 |
+| GB | calm planner | not in 185 |
+| GB | autism planner | not in 190 |
+| GB | audhd | **31** |
+| GB | ocd planner | not in 185 |
+| GB | neurodivergent planner | not in 192 |
+| GB | brain dump | not in 181 |
+| GB | task breakdown | not in 128 |
+| GB | shared to do list | not in 183 |
+| GB | couples to do list | not in 188 |
+| GB | household chores | not in 189 |
+| GB | low energy planner | not in 184 |
+| DE | doubledone | **1** |
+| DE | adhs to do liste | **8** |
+| DE | adhs | not in 188 |
+| DE | aufgabenliste | not in 173 |
+| FR | doubledone | **1** |
+| FR | tdah | not in 192 |
+| FR | liste de tâches | not in 194 |
+| FR | tdah liste de tâches | **114** |
+| IT | doubledone | **1** |
+| IT | adhd lista | **9** |
+| IT | lista cose da fare | **42** |
+| ES | doubledone | **1** |
+| ES | tdah | not in 194 |
+| ES | lista de tareas | not in 176 |
+| MX | doubledone | **1** |
+| MX | tdah | not in 195 |
+| MX | lista de tareas | not in 187 |
