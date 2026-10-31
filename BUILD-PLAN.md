@@ -42,7 +42,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**IMMEDIATE NEXT ACTION: an iOS build for the add-panel scroll fix, on Melroy's ask, then CAP-20 on a device.**
+**IMMEDIATE NEXT ACTION: CAP-20 on an iPhone from TestFlight, then submit 1.10.1.** iOS 1.10.1 build 49 QUEUED
+2026-11-01 on Melroy's "set up an iOS build" (EAS `865365f0`, from main `4758f8e`, with `--auto-submit`, so it goes to
+TestFlight by itself; submission `7c88c5d5`). Android not built: the fix is iOS-only behaviour.
 The bug (a friend's iPhone 16 Pro, iOS 27.0.1, 1.10.0 and 1.9, screen video 2026-10-27): typing in the add panel
 on Apple's keyboard made Today's list BEHIND the panel climb one step per keystroke to its top. **FIXED on main
 2026-11-01, not yet on any phone** (it is native behaviour, so the web deploy changes nothing for iPhones).
