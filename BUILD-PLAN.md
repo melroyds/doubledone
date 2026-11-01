@@ -51,8 +51,10 @@ rollback target), check `git diff --stat main premium -- server` is empty, then 
 a status proves nothing (`/event` answers 200 to unknown names too, and a test POST would put a fake row in the gate),
 so read D1 a day or two later: `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command
 "SELECT day, event, n FROM app_event_counts WHERE event IN ('day.closed.morning','reentry.shown')"`.
-**Read the gate 21 days after the deploy** (about 23 Nov, beside the ranks rerun): build "Set today aside" only if
-`day.closed.morning` has rows on 3 or more distinct days, or 3 people have asked for a rest day. The Backlog entry has
+**Read the gate 21 days after the first store build that carries the counters** (the R8 Android build, due by
+1 Dec, or the next iOS build; 1.10.1 does not carry them), with the web counting from the Worker deploy meanwhile, so
+a web-only read around 22 Nov is an early look, not the verdict: build "Set today aside" only if `day.closed.morning`
+has rows on 3 or more distinct days, or 3 people have asked for a rest day. The Backlog entry has
 the design.
 
 **iOS 1.10.1 (build 49) SUBMITTED for App Review 2026-11-01 (Melroy), pasted from `docs/release-notes/1.10.1.md`.** Next: bump `version.json` ios to 1.10.1 once Apple releases it. Melroy, 2026-11-01, after TestFlight: "Looks good to me for release." The friend's iOS 27 phone is still the decisive CAP-20 check once 1.10.1 is live. iOS 1.10.1 build 49 QUEUED
@@ -306,8 +308,8 @@ the ladder is fixed and readable, never randomised.
   exactly as it is and the reminder still comes; anything dated today is named so nothing hides; notifications do not
   change at all; peeking does not end it; every ask stands down for the day (offers, the rating card, What's New);
   never counted, free forever, invisible to an Ours partner. About 5 to 7 dev days plus Melroy's design and two store
-  builds. **Trigger:** `day.closed.morning` on 3+ distinct days in the 21 days after the Worker deploy, or 3
-  independent asks. If neither, close it as answered. **Away** (a holiday mode) is Tier 3 and needs three real asks
+  builds. **Trigger:** `day.closed.morning` on 3+ distinct days in the 21 days after the first store build that
+  carries it (the web counts from the Worker deploy, an early look only), or 3 independent asks. If neither, close it as answered. **Away** (a holiday mode) is Tier 3 and needs three real asks
   of its own, read beside `reentry.shown`. **Never:** a weekly rest pattern, a fourth Energy pill, a reason picker, or
   any count of rest days.
 - **The web reminder keeps the time zone offset it was given at subscribe (found 2026-11-01).** `reminders.web.ts`
