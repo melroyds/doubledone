@@ -42,7 +42,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**IMMEDIATE NEXT ACTION: submit iOS 1.10.1 (build 49) for App Review, pasting from `docs/release-notes/1.10.1.md`.** Melroy, 2026-11-01, after TestFlight: "Looks good to me for release." The friend's iOS 27 phone is still the decisive CAP-20 check once 1.10.1 is live. iOS 1.10.1 build 49 QUEUED
+**iOS 1.10.1 (build 49) SUBMITTED for App Review 2026-11-01 (Melroy), pasted from `docs/release-notes/1.10.1.md`.** Next: bump `version.json` ios to 1.10.1 once Apple releases it. Melroy, 2026-11-01, after TestFlight: "Looks good to me for release." The friend's iOS 27 phone is still the decisive CAP-20 check once 1.10.1 is live. iOS 1.10.1 build 49 QUEUED
 2026-11-01 on Melroy's "set up an iOS build" (EAS `865365f0`, from main `4758f8e`, with `--auto-submit`, so it goes to
 TestFlight by itself; submission `7c88c5d5`). Android not built: the fix is iOS-only behaviour.
 The bug (a friend's iPhone 16 Pro, iOS 27.0.1, 1.10.0 and 1.9, screen video 2026-10-27): typing in the add panel
