@@ -957,7 +957,7 @@ export function TaskRow({
             hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text style={[styles.actionLabel, big && styles.actionLabelActive]}>{t('today.markAsALot')}</Text>
-            <Text style={[styles.actionSub, big && styles.actionLabelActive]}>{big ? '✓' : t('today.weightHint')}</Text>
+            <Text style={[styles.actionSub, styles.holdSub, big && styles.actionLabelActive]}>{big ? '✓' : t('today.weightHint')}</Text>
           </Pressable>
         )}
         {/* The rail (design v2): the reorder pair as ONE segmented, hairline-bordered control.

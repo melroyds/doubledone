@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampHour, clampMinute, formatReminderHour, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL, MAX_NUDGE_LIFETIME_MS, slotTimeoutsMs } from './reminders-types';
+import { clampHour, clampMinute, formatReminderHour, reminderOffsetStale, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL, MAX_NUDGE_LIFETIME_MS, slotTimeoutsMs } from './reminders-types';
+
+describe('reminderOffsetStale (the web reminder across daylight saving)', () => {
+  it('is stale with nothing recorded, so every older subscription is refreshed once', () => {
+    expect(reminderOffsetStale(null, -660)).toBe(true);
+  });
+
+  it('is stale after a clock change, and fresh when the offset matches', () => {
+    // Melbourne: AEST is -600, AEDT is -660 (getTimezoneOffset is positive behind UTC).
+    expect(reminderOffsetStale('-600', -660)).toBe(true);
+    expect(reminderOffsetStale('-660', -660)).toBe(false);
+    expect(reminderOffsetStale('0', 0)).toBe(false);
+  });
+});
 
 describe('reminderReasonLine', () => {
   it('gives a distinct, non-empty, never-alarming line for each reason', () => {

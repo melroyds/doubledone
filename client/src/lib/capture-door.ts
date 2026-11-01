@@ -10,7 +10,7 @@
 // read through, never a second source of truth that could disagree.
 
 import { friendlyDate } from './day';
-import { ordinalDay, t } from './i18n-active';
+import { fmt, ordinalDay, t } from './i18n-active';
 
 export type CaptureWhen = 'today' | 'tomorrow' | 'date' | 'anytime';
 export type CaptureRepeat = 'daily' | 'weekly' | 'everyN' | 'monthly' | null;
@@ -63,7 +63,7 @@ export function whenLabel(s: Pick<DoorState, 'when' | 'dueDate'>, today: Date): 
   return friendlyDate(s.dueDate, today);
 }
 
-/** "Daily" / "Weekly on Mo, We" / "Every 3 days" / "Monthly on the 15th", or null when it does not repeat. */
+/** "Daily" / "Every Monday" / "Weekly on Mo, We" / "Every 3 days" / "Monthly on the 15th", or null when it does not repeat. */
 export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDays' | 'monthDay'>): string | null {
   if (s.repeat === 'daily') return t('capture.modeDaily');
   // The shorter of the two monthly wordings on purpose. `repeat.monthlyOnDay` ("Every month on the
@@ -71,6 +71,11 @@ export function repeatLabel(s: Pick<DoorState, 'repeat' | 'weekdays' | 'everyNDa
   // other pieces and have to stay tight.
   if (s.repeat === 'monthly') return t('capture.monthlyOn', { day: ordinalDay(s.monthDay ?? 1) });
   if (s.repeat === 'weekly') {
+    // One day reads as the row it will make ("Every Sunday", lib/recurrence's describeRecurrence), not as a
+    // two-letter abbreviation; 2024-01-07 is a known Sunday.
+    if (s.weekdays.length === 1) {
+      return t('repeat.everyOneWeekday', { day: fmt.weekday(new Date(2024, 0, 7 + (s.weekdays[0] ?? 0)), 'long') });
+    }
     const days = [...s.weekdays].sort((a, b) => a - b).map((d) => t(WEEKDAY_KEYS[d] ?? 'capture.weekdayShortSun'));
     return t('capture.weeklyOn', { days: days.join(', ') });
   }

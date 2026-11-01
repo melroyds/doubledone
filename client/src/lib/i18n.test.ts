@@ -65,7 +65,7 @@ describe('translate', () => {
   });
   it('returns the locale translation, and an unknown key falls through to itself', () => {
     expect(translate('it', 'common.close')).toBe('Chiudi');
-    expect(translate('fr', 'today.subtitle')).toBe("Juste aujourd'hui. Le reste peut attendre.");
+    expect(translate('fr', 'today.subtitle')).toBe('Juste aujourd’hui. Le reste peut attendre.');
     expect(translate('es', 'actions.lightenToday')).toBe('Aligera el día');
     expect(translate('en', 'nope.notakey')).toBe('nope.notakey'); // absent everywhere -> the key itself
   });
@@ -160,6 +160,22 @@ describe('French typography', () => {
     const walk = (node: unknown, path: string) => {
       if (typeof node === 'string') {
         if (/ [:?!;]/.test(node)) bad.push(path);
+      } else if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node as Record<string, unknown>)) walk(v, path ? `${path}.${k}` : k);
+      }
+    };
+    walk(fr, '');
+    expect(bad).toEqual([]);
+  });
+
+  // The typographic apostrophe (2026-11-01), the mark the French store captions use: Newsreader, the heading
+  // face, draws the straight one as a tick, and the catalogue held only straight ones.
+  it('uses the typographic apostrophe, never the straight one, in every French string', async () => {
+    const { fr } = await import('./catalogs/fr');
+    const bad: string[] = [];
+    const walk = (node: unknown, path: string) => {
+      if (typeof node === 'string') {
+        if (node.includes("'")) bad.push(path);
       } else if (node && typeof node === 'object') {
         for (const [k, v] of Object.entries(node as Record<string, unknown>)) walk(v, path ? `${path}.${k}` : k);
       }

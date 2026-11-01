@@ -54,6 +54,13 @@ export function staleNudgeIdentifiers(presented: { identifier: string; channelId
     .map((n) => n.identifier);
 }
 
+/** Whether the web reminder's stored time zone offset is out of date: none recorded on this browser
+ *  (every subscription made before 2026-11-01), or a daylight-saving change or a move since it was sent.
+ *  The server only learns the offset when this is true, so it never hears from a browser per open. */
+export function reminderOffsetStale(sentOffset: string | null, currentOffset: number): boolean {
+  return sentOffset !== String(currentOffset);
+}
+
 /** Clamp any number to a valid 0-23 hour (rounding), so a corrupt or out-of-range value never schedules nonsense. */
 export function clampHour(hour: number): number {
   if (!Number.isFinite(hour)) return 9;

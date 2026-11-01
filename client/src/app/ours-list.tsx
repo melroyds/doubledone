@@ -577,6 +577,9 @@ export default function OursListScreen() {
       const words = cadenceLine(task, now);
       return words ? `${words}  ·  ${t('ours.repeatUnknown')}` : t('ours.repeatUnknown');
     }
+    // A row due today says "Today", as the When sheet does (friendlyDate already says "Tomorrow"); until
+    // 2026-11-01 it showed a short date there, which the screenshot QA read as a different day.
+    if (!cadenceLine(task, now) && task.due === toISODate(now)) return t('common.today');
     return cadenceLine(task, now) ?? (task.due ? friendlyDate(task.due, now) : undefined);
   }
 

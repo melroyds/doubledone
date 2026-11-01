@@ -95,6 +95,10 @@ export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = 
   }
 }
 
+/** No-op on native: local notifications fire by the phone's own clock, so a time zone change needs nothing.
+ *  The web half re-sends its push subscription's offset (reminders.web.ts). */
+export async function refreshReminderOffset(_hour: number): Promise<void> {}
+
 /** Cancel the daily reminder (only it, never the per-task nudges). Best effort, never throws. */
 export async function disableDailyReminder(): Promise<void> {
   try {

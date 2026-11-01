@@ -26,7 +26,7 @@ export type Schedulable = {
 
 // 2024-01-07 is a known Sunday: a weekday index 0..6 renders through the locale-aware
 // formatter ("Sun".."Sat" in English) instead of a hardcoded English table.
-const weekdayName = (dow: number): string => fmt.weekday(new Date(2024, 0, 7 + dow));
+const weekdayName = (dow: number, width: 'short' | 'long' = 'short'): string => fmt.weekday(new Date(2024, 0, 7 + dow), width);
 
 /** Is this task due on `date`? This is what decides what lands on Today. */
 export function isDueOn(task: Schedulable, date: Date): boolean {
@@ -93,6 +93,10 @@ function cadenceLabel(r: Recurrence): string {
     case 'weekly': {
       if (r.weekdays.length === 7) return t('repeat.everyDay');
       if (r.weekdays.length === 0) return t('capture.modeWeekly');
+      // One day is spelled out ("Every Sunday"): the short form read as a stray abbreviation in five
+      // languages (the screenshot QA, 2026-10-25), and its own frame lets French say "Chaque dimanche"
+      // where "Tous les {days}" would need a plural it cannot add to a weekday name.
+      if (r.weekdays.length === 1) return t('repeat.everyOneWeekday', { day: weekdayName(r.weekdays[0], 'long') });
       // FRAMED, not bare. This returned just the weekday names ("Gio"), which read as a stray label
       // rather than a rhythm and was the odd one out beside its own siblings, "Every day" and
       // "Every 3 days". Melroy, looking at a shared row: "it just says Thursday. It doesn't specify
@@ -101,7 +105,7 @@ function cadenceLabel(r: Recurrence): string {
       const days = r.weekdays
         .slice()
         .sort((a, b) => a - b)
-        .map(weekdayName)
+        .map((d) => weekdayName(d))
         .join(', ');
       return t('repeat.everyWeekday', { days });
     }

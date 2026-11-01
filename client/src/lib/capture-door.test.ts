@@ -28,7 +28,7 @@ describe('repeatLabel', () => {
 
   it('names each cadence', () => {
     expect(repeatLabel(state({ repeat: 'daily' }))).toBe('Daily');
-    expect(repeatLabel(state({ repeat: 'weekly', weekdays: [1] }))).toBe('Weekly on Mo');
+    expect(repeatLabel(state({ repeat: 'weekly', weekdays: [1] }))).toBe('Every Monday');
     expect(repeatLabel(state({ repeat: 'everyN', everyNDays: 3 }))).toBe('Every 3 days');
     expect(repeatLabel(state({ repeat: 'monthly', monthDay: 15 }))).toBe('Monthly on the 15th');
   });
@@ -62,7 +62,7 @@ describe('doorSummary', () => {
   });
 
   it('joins everything set with middle dots', () => {
-    expect(doorSummary(state({ repeat: 'weekly', weekdays: [1] }), TODAY)).toBe('Today · Weekly on Mo');
+    expect(doorSummary(state({ repeat: 'weekly', weekdays: [1] }), TODAY)).toBe('Today · Every Monday');
     expect(doorSummary(state({ when: 'tomorrow', steps: 3 }), TODAY)).toBe('Tomorrow · 3 steps');
     expect(doorSummary(state({ when: 'date', repeat: 'daily' }), TODAY)).toBe(`${AUG2} · Daily`);
   });
@@ -77,7 +77,7 @@ describe('addButtonLabel', () => {
   it('repeats the consequential part before the tap', () => {
     expect(addButtonLabel(state({ when: 'tomorrow' }), TODAY, 1)).toBe('Add · Tomorrow');
     expect(addButtonLabel(state({ when: 'date' }), TODAY, 1)).toBe(`Add · ${AUG2}`);
-    expect(addButtonLabel(state({ repeat: 'weekly', weekdays: [1] }), TODAY, 1)).toBe('Add · Weekly on Mo');
+    expect(addButtonLabel(state({ repeat: 'weekly', weekdays: [1] }), TODAY, 1)).toBe('Add · Every Monday');
   });
 
   it('a repeat outranks the when (the when is only its start date)', () => {
@@ -109,7 +109,7 @@ describe('an anytime-default door (the shared list)', () => {
   // day, and the rhythm is the more useful half.
   it('lets a repeat SUPERSEDE the dayless answer rather than joining it', () => {
     expect(doorSummary(shared({ repeat: 'daily' }), TODAY)).toBe('Daily');
-    expect(doorSummary(shared({ repeat: 'weekly', weekdays: [2] }), TODAY)).toBe('Weekly on Tu');
+    expect(doorSummary(shared({ repeat: 'weekly', weekdays: [2] }), TODAY)).toBe('Every Tuesday');
   });
 
   // Elsewhere the when IS the repeat's start, which is worth saying, so the rule must stay local to

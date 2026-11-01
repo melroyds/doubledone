@@ -107,8 +107,8 @@ export default function PrivacyScreen() {
           In the phone apps, reminders are scheduled on your phone and nothing about them leaves it. On the website,
           the daily reminder travels through your browser&apos;s own push service, run by the company that makes your
           browser (Google, for Chrome). If you turn it on, our server keeps the push address your browser gives it,
-          the two keys that let us reach that address, the hour you picked, and your time zone&apos;s offset from UTC as
-          it was when you turned the reminder on or last changed its hour. Nothing else: no account, no email, and no
+          the two keys that let us reach that address, the hour you picked, and your time zone&apos;s offset from UTC, which
+          the app sends again only when it changes (after daylight saving, say), the next time you open it. Nothing else: no account, no email, and no
           task. The reminder itself carries no words (the message already sits in your browser), so the push service
           only learns that a reminder was sent. Turn it off and your browser drops the address and asks us to delete
           our copy. If you block notifications or clear the site&apos;s data instead, the push service tells us the

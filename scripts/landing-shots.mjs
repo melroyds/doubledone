@@ -59,9 +59,9 @@ const BREAKDOWN_STEPS = {
 // Four rows: the picture ends under the fourth with room to spare, and no fifth row peeks in at the edge.
 const OURS_ROWS = {
   en: ['Bin night', 'Pick up the parcel', 'Cat food, the kidney one', 'Ask about the gutter'],
-  de: ['M\u00fcll rausstellen', 'Paket abholen', 'Katzenfutter, das f\u00fcr die Nieren', 'Wegen der Dachrinne fragen'],
-  es: ['Sacar la basura', 'Recoger el paquete', 'Comida del gato, la de ri\u00f1\u00f3n', 'Preguntar por el canal\u00f3n'],
-  fr: ['Sortir les poubelles', 'R\u00e9cup\u00e9rer le colis', 'Les croquettes du chat, celles pour les reins', 'Demander pour la goutti\u00e8re'],
+  de: ['M\u00fcll rausstellen', 'Paket abholen', 'Katzenfutter f\u00fcr die Nieren', 'Wegen der Dachrinne fragen'],
+  es: ['Sacar la basura', 'Recoger el paquete', 'Comida del gato, la renal', 'Preguntar por la gotera'],
+  fr: ['Sortir les poubelles', 'R\u00e9cup\u00e9rer le colis', 'Les croquettes du chat, celles pour les reins', 'Appeler pour la goutti\u00e8re'],
   it: ['Portare fuori la spazzatura', 'Ritirare il pacco', 'Cibo del gatto, quello per i reni', 'Chiedere della grondaia'],
 };
 // The other finished days in the Calendar (only their dots show), one plain task each.
@@ -69,7 +69,7 @@ const OTHER_DAYS = {
   en: ['Water the plants', 'Sort the recycling', 'Book the dentist', 'Take a short walk'],
   de: ['Pflanzen gie\u00dfen', 'Altglas wegbringen', 'Zahnarzt anrufen', 'Kurz spazieren gehen'],
   es: ['Regar las plantas', 'Separar el reciclaje', 'Pedir cita con el dentista', 'Dar un paseo corto'],
-  fr: ['Arroser les plantes', 'Trier le recyclage', 'Prendre rendez-vous chez le dentiste', 'Faire une petite marche'],
+  fr: ['Arroser les plantes', 'Trier les d\u00e9chets', 'Prendre rendez-vous chez le dentiste', 'Faire une petite marche'],
   it: ['Annaffiare le piante', 'Fare la differenziata', 'Prenotare il dentista', 'Fare una breve passeggiata'],
 };
 const PARTNER = { en: 'Sam', de: 'Sam', es: 'Sam', fr: 'Sam', it: 'Sam' };

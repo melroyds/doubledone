@@ -75,7 +75,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
-import { cancelHold, disableDailyReminder, enableDailyReminder, scheduleHold, scheduleNudge } from '@/lib/reminders';
+import { cancelHold, disableDailyReminder, enableDailyReminder, refreshReminderOffset, scheduleHold, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
@@ -769,6 +769,8 @@ export default function TodayScreen() {
         }
         void saveLastOpen(toISODate(today));
       });
+      // The web reminder follows a daylight-saving change (a no-op on the phones and when it is off).
+      void loadReminderHour().then((h) => refreshReminderOffset(h));
       return () => {
         active = false;
         todayFocused.current = false;

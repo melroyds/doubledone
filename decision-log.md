@@ -11096,3 +11096,36 @@ Melroy: "Gate." The review also found that neither privacy copy said what the we
 counting rest-shaped behaviour with anything richer than a name (a time, a task count, a reason); counting from
 `day.closed`; and fixing the offset by re-sending the subscription on every open, which would tell the server when
 each browser opens the app.
+
+## 2026-11-01: the screenshot-QA copy batch, in five languages, and the web reminder across daylight saving
+
+The store screenshot QA (2026-10-25) parked nine groups of UI strings that ten native reviewers flagged. Melroy:
+"yeah, fix it". Each language got a native writer and an adversarial native reviewer, who measured line breaks in
+the app's own font at real phone widths before accepting a word; 99 edits survived, and one in five was amended or
+replaced on the way.
+
+**Decided:**
+- **English keeps "Break it down" in the disclosure**, against the reviewers' "Break down": the note renders only in
+  the capture panel, whose button says "Break it down". Naming a button the panel does not have is the false
+  disclosure OUR-77 guards against. Every language now quotes or names its own panel buttons exactly.
+- **"When you use Sort for me, Break it down or Scan, your text or photo goes to Anthropic's Claude."** The reviewers'
+  "what you type or photograph" left "Claude." alone on the commonest phones at Large text; "your text or photo"
+  keeps two lines everywhere the old one did.
+- **A one-day repeat is spelled out** ("Every Sunday", "Jeden Sonntag", "Chaque dimanche", "Cada domingo", "Ogni
+  domenica"), in the row and in the add panel, with its own catalogue frame (`repeat.everyOneWeekday`) because French
+  cannot pluralise an inserted weekday ("Tous les dimanche"). Two or more days stay short.
+- **A shared row due today says "Today"**, as the When sheet does; tomorrow already said "Tomorrow".
+- **The weight hint is a phrase that finishes the label** ("Mark as a lot · so the day knows", "kostet Kraft", "ça
+  pèse", "pesa más", "pesa di più"), and it may now wrap, since every language but English runs past the card at
+  Large text on a 360pt phone.
+- **The French catalogue uses the typographic apostrophe throughout** (445 strings), the mark its store captions
+  already use, because Newsreader draws the straight one as a tick. A test keeps it.
+- **Spanish "Definir" for the When sheet's Set**, not the reviewers' "Fijar", which is already Pin across the app.
+  German keeps "an dem Tag" in the Ours line, where the drafter's "dann" blurred the timing and stranded "Heute.".
+- **The web reminder re-sends its offset only when it changes** (`refreshReminderOffset` on Today's focus, gated by
+  `reminderOffsetStale`), so a daylight-saving change no longer leaves it an hour out, every older subscription is
+  corrected once, and the server never hears from a browser per open. Both privacy copies say so.
+
+**Decided against:** renaming the English held-card button to match the disclosure, changing "Mark as a lot" itself
+(no recorded flag; it is a voice decision with a family of keys), re-sending the offset on every open, and fixing the
+unflagged findings in the same pass (they are parked, with a disclosure gap the reviewers found at the top).

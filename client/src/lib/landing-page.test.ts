@@ -324,7 +324,8 @@ describe('renderPage: one whole page per language, from the catalogues', () => {
       expect(alts.length).toBe(5);
       for (const [, href, alt] of alts) {
         const printed = href.includes('apps.apple.com') ? BADGE_WORDS[loc].appStore : BADGE_WORDS[loc].play;
-        expect(alt.replace(/&#39;/g, "'").toLowerCase().startsWith(printed.toLowerCase())).toBe(true);
+        // A spoken name is the same words whichever apostrophe it is typed with (French uses the typographic one).
+        expect(alt.replace(/&#39;/g, "'").replace(/’/g, "'").toLowerCase().startsWith(printed.toLowerCase())).toBe(true);
       }
     });
 

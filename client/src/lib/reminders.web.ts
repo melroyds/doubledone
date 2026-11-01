@@ -4,7 +4,7 @@
 // task content ever reaches the browser). Native uses reminders.ts (local scheduling);
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
-import { type ReminderResult } from './reminders-types';
+import { reminderOffsetStale, type ReminderResult } from './reminders-types';
 import { type Routine } from './routines';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
@@ -15,6 +15,27 @@ const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 // (it ships to every browser); the private JWK is a Worker secret, never here.
 const VAPID_PUBLIC =
   process.env.EXPO_PUBLIC_VAPID_KEY ?? 'BCLgPiUxAM8-T1-vbHitJbtEes3cVCFRik5cNhJO5EpmmozbtMuEKel-mLQ_fbFbfBmjmGrJOqmCueKLoHdTEs8'; // gitleaks:allow
+
+// The time zone offset last sent to the Worker from this browser. The server stores the offset with the
+// subscription and schedules the daily push by it, so a daylight-saving change (or a move) left the reminder
+// an hour out until 2026-11-01. Now the browser re-sends only when this differs from the current offset.
+const OFFSET_KEY = 'doubledone.push.offset.v1';
+
+function readSentOffset(): string | null {
+  try {
+    return localStorage.getItem(OFFSET_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function noteSentOffset(offset: number): void {
+  try {
+    localStorage.setItem(OFFSET_KEY, String(offset));
+  } catch {
+    // a blocked store just means the next open checks again
+  }
+}
 
 // applicationServerKey wants the url-base64 VAPID public key as bytes.
 function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -48,14 +69,46 @@ export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = 
       userVisibleOnly: true,
       applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC),
     });
+    const tzOffset = new Date().getTimezoneOffset();
     const res = await fetch(`${AI_URL}/push/subscribe`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset: new Date().getTimezoneOffset() }),
+      body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset }),
     });
+    if (res.ok) noteSentOffset(tzOffset);
     return res.ok ? { ok: true } : { ok: false, reason: 'error' };
   } catch {
     return { ok: false, reason: 'error' };
+  }
+}
+
+/** Re-send this browser's subscription when the time zone offset has changed since it was last sent, so
+ *  the daily push keeps arriving at the chosen hour across daylight saving. Runs on Today's focus; does
+ *  nothing (no request) unless the reminder is on in this browser AND the offset is stale. Never asks for
+ *  permission and never throws. */
+export async function refreshReminderOffset(hour: number): Promise<void> {
+  try {
+    if (
+      typeof navigator === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      typeof Notification === 'undefined' ||
+      Notification.permission !== 'granted'
+    ) {
+      return;
+    }
+    const tzOffset = new Date().getTimezoneOffset();
+    if (!reminderOffsetStale(readSentOffset(), tzOffset)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (!sub) return;
+    const res = await fetch(`${AI_URL}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset }),
+    });
+    if (res.ok) noteSentOffset(tzOffset);
+  } catch {
+    // best effort: the next open tries again
   }
 }
 

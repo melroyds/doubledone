@@ -315,7 +315,7 @@ the ladder is fixed and readable, never randomised.
   carries it (the web counts from the Worker deploy, an early look only), or 3 independent asks. If neither, close it as answered. **Away** (a holiday mode) is Tier 3 and needs three real asks
   of its own, read beside `reentry.shown`. **Never:** a weekly rest pattern, a fourth Energy pill, a reason picker, or
   any count of rest days.
-- **The web reminder keeps the time zone offset it was given at subscribe (found 2026-11-01).** `reminders.web.ts`
+- ~~**The web reminder keeps the time zone offset it was given at subscribe (found 2026-11-01).**~~ **BUILT 2026-11-01** with the app-copy batch: `refreshReminderOffset` on Today's focus re-sends only when `reminderOffsetStale` (lib/reminders-types.ts), and every older subscription is refreshed once; both privacy copies say so. `reminders.web.ts`
   sends `getTimezoneOffset()` only when the reminder is turned on or its hour changes, so after a daylight-saving
   change or a move it arrives an hour (or more) off; Melbourne moved on 5 Oct 2026, so anyone who turned it on before
   then is an hour out today. Known since Phase 2 (decision-log), never parked with a trigger. **The fix, small:** keep
@@ -323,7 +323,7 @@ the ladder is fixed and readable, never randomised.
   focus, with permission already granted and a live subscription), so the server learns nothing per open. **Trigger:**
   the next web-side change touching reminders, or one report of a reminder at the wrong hour.
 
-- **App copy the screenshot QA turned up (parked 2026-10-25).** Ten native reviewers read every store slide in five
+- ~~**App copy the screenshot QA turned up (parked 2026-10-25).**~~ **BUILT 2026-11-01** (decision-log, same date): 99 catalogue and seed-row edits, each drafted by a native writer and checked by an adversarial native reviewer per language, plus the code halves (a one-day repeat spelled out in the row and the add panel, a shared row due today saying Today, the weight hint free to wrap) and the French typographic apostrophe across the catalogue, guarded by a test. What the reviewers found beyond this list is the next entry. *(The original entry follows.)* Ten native reviewers read every store slide in five
   languages; these are UI strings, not slide faults, so each needs its own native read before it ships. Grouped,
   most-seen first:
   1. **The AI-disclosure line** (`capture.aiNoteBoth`, `aiNote`): English reads as a garden path ("...and Scan
@@ -361,6 +361,35 @@ the ladder is fixed and readable, never randomised.
      Change both scripts, then regenerate the landing pictures and the store sets.
   Trigger: the next catalogue copy pass, or before the next release's native read, whichever comes first. The
   suggested wordings are the reviewers', not yet checked against each catalogue's other uses.
+- **What the 2026-11-01 native copy pass found beyond its brief (parked 2026-11-01).** Ten native agents (a writer and
+  an adversarial reviewer per language) fixed the screenshot-QA list and flagged these, none of which was in it.
+  Most urgent first:
+  1. **A disclosure gap, not just copy.** The add panel's hint seat shows the Tidy offer INSTEAD of the AI note
+     (BrainDump.tsx), and no note names "Tidy this into tasks", which is an AI call too (`showTidy` needs the
+     shapers). So while Tidy is offered, the panel does not say where your words go. Fix the seat so the note is
+     never displaced, or name Tidy in it, under the panel's own rule (BrainDump.tsx 491-495, OUR-77).
+  2. **The store listings now disagree with the app** in German, French, Spanish and Italian (the Ours line, "su lista
+     era demasiado", "Falla minuscola" and four more Italian phrases). Both Italian descriptions sit at 3991 and 3992
+     of 4000 characters, so pasting the new wording overflows: the listing pass needs a trim. Then add `/era
+     demasiado/` to the Spanish `BANNED_BY_LANG` in `scripts/check-listings.mjs` (not before, or the gate fails).
+  3. **The add panel's Add label is capped at two lines** (BrainDump.tsx, `numberOfLines={2}` in 55% width), and
+     German "Hinzufügen · Wöchentlich am Mo, Mi" needs three at every phone width, so it is cut off today. Three
+     lines, or a button that grows, needs a device look in German.
+  4. **The select bar's "a lot" pair is singular** in Italian, French and Spanish ("Segna come grossa") when several
+     tasks are selected: plural keys chosen when `selected.length > 1`.
+  5. **The same garden path, unflagged:** `welcome.capturePrivacyAi` (English, Spanish), Italian `settings.aiStatusOn`,
+     `landing.s1Body` and `landing.faqAiA` (bare action names, "Dopo, ordina tu per me" reads as "you order for
+     me"), German `landing.sub`, `landing.faqWhoA`, `landing.promiseBody` and `welcome.heroSub`, `footerWho`,
+     `promiseBody` (the old calques the welcome just lost).
+  6. **French:** `ours.whenRhythm` "ses jours-là", the "pour quand" of `landing.keepBody` and `welcome.kicker`, and
+     `welcome.revealCombineHint` naming buttons that read "Sélectionner plusieurs" and "Regrouper". The held card's
+     « Décomposer » could become « Décompose-la » to match the capture panel (Melroy's call).
+  7. **Italian:** `ordinalDay` gives "il 8", "il 11" (l'8, l'11); `capture.repeatOnDayA11y` "Ripeti ogni 15" is heard
+     as every 15 days; `ours.whenAnytimeOffA11y` names a chip that reads "Quando capita".
+  8. **For Melroy's native read:** Spanish "Definir · {what}" (the When sheet's Set; "Fijar" is already Pin), and
+     label-in-name for "Mark as a lot" / "Marcar que es mucho", whose spoken names do not contain the visible label.
+  Trigger: the next catalogue copy pass or listing update, whichever comes first; item 1 sooner, with the next
+  capture-panel change.
 - **Auto-scroll while dragging a task by its grip (parked 2026-10-25).** The grip carries a row only within what is
   on screen; a row dragged to the list's edge does not scroll the list along. Parked because Today is sized to be
   doable and the card's Move up / Move down still moves a task any distance. Trigger: a report of a list too long to

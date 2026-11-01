@@ -163,7 +163,7 @@ describe('whenSummary', () => {
     // pinning a comma here would break the moment a locale or a Node version disagrees.
     expect(s.fragment).toContain('20 Aug');
     expect(s.commit).toBe(`Set · ${s.fragment}`);
-    expect(s.sentence).toBe("You'll both see it that day.");
+    expect(s.sentence).toBe("You'll both see it on the day.");
   });
 
   // THE build-note case. `describeRecurrence` surfaces a start only when it is in the FUTURE, so a

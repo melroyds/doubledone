@@ -65,7 +65,7 @@ describe('describeRecurrence', () => {
   // was also the odd one out beside its own siblings, 'Every day' and 'Every 2 days'.
   it('weekly reads as a rhythm, and a full week collapses to every day', () => {
     expect(describeRecurrence({ kind: 'weekly', weekdays: [1, 3] })).toBe('Every Mon, Wed');
-    expect(describeRecurrence({ kind: 'weekly', weekdays: [4] })).toBe('Every Thu');
+    expect(describeRecurrence({ kind: 'weekly', weekdays: [4] })).toBe('Every Thursday');
     expect(describeRecurrence({ kind: 'weekly', weekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe('Every day');
   });
 

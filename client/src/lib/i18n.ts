@@ -181,8 +181,8 @@ export function formatMonthDay(loc: string, date: Date): string {
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long' }).format(date);
 }
 
-/** A short ("Mon") or narrow ("M") weekday, per locale. Replaces the two-letter WEEKDAY_LABELS arrays. */
-export function formatWeekday(loc: string, date: Date, width: 'short' | 'narrow' = 'short'): string {
+/** A short ("Mon"), narrow ("M") or long ("Monday") weekday, per locale. Replaces the two-letter WEEKDAY_LABELS arrays. */
+export function formatWeekday(loc: string, date: Date, width: 'short' | 'narrow' | 'long' = 'short'): string {
   return new Intl.DateTimeFormat(loc, { weekday: width }).format(date);
 }
 
