@@ -14,10 +14,12 @@ import {
   parseSigHeader,
   readEntitlement,
   signPayload,
+  STRIPE_MIN_TRIAL_LEAD_SEC,
   verifyWebhook,
   writeEntitlement,
 } from './stripe';
 import { decodeJwtSub } from './mcp';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 
 // The verifier stub for the existing behaviour tests: a decoded sub counts as verified, so these tests
 // keep testing what they always tested. The PR A block at the bottom uses the REAL verifier with forged
@@ -46,6 +48,10 @@ describe('checkoutSessionForm', () => {
 
   it('falls back to monthly when annual is asked for but not configured', () => {
     expect(checkoutSessionForm(env, 'user-1', undefined, 'annual').get('line_items[0][price]')).toBe('price_123');
+  });
+  it('carries a trial end only when one is given', () => {
+    expect(checkoutSessionForm(env, 'user-1').has('subscription_data[trial_end]')).toBe(false);
+    expect(checkoutSessionForm(env, 'user-1', undefined, 'monthly', 1_800_000_000).get('subscription_data[trial_end]')).toBe('1800000000');
   });
 });
 
@@ -599,5 +605,68 @@ describe('Path A review: the checkout guard fails closed', () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: 'unavailable' });
     expect(opened).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-11-01: inside a card-free month, "Go Premium to keep it" charged the day it was tapped and the rest of the
+// month was lost, which its own spoken label ("after your free month") and the positioning's "paying never springs a
+// trap" both deny. The subscription now starts as a Stripe trial that ends when the free month does.
+describe('the card-free month: keeping Premium early waits for the month to end', () => {
+  const cors = { 'Access-Control-Allow-Origin': 'https://doubledone.app' };
+  const tokenFor = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=/g, '')}.s`;
+  const NOW = 1_800_000_000;
+  const DAY = 86400;
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function checkoutWith(db: D1LikeDatabase) {
+    const sent: URLSearchParams[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent.push(new URLSearchParams(String(init?.body ?? '')));
+      return new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/t' }), { status: 200 });
+    });
+    const req = new Request('https://w/checkout', { method: 'POST', headers: { Authorization: `Bearer ${tokenFor('u1')}` }, body: '{}' });
+    const res = await handleCheckout(req, { STRIPE_SECRET_KEY: SK, STRIPE_PRICE_ID: 'price_123', DB: db }, cors, trust, NOW);
+    return { res, sent };
+  }
+
+  async function withFreeMonthEnding(expiresAt: number) {
+    const db = await sqliteD1();
+    db.raw.prepare('INSERT INTO trials (user_id, started_at, expires_at) VALUES (?, ?, ?)').run('u1', expiresAt - 30 * DAY, expiresAt);
+    return db;
+  }
+
+  it('mid-month, the first charge waits for the day the free month ends', async () => {
+    const { res, sent } = await checkoutWith(await withFreeMonthEnding(NOW + 20 * DAY));
+    expect(res.status).toBe(200);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].get('subscription_data[trial_end]')).toBe(String(NOW + 20 * DAY));
+  });
+
+  it("in the month's last two days, Stripe's 48-hour floor wins: the charge comes a little later, never sooner", async () => {
+    const { res, sent } = await checkoutWith(await withFreeMonthEnding(NOW + DAY));
+    expect(res.status).toBe(200);
+    expect(sent[0].get('subscription_data[trial_end]')).toBe(String(NOW + STRIPE_MIN_TRIAL_LEAD_SEC));
+  });
+
+  it('with no free month, or one that has ended, checkout charges as it always did', async () => {
+    const none = await checkoutWith(await sqliteD1());
+    expect(none.res.status).toBe(200);
+    expect(none.sent[0].has('subscription_data[trial_end]')).toBe(false);
+    const ended = await checkoutWith(await withFreeMonthEnding(NOW - DAY));
+    expect(ended.sent[0].has('subscription_data[trial_end]')).toBe(false);
+  });
+
+  it('a free month that cannot be read refuses (503) instead of charging at once', async () => {
+    const db = await withFreeMonthEnding(NOW + 20 * DAY);
+    const broken = {
+      prepare: (sql: string) => {
+        if (sql.includes('FROM trials')) throw new Error('d1 down');
+        return db.prepare(sql);
+      },
+    } as unknown as D1LikeDatabase;
+    const { res, sent } = await checkoutWith(broken);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(sent).toHaveLength(0);
   });
 });

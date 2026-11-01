@@ -11129,3 +11129,37 @@ replaced on the way.
 **Decided against:** renaming the English held-card button to match the disclosure, changing "Mark as a lot" itself
 (no recorded flag; it is a voice decision with a family of keys), re-sending the offset on every open, and fixing the
 unflagged findings in the same pass (they are parked, with a disclosure gap the reviewers found at the top).
+
+## 2026-11-01: a freeze of the core screens until 3 Jan, not of everything
+
+An adversarial review of "what to build next, based on the positioning" (four proposers, three red-teamers, one
+judge, checked against the production counts) recommended freezing all new screens until the week-8 read on Sun
+3 Jan. Melroy was unsure, and chose the narrower freeze: "do a freeze of the core screens."
+
+**Decided:** Today, the add panel, the held card and the Calendar do not change until 3 Jan, because the social posts
+from 10 Nov are recordings of them, and the positioning competes on predictability. Bug fixes, truth fixes, R8 and
+the store update in the week of 16 to 22 Nov go ahead, as does work away from those screens with a measured reason.
+
+**Decided against:** the review's full freeze on any new screen (Melroy's call, so edge work with a reason can still
+ship), and no freeze at all (a changed core screen would make the posts show an app nobody can download).
+
+## 2026-11-01: keeping Premium during the free month charges when the month ends
+
+The build-next review found, and the code confirmed, that the web's "Go Premium to keep it" (spoken: "Go Premium
+to keep it after your free month") opened Stripe Checkout with no trial, so Stripe charged the day it was tapped
+and the rest of the card-free month was lost. The positioning's third claim is that paying never springs a trap.
+Melroy: "I want to fix all bug fixes (billing fix). Especially if it's on web."
+
+**Decided:**
+- **Checkout passes the free month's end as `subscription_data[trial_end]`.** The subscription starts as a Stripe
+  trial and the first charge lands when the month would have ended. Stripe still collects the card at checkout (its
+  default), so nothing changes in the flow the buyer sees except the date of the first charge.
+- **Stripe's floor wins in the month's last two days.** Stripe refuses a trial ending sooner than 48 hours out
+  (confirmed in its API reference), so the end is floored at 49 hours: the charge comes a day or so late, never
+  early.
+- **A free month that cannot be read refuses the checkout (503).** Reading a store error as "no free month" would
+  charge at once, the bug itself, so the money route fails closed as its other guards do.
+
+**Decided against:** charging at once and refunding the overlap (a charge this audience notices first), hiding
+the convert button during the month (people asked for a way to keep it), and `trial_period_days` (a rounded count
+of days drifts from the stored end).

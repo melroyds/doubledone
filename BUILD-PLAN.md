@@ -42,6 +42,12 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**CORE-SCREEN FREEZE until Sun 3 Jan 2027 (Melroy, 2026-11-01: "do a freeze of the core screens").** Today, the add
+panel, the held card and the Calendar do not change, because the posts from Tue 10 Nov show them as they are.
+Still allowed: bug fixes (Melroy: "I want to fix all bug fixes, especially if it's on web"), anything that makes the
+app say something true, R8, the store update in the week of 16 to 22 Nov, and work away from those four screens that
+has a measured reason. On 3 Jan the next build comes from a gate that opened, never from a new idea.
+
 **The rest-day gate is LIVE 2026-11-01: Melroy deployed Worker `636a1611` from main `46675a7`** (rollback target
 `84cded96`; checked: bindings identical, /health 200, a new route still answers 401 JSON without a token). Next: read
 D1 on 2 or 3 Nov to see the first rows (the command below). The original note follows.
@@ -323,8 +329,11 @@ the ladder is fixed and readable, never randomised.
   focus, with permission already granted and a live subscription), so the server learns nothing per open. **Trigger:**
   the next web-side change touching reminders, or one report of a reminder at the wrong hour.
 
-- **TIER 1, before P12 (Thu 19 Nov): the web's "Go Premium to keep it" bills at once, mid free month (found
-  2026-11-01 by the build-next review, confirmed in code).** During a card-free month the web paywall shows
+- ~~**TIER 1, before P12 (Thu 19 Nov): the web's "Go Premium to keep it" bills at once, mid free month (found
+  2026-11-01 by the build-next review, confirmed in code).**~~ **BUILT 2026-11-01, needs a Worker deploy:** checkout
+  reads the free month's end (`readActiveTrialEnd`, which throws, so a failed read refuses with 503 instead of
+  charging at once) and passes it as `subscription_data[trial_end]`, floored at Stripe's 48 hours plus one
+  (`STRIPE_MIN_TRIAL_LEAD_SEC`). PREM-62 is the live check. *(The original entry follows.)* During a card-free month the web paywall shows
   `premiumPrimaryAction` 'convert' ("Go Premium to keep it"; its spoken label says "after your free month"), but
   `checkoutSessionForm` (server/src/stripe.ts) passes no `subscription_data[trial_end]`, so Stripe charges the day
   they tap, and the rest of the free month is lost. That breaks the positioning's third claim ("paying never springs

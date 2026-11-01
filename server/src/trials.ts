@@ -25,6 +25,17 @@ export async function activeTrial(
 }
 
 /**
+ * When this account's card-free month ends, if it is running now (Unix seconds), else null. Unlike activeTrial it
+ * THROWS on a store failure, for the one caller where reading an error as "no free month" costs money: checkout,
+ * which would then charge at once instead of when the month ends.
+ */
+export async function readActiveTrialEnd(db: D1LikeDatabase, userId: string, nowSec: number): Promise<number | null> {
+  const row = await db.prepare('SELECT expires_at FROM trials WHERE user_id = ?1').bind(userId).first<{ expires_at: number }>();
+  const expiresAt = typeof row?.expires_at === 'number' ? row.expires_at : null;
+  return expiresAt != null && expiresAt > nowSec ? expiresAt : null;
+}
+
+/**
  * Start the one-time trial for this account. Returns 'started' on first use; 'already' if this account ever had
  * a trial (active OR expired, so it can never be re-trialed); 'error' on a store failure. Race-safe via
  * INSERT OR IGNORE on the user_id primary key: a concurrent second call is a no-op, and the read-back tells the

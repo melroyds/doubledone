@@ -16,7 +16,7 @@ import { decodeJwtEmail } from './mcp';
 import { buildOwnerEmail } from './monitor';
 import { cancelPlayRenewals } from './play-cancel';
 import { giftState } from './gifts';
-import { activeTrial } from './trials';
+import { activeTrial, readActiveTrialEnd } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
 export type StripeEnv = {
@@ -32,9 +32,14 @@ const DEFAULT_APP_URL = 'https://doubledone.app';
 
 // --- Checkout --------------------------------------------------------------
 
+/** Stripe refuses a Checkout trial that ends sooner than 48 hours out; an hour on top covers the clocks. */
+export const STRIPE_MIN_TRIAL_LEAD_SEC = 49 * 3600;
+
 /** The form body for Create-Checkout-Session. Pure and unit-tested: the user id
- *  rides on both the session and the subscription so the webhook can attribute it. */
-export function checkoutSessionForm(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual'): URLSearchParams {
+ *  rides on both the session and the subscription so the webhook can attribute it. `trialEndSec`, set when the
+ *  buyer is inside their card-free month, makes the first charge wait for the month's end (2026-11-01: until
+ *  then "Go Premium to keep it" charged the day it was tapped, and the rest of the month was lost). */
+export function checkoutSessionForm(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual', trialEndSec?: number): URLSearchParams {
   const appUrl = env.APP_URL ?? DEFAULT_APP_URL;
   const form = new URLSearchParams();
   form.set('mode', 'subscription');
@@ -49,16 +54,17 @@ export function checkoutSessionForm(env: StripeEnv, userId: string, email?: stri
   form.set('cancel_url', `${appUrl}/premium?status=cancelled`);
   form.set('allow_promotion_codes', 'true');
   if (email) form.set('customer_email', email);
+  if (trialEndSec != null) form.set('subscription_data[trial_end]', String(trialEndSec));
   return form;
 }
 
 /** Create a Checkout Session and return its hosted URL, or null on any failure. */
-export async function createCheckoutSession(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual'): Promise<string | null> {
+export async function createCheckoutSession(env: StripeEnv, userId: string, email?: string, plan?: 'monthly' | 'annual', trialEndSec?: number): Promise<string | null> {
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) return null;
   const res = await fetch(`${STRIPE_API}/checkout/sessions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'content-type': 'application/x-www-form-urlencoded' },
-    body: checkoutSessionForm(env, userId, email, plan).toString(),
+    body: checkoutSessionForm(env, userId, email, plan, trialEndSec).toString(),
   });
   if (!res.ok) return null;
   const session = (await res.json()) as { url?: unknown };
@@ -375,6 +381,7 @@ export async function handleCheckout(
   env: FullEnv,
   cors: Record<string, string>,
   verifySub: SubVerifier = defaultVerifySub,
+  nowSec: number = Math.floor(Date.now() / 1000),
 ): Promise<Response> {
   const token = bearer(request);
   if (!token) return new Response(JSON.stringify({ error: 'sign_in_required' }), { status: 401, headers: { ...JSON_HEADERS, ...cors } });
@@ -404,6 +411,11 @@ export async function handleCheckout(
   // period) is a subscription still alive and retrying, whichever store.
   // A read that FAILS now refuses too (503): a failed lookup read as permission is how a second
   // subscription gets sold, and losing one sale during a blip is cheaper than a refund.
+  // Inside a card-free month the subscription starts as a Stripe trial ending when the month does, so keeping
+  // Premium early never costs the days left. Stripe needs that end at least 48 hours out, so in the month's last
+  // two days the first charge comes a little after it, never before. A failed trial read refuses too: read as
+  // "no free month", it would charge at once.
+  let trialEndSec: number | undefined;
   if (env.DB) {
     try {
       const existing = await readEntitlement(env.DB, sub);
@@ -412,6 +424,8 @@ export async function handleCheckout(
       if ((existing.premium || dunning) && (existing.customerId || storeSold)) {
         return new Response(JSON.stringify({ error: dunning ? 'billing_issue' : 'already_subscribed' }), { status: 409, headers: { ...JSON_HEADERS, ...cors } });
       }
+      const freeUntil = await readActiveTrialEnd(env.DB, sub, nowSec);
+      if (freeUntil != null) trialEndSec = Math.max(freeUntil, nowSec + STRIPE_MIN_TRIAL_LEAD_SEC);
     } catch {
       return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503, headers: { ...JSON_HEADERS, ...cors } });
     }
@@ -425,7 +439,7 @@ export async function handleCheckout(
   } catch {
     email = undefined;
   }
-  const url = await createCheckoutSession(env, sub, email, plan);
+  const url = await createCheckoutSession(env, sub, email, plan, trialEndSec);
   if (!url) return new Response(JSON.stringify({ error: 'checkout_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
   return new Response(JSON.stringify({ url }), { headers: { ...JSON_HEADERS, ...cors } });
 }
