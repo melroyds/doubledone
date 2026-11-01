@@ -53,7 +53,6 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('hold.released', { step: 3, swapped: true })?.init.body).toBe('{"name":"hold.released","props":{"step":3}}');
     expect(beaconRequest('hold.completed', { step: 1 })?.init.body).toBe('{"name":"hold.completed","props":{"step":1}}');
     expect(beaconRequest('card.opened')?.init.body).toBe('{"name":"card.opened"}');
-    expect(beaconRequest('offplan.logged', { at: 'x' })?.init.body).toBe('{"name":"offplan.logged"}');
   });
 
   it('sends rooms.opened only for Settings, as which door, and keeps every other room local', () => {
@@ -86,6 +85,8 @@ describe('the beacon (the few events that leave the device)', () => {
 
   it('keeps the Goodnight note and the retired names on the device', () => {
     expect(beaconRequest('closeday.noted')).toBeNull();
+    // "I also did that" earned its place on Today (2026-11-01), so its count stopped, as the policy promised.
+    expect(beaconRequest('offplan.logged')).toBeNull();
     expect(beaconRequest('hold.opened')).toBeNull();
   });
 
@@ -94,7 +95,7 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty-four (growing it is a deliberate act)', () => {
+  it('the allowlist is exactly these twenty-three (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
     // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25) and the rest-day gate's two (2026-11-01): each addition pairs with the Worker
     // allowlist AND the privacy policy in the same commit.
@@ -111,7 +112,6 @@ describe('the beacon (the few events that leave the device)', () => {
       'leftoff.saved.card',
       'leftoff.saved.focus',
       'nudge.set',
-      'offplan.logged',
       'reentry.shown',
       'review.asked',
       'rooms.opened',

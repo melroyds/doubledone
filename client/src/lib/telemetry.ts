@@ -39,11 +39,11 @@ export const BEACON_EVENTS = new Set([
   'bulk.big',
   'card.more',
   // The telemetry review (2026-10-04). card.opened is card.more's denominator (TaskRow fires it only
-  // for a card that HAS a More fold, so the two count the same cards). offplan.logged is "+ I also
-  // did that", counted only until its keep-or-remove verdict. rooms.opened leaves the device only
-  // for Settings, as which of the Menu's two doors was used; every other room stays local.
+  // for a card that HAS a More fold, so the two count the same cards). offplan.logged ("+ I also
+  // did that") was counted only until its keep-or-remove verdict: kept on 2026-11-01, so it stays
+  // on the device now. rooms.opened leaves the device only for Settings, as which of the Menu's two
+  // doors was used; every other room stays local.
   'card.opened',
-  'offplan.logged',
   'rooms.opened',
   // "Where you left off" (2026-10-04): bare names, never a word of the line. The evidence for a free
   // feature shipped without a user test, read by the rule in the decision log.

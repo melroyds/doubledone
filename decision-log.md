@@ -11202,3 +11202,27 @@ data, and by platform and the freeze.
   gone.
 - **#24 (an agent naming its own day for list_today), #1 (the Stripe order guard) and the copy batch** wait for
   Melroy, as do the share target, the "I also did that" count, the social kit's "read to you", and the contrast pass.
+
+## 2026-11-01: three records after a deletion, the "I also did that" count stops, and no web share target
+
+Melroy's calls on three of the sweep's Group C items ("Fix the privacy page", "Remove sharing to the web app",
+"Remove 'I also did that'").
+
+**Decided:**
+- **The privacy page says three small records outlive a deleted account**: the billing record, the free-trial note,
+  and the gift record for a month given for a note, which its own "A note to us" section already named. The sweep had
+  tried to make "two" true by deleting the gift record in close-billing, and the review took that out (a live
+  account could reset its 180-day spacing on demand), so the words now match the code instead.
+- **"I also did that" stays on Today, and its usage count stops**, as the policy promised ("only until we have
+  decided whether it earns its place on Today, then we stop"). 16 uses since 4 Oct, 10 of them on 11 Oct, likely
+  Melroy's own device pass: even without those it clears the keep bar. The name leaves both allowlists; the Worker
+  drops it from older phones until the next store build, so the count truly stops with the deploy. Read as removing
+  the COUNT, not the button: the button is on Today, a frozen screen.
+- **The installed web app is no longer a share target.** The manifest's GET share target put the shared text in the
+  URL, which reached the host's request logs, a store no privacy section named. Removing it is the smaller truth
+  fix than a service-worker route in front of every web visit during a freeze. The /share-target route stays for an
+  installed web app still holding the old manifest. Android and iPhone share into the store apps as before.
+
+**Decided against:** deleting the gift record without proof the account is gone, removing the "I also did that"
+button (a Today change during the freeze, and the count says people use it), and a privacy line that names the web
+share instead of removing it (most Android users have the Play app).

@@ -49,8 +49,6 @@ export const APP_EVENTS = new Set([
   // The telemetry review (2026-10-04). card.opened is card.more's denominator, fired by the card
   // itself and only when it HAS a More fold, so the two count the same cards on every surface.
   'card.opened',
-  // "+ I also did that", counted only until its keep-or-remove verdict (decision-log 2026-10-04).
-  'offplan.logged',
   // The Menu's two ways into Settings (the corner sign, the shelf's line), folded from
   // rooms.opened. Every other room is dropped.
   'menu.settings.sign',

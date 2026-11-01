@@ -58,9 +58,10 @@ describe('parseAppEvent (the closed allowlist)', () => {
     expect(parseAppEvent({ name: 'leftoff.text' })).toBeNull();
   });
 
-  it('passes the 2026-10-04 names through bare: card.opened and offplan.logged', () => {
+  it('passes card.opened through bare, and drops offplan.logged now its verdict is in (2026-11-01)', () => {
     expect(parseAppEvent({ name: 'card.opened' })).toBe('card.opened');
-    expect(parseAppEvent({ name: 'offplan.logged' })).toBe('offplan.logged');
+    // Older phones still send it until the next store build, and the Worker drops it unstored.
+    expect(parseAppEvent({ name: 'offplan.logged' })).toBeNull();
     // The Goodnight note's new local-only name never enters the table.
     expect(parseAppEvent({ name: 'closeday.noted' })).toBeNull();
   });
