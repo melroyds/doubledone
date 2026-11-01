@@ -61,6 +61,16 @@ on Apple's keyboard made Today's list BEHIND the panel climb one step per keystr
   keystroke, no gap after Close) and LEFT-10 (the card's line field still rises above the keyboard). If CAP-20
   still climbs, the sharp A/B is to drop the box's `inputAccessoryViewID` (BrainDump.tsx): the shift becomes zero.
 
+**SOCIAL KIT READY (Ruana Soul item 9, 2026-11-01):** Melroy committed to Instagram and/or Facebook for 12 weeks
+from Tue 10 Nov. The kit (set-up, P1 to P12, R1 to R8, the reply guide, and twenty calls each with a default) is a
+private claude.ai page, its source in `docs/doubledone-social-kit.md` (gitignored by `docs/doubledone-*`, kept out of
+this public repo). Every claim was checked against the code on 1 Nov, every line red-teamed for truth, Meta policy
+and voice. **Before P1 on 10 Nov, two web changes on Melroy's word (weekend of 7 to 8 Nov):** (1) the parked "one
+campaign label per channel" (Backlog; its trigger, Melroy posting on a schedule, has now fired): `?ref=instagram` and
+`?ref=facebook` passed into the badges' `ct` and `utm_campaign`, from a fixed list; (2) `client/public/privacy.html`
+line 70 still says "the Lookback" where the app says "the Calendar" (legal page, needs his OK). Ruana item 8 (the
+90-day plan and Product Hunt prep) is the only one of the eleven left.
+
 **DATED: rerun the store search ranks around 2026-11-22** (the 2026-11-01 rerun is done and read: mostly up, Spanish still invisible) (`python scripts/store-ranks.py
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
 Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
