@@ -1,17 +1,20 @@
 import { Platform } from 'react-native';
 
-import { isOptionsKey, type OptionsKeyEvent } from '@/lib/row-options';
+// Relative, not '@/lib/…': vitest does not read tsconfig's paths, and row-door.test.ts loads this file.
+import { isOptionsKey, rowSpace, type SpaceKeyEvent } from '../lib/row-options';
 
-// The web's keyboard and mouse twins of a row's long-press (store 1.9, slice 2, K1).
+// The web's keyboard and mouse twins of a row's long-press (store 1.9, slice 2, K1), and its Space (#37).
 //
 // RN-web never fires onLongPress from a keyboard and drops accessibilityActions, so on the web a row's
 // card was out of reach for anybody without a finger. A right-click, the Menu key and Shift+F10 open it
 // here, exactly as a hold does. Web only: React Native's Pressable types know none of these props, and
 // native has its own doors (the hold, and the screen reader's "Options" action).
+//
+// Space ticks the row, exactly as a tap does (the 1 Nov bug sweep, #37). RN-web's press responder lets
+// Space press only a button, and a row is a checkbox, so Space did nothing and scrolled the page. Enter
+// was always the press responder's, and still is.
 
-type DoorEvent = OptionsKeyEvent & {
-  defaultPrevented?: boolean;
-  nativeEvent?: { defaultPrevented?: boolean };
+type DoorEvent = SpaceKeyEvent & {
   preventDefault: () => void;
 };
 
@@ -29,12 +32,31 @@ function swallowNextContextMenu() {
 }
 
 /**
- * Spread onto the Pressable that owns a row's long-press. Right-click opens the card, unless the press
- * responder already prevented the event (a touch hold, which opens the card by itself), so one gesture
- * never opens it twice.
+ * Spread onto the Pressable that owns a row's tap and long-press: `{...rowDoor(onLongPress, tap)}`.
+ *
+ * `open` opens the row's card. Right-click opens it, unless the press responder already prevented the
+ * event (a touch hold, which opens the card by itself), so one gesture never opens it twice.
+ *
+ * `tap` is the very handler the Pressable's onPress runs, so Space does exactly what a tap does there:
+ * it ticks, advances a step or picks the row in select mode. Pass undefined where a tap does nothing
+ * (an inert row, which says why it cannot be ticked), and Space does nothing there either: no tick,
+ * and no page scrolling out from under the row.
  */
-export function rowDoor(open: (() => void) | undefined): object {
-  if (Platform.OS !== 'web' || !open) return {};
+export function rowDoor(open: (() => void) | undefined, tap: (() => void) | undefined): object {
+  if (Platform.OS !== 'web') return {};
+  const onKeyDown = (e: DoorEvent) => {
+    if (open && isOptionsKey(e)) {
+      e.preventDefault();
+      swallowNextContextMenu();
+      open();
+      return;
+    }
+    const space = rowSpace(e);
+    if (space === 'pass') return;
+    e.preventDefault(); // a row answers Space, an inert one with nothing, so the page stays still under it
+    if (space === 'toggle') tap?.();
+  };
+  if (!open) return { onKeyDown };
   return {
     'aria-keyshortcuts': 'Shift+F10',
     onContextMenu: (e: DoorEvent) => {
@@ -42,11 +64,6 @@ export function rowDoor(open: (() => void) | undefined): object {
       e.preventDefault();
       open();
     },
-    onKeyDown: (e: DoorEvent) => {
-      if (!isOptionsKey(e)) return;
-      e.preventDefault();
-      swallowNextContextMenu();
-      open();
-    },
+    onKeyDown,
   };
 }

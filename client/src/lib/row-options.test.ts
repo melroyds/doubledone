@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isOptionsKey } from './row-options';
+import { isOptionsKey, isSpaceKey, ownsSpace, rowSpace } from './row-options';
 
 describe('isOptionsKey (the keyboard twin of a long-press)', () => {
   it('opens on the Menu key, with or without Shift', () => {
@@ -25,5 +25,103 @@ describe('isOptionsKey (the keyboard twin of a long-press)', () => {
     expect(isOptionsKey({ key: ' ' })).toBe(false);
     expect(isOptionsKey({ key: 'Escape' })).toBe(false);
     expect(isOptionsKey({})).toBe(false);
+  });
+});
+
+// A stand-in for a DOM element: the three fields ownsSpace reads.
+function el(tagName: string, role: string | null = null, isContentEditable = false) {
+  return { tagName: tagName.toUpperCase(), isContentEditable, getAttribute: (name: string) => (name === 'role' ? role : null) };
+}
+// The row as RN-web draws it: a div with role=checkbox.
+const ROW = el('div', 'checkbox');
+
+describe('isSpaceKey', () => {
+  it('is Space, and Spacebar from an older browser, and nothing else', () => {
+    expect(isSpaceKey({ key: ' ' })).toBe(true);
+    expect(isSpaceKey({ key: 'Spacebar' })).toBe(true);
+    expect(isSpaceKey({ key: 'Enter' })).toBe(false);
+    expect(isSpaceKey({ key: '  ' })).toBe(false);
+    expect(isSpaceKey({})).toBe(false);
+  });
+});
+
+describe('ownsSpace (an element that does its own thing with Space)', () => {
+  it('is a text field, which types the space, whatever the case of its tag', () => {
+    expect(ownsSpace(el('input'))).toBe(true);
+    expect(ownsSpace(el('textarea'))).toBe(true);
+    expect(ownsSpace(el('select'))).toBe(true);
+    expect(ownsSpace({ tagName: 'input' })).toBe(true);
+    expect(ownsSpace(el('div', null, true))).toBe(true);
+  });
+
+  it('is a button, which presses itself: a <button>, or a role=button the press responder presses', () => {
+    expect(ownsSpace(el('button'))).toBe(true);
+    expect(ownsSpace(el('button', 'button'))).toBe(true);
+    expect(ownsSpace(el('div', 'button'))).toBe(true);
+  });
+
+  it('is not a checkbox row, a radio, a plain element or anything that is not an element', () => {
+    expect(ownsSpace(ROW)).toBe(false);
+    expect(ownsSpace(el('div', 'radio'))).toBe(false);
+    expect(ownsSpace(el('div'))).toBe(false);
+    expect(ownsSpace(el('span', 'presentation'))).toBe(false);
+    expect(ownsSpace({})).toBe(false);
+    expect(ownsSpace(null)).toBe(false);
+    expect(ownsSpace(undefined)).toBe(false);
+    expect(ownsSpace('button')).toBe(false);
+    expect(ownsSpace({ tagName: 7, getAttribute: 'button' })).toBe(false);
+  });
+});
+
+describe('rowSpace (what Space does on a task row, on the web)', () => {
+  const on = { target: ROW, currentTarget: ROW };
+
+  it('toggles the focused row, as a tap does, Shift or not', () => {
+    expect(rowSpace({ key: ' ', ...on })).toBe('toggle');
+    expect(rowSpace({ key: 'Spacebar', ...on })).toBe('toggle');
+    expect(rowSpace({ key: ' ', shiftKey: true, ...on })).toBe('toggle');
+    expect(rowSpace({ key: ' ', repeat: false, ...on })).toBe('toggle');
+  });
+
+  it('only swallows a held Space: the row is ticked once, never on and off, and the page stays still', () => {
+    expect(rowSpace({ key: ' ', repeat: true, ...on })).toBe('swallow');
+  });
+
+  it('passes every other key on, Enter above all: the press responder ticks the row on Enter', () => {
+    for (const key of ['Enter', 'a', 'Tab', 'Escape', 'F10', 'ContextMenu', 'ArrowDown']) {
+      expect(rowSpace({ key, ...on })).toBe('pass');
+    }
+    expect(rowSpace({ ...on })).toBe('pass');
+  });
+
+  it('passes Space with Ctrl, Alt or Meta on, to the browser and the system', () => {
+    expect(rowSpace({ key: ' ', ctrlKey: true, ...on })).toBe('pass');
+    expect(rowSpace({ key: ' ', altKey: true, ...on })).toBe('pass');
+    expect(rowSpace({ key: ' ', metaKey: true, ...on })).toBe('pass');
+  });
+
+  it('passes a Space somebody already answered', () => {
+    expect(rowSpace({ key: ' ', defaultPrevented: true, ...on })).toBe('pass');
+    expect(rowSpace({ key: ' ', nativeEvent: { defaultPrevented: true }, ...on })).toBe('pass');
+  });
+
+  it('passes Space on a row that is a button: it presses itself, so a step never advances twice', () => {
+    const stepped = el('button', 'button');
+    expect(rowSpace({ key: ' ', target: stepped, currentTarget: stepped })).toBe('pass');
+    const roleButton = el('div', 'button');
+    expect(rowSpace({ key: ' ', target: roleButton, currentTarget: roleButton })).toBe('pass');
+  });
+
+  it('passes a Space typed into something inside the row: a text field keeps its own', () => {
+    expect(rowSpace({ key: ' ', target: el('input'), currentTarget: ROW })).toBe('pass');
+    expect(rowSpace({ key: ' ', target: el('textarea'), currentTarget: ROW })).toBe('pass');
+    expect(rowSpace({ key: ' ', target: el('div', null, true), currentTarget: ROW })).toBe('pass');
+    expect(rowSpace({ key: ' ', target: el('span'), currentTarget: ROW })).toBe('pass');
+    // A field with no row around it to compare against is still a field.
+    expect(rowSpace({ key: ' ', target: el('input') })).toBe('pass');
+  });
+
+  it('decides from the target alone when the event names no current target', () => {
+    expect(rowSpace({ key: ' ', target: ROW })).toBe('toggle');
   });
 });

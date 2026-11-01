@@ -484,11 +484,13 @@ export function TaskRow({
   // - K1, the web: right-click, the Menu key and Shift+F10 (`rowDoor`).
   // - K2, the web: an "Options for <task>" button that is invisible until it holds keyboard focus, the way in
   //   on a Mac, which has no Menu key. Pointer and touch never meet it.
+  // The same door carries Space on the web (#37), so each branch hands it the very handler its own onPress runs:
+  // Space does exactly what a tap does there, and nothing on an inert row, where a tap does nothing either.
   const rowActions = onLongPress ? [{ name: 'longpress', label: t('today.rowOptions') }] : undefined;
   function onRowAction(e: AccessibilityActionEvent) {
     if (e.nativeEvent.actionName === 'longpress') onLongPress?.();
   }
-  const door = rowDoor(onLongPress);
+  const door = rowDoor(onLongPress, inert ? undefined : onToggle); // the held and the plain rows' tap
   const optionsEl =
     Platform.OS === 'web' && onLongPress ? (
       <Pressable
@@ -566,6 +568,8 @@ export function TaskRow({
       <Pressable
         ref={rowRef}
         onPress={onSelect}
+        // Space picks the row, as a tap does (#37). No card door: the long-press is suspended here.
+        {...rowDoor(undefined, onSelect)}
         style={({ pressed }) => [styles.row, !recurring && styles.rowUnique, selected && styles.rowSelected, pressed && styles.pressed]}
         accessibilityRole="checkbox"
         aria-checked={Boolean(selected)}
@@ -1124,7 +1128,9 @@ export function TaskRow({
         onPress={onAdvance}
         onLongPress={onLongPress}
         delayLongPress={400}
-        {...door}
+        // Its tap is a step. This row is role=button, so the web draws a real <button>, which presses itself on
+        // Space: the door sees that and leaves it, so a step never advances twice.
+        {...rowDoor(onLongPress, onAdvance)}
         accessibilityActions={rowActions}
         onAccessibilityAction={onRowAction}
         style={({ pressed }) => [styles.row, styles.rowUnique, styles.sliceColumn, held && styles.rowHeld, gripInset && styles.rowGrip, pressed && styles.pressed]}
@@ -1180,7 +1186,7 @@ export function TaskRow({
           onPress={onToggle}
           onLongPress={onLongPress}
           delayLongPress={400}
-          {...door}
+          {...rowDoor(onLongPress, onToggle)}
           accessibilityActions={rowActions}
           onAccessibilityAction={onRowAction}
           style={({ pressed }) => [styles.suggestMain, pressed && styles.pressed]}
@@ -1226,7 +1232,7 @@ export function TaskRow({
           onPress={onToggle}
           onLongPress={onLongPress}
           delayLongPress={400}
-          {...door}
+          {...rowDoor(onLongPress, onToggle)}
           accessibilityActions={rowActions}
           onAccessibilityAction={onRowAction}
           style={({ pressed }) => [styles.tinyMain, pressed && styles.pressed]}

@@ -20,6 +20,7 @@ import { ModalCard } from '@/components/ModalCard';
 import { Mark } from '@/components/Mark';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { PRESS_NOW, PRESS_SETTLE_MS } from '@/components/press-now';
+import { radioDoor } from '@/components/radio-door';
 import { RotatingPhrase } from '@/components/RotatingPhrase';
 import { TaskRow } from '@/components/TaskRow';
 import { border, cardShadow, fonts, layout, motion, PRESSED_OPACITY, radius, rgba, shelfTint, spacing, type Theme } from '@/constants/theme';
@@ -3618,7 +3619,7 @@ export default function TodayScreen() {
             accessibilityRole="radiogroup"
             accessibilityLabel={t('today.energyTitleA11y')}
           >
-            {(['low', 'normal', 'high'] as const).map((lvl) => {
+            {(['low', 'normal', 'high'] as const).map((lvl, i, levels) => {
               const on = dayEnergy === lvl;
               const label =
                 lvl === 'low' ? t('today.energyPillLow') : lvl === 'high' ? t('today.energyPillHigh') : t('today.energyPillNormal');
@@ -3630,6 +3631,9 @@ export default function TodayScreen() {
                   aria-checked={on}
                   accessibilityLabel={label}
                   hitSlop={6}
+                  // The web's radio group (#37): one tab stop, the chosen pill; Space picks, the arrows, Home and End
+                  // move the choice. Each pick is the tap's own setEnergy. Native keeps exactly what it had.
+                  {...radioDoor(i, levels.length, on, (n) => setEnergy(levels[n]))}
                   style={({ pressed }) => [styles.energyPill, on && styles.energyPillOn, pressed && styles.pressed]}
                 >
                   <Text style={[styles.energyPillText, on && styles.energyPillTextOn]}>{label}</Text>
