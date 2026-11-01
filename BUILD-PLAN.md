@@ -42,6 +42,9 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**The rest-day gate is LIVE 2026-11-01: Melroy deployed Worker `636a1611` from main `46675a7`** (rollback target
+`84cded96`; checked: bindings identical, /health 200, a new route still answers 401 JSON without a token). Next: read
+D1 on 2 or 3 Nov to see the first rows (the command below). The original note follows.
 **The rest-day gate is BUILT on main 2026-11-01, waiting on ONE Worker deploy (Melroy).** Two bare counters,
 `day.closed.morning` (a Goodnight between 05:00 and 11:59 local) and `reentry.shown` (the welcome-back note after 4+
 days away), are on both allowlists, and both privacy copies name them, alongside the web reminder's push store that no
