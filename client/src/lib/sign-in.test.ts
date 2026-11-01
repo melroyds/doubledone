@@ -7,7 +7,8 @@ import { isRateLimit, leaveSignIn, type SignInExit, verifyFailure, verifyFailure
 // The sign-in screen's two decisions (bug sweep 2026-11-01, #10 and #20). Every error below is built from the
 // real auth-js classes, the shapes `verifyOtp` actually returns: a fetch that never got an answer becomes an
 // AuthRetryableFetchError with status 0, a 5xx stays retryable with its own status, and a 4xx with a body
-// becomes an AuthApiError. A storage failure while saving the session is not an auth error at all.
+// becomes an AuthApiError. A storage failure while saving the session is not an auth error at all: the browser throws
+// a DOMException (SecurityError, or QuotaExceededError), which reaches us because auth-js rethrows non-auth errors.
 
 describe('verifyFailure: only the server refusing the code blames the code', () => {
   it('a dropped connection is the connection, on the web and on the phones', () => {
@@ -41,11 +42,26 @@ describe('verifyFailure: only the server refusing the code blames the code', () 
     expect(verifyFailure(new AuthApiError('Database error', 507, 'unexpected_failure'))).toBe('unexplained');
   });
 
-  it('a browser that blocks saving is not the code: the server took it, the session could not be kept', () => {
-    expect(verifyFailure(new DOMException('The operation is insecure.', 'SecurityError'))).toBe('unexplained');
+  it('a browser that blocks saving is the browser, not the code: the server took it, the session could not be kept', () => {
+    expect(verifyFailure(new DOMException('The operation is insecure.', 'SecurityError'))).toBe('storageBlocked');
+    expect(
+      verifyFailure(new DOMException("Failed to read the 'localStorage' property from 'Window': Access is denied for this document.", 'SecurityError')),
+    ).toBe('storageBlocked');
+    // Safari's old private mode refused every save as a full quota.
+    expect(verifyFailure(new DOMException('The quota has been exceeded.', 'QuotaExceededError'))).toBe('storageBlocked');
+  });
+
+  it('reads a blocked save by its name, so a build with no DOMException (Hermes) still tells it apart', () => {
+    expect(verifyFailure({ name: 'SecurityError', message: 'The operation is insecure.' })).toBe('storageBlocked');
+    expect(verifyFailure({ name: 'QuotaExceededError' })).toBe('storageBlocked');
+  });
+
+  it('goes by the error, never its words: a plain Error that mentions storage is still unexplained', () => {
     expect(
       verifyFailure(new Error("Failed to read the 'localStorage' property from 'Window': Access is denied for this document.")),
     ).toBe('unexplained');
+    // Other DOMExceptions are not a blocked save either.
+    expect(verifyFailure(new DOMException('The user aborted a request.', 'AbortError'))).toBe('unexplained');
   });
 
   it('an error that only looks like a dropped fetch is not taken for one', () => {
@@ -72,13 +88,19 @@ describe('verifyFailureKey: the line each reading shows', () => {
     expect(verifyFailureKey('rateLimited')).not.toBe('signIn.codeInvalid');
   });
 
-  it('a server error or blocked storage keeps the old line until the copy batch adds an honest one', () => {
-    // Pinned on purpose: when the new signIn line lands, this expectation is the one place that changes.
-    expect(verifyFailureKey('unexplained')).toBe('signIn.codeInvalid');
+  it('a blocked browser hears the browser is blocking saving, and a server error that the code could not be checked', () => {
+    expect(verifyFailureKey('storageBlocked')).toBe('signIn.storageBlocked');
+    expect(verifyFailureKey('unexplained')).toBe('signIn.codeNotChecked');
+  });
+
+  it('neither a blocked browser nor a server error ever says the code did not work', () => {
+    expect(verifyFailureKey('storageBlocked')).not.toBe('signIn.codeInvalid');
+    expect(verifyFailureKey('unexplained')).not.toBe('signIn.codeInvalid');
+    expect(verifyFailureKey('storageBlocked')).not.toBe(verifyFailureKey('unexplained'));
   });
 
   it('every line it can show exists in all five languages, in that language', () => {
-    for (const failure of ['offline', 'rateLimited', 'codeRefused', 'unexplained'] as const) {
+    for (const failure of ['offline', 'storageBlocked', 'rateLimited', 'codeRefused', 'unexplained'] as const) {
       const key = verifyFailureKey(failure);
       const english = translate('en', key);
       expect(english, key).not.toBe(key);
@@ -94,6 +116,19 @@ describe('verifyFailureKey: the line each reading shows', () => {
   it('a good code on a dropped connection hears it is offline, not that the code failed', () => {
     const line = translate('en', verifyFailureKey(verifyFailure(new AuthRetryableFetchError('Failed to fetch', 0))));
     expect(line).toContain('offline');
+    expect(line).not.toContain('did not work');
+  });
+
+  it('a good code on a server error hears it could not be checked, and is never asked to doubt it', () => {
+    const line = translate('en', verifyFailureKey(verifyFailure(new AuthRetryableFetchError('Bad gateway', 502))));
+    expect(line).toMatch(/couldn't check your code/);
+    expect(line).not.toContain('did not work');
+  });
+
+  it('a blocked browser is told it is the browser, and where to change it', () => {
+    const line = translate('en', verifyFailureKey(verifyFailure(new DOMException('The operation is insecure.', 'SecurityError'))));
+    expect(line).toContain('browser');
+    expect(line).toContain('site settings');
     expect(line).not.toContain('did not work');
   });
 });

@@ -813,7 +813,8 @@ export function TaskRow({
                 onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onSteps && (() => act(onSteps))}
                 disabled={!onSteps}
                 accessibilityRole={onSteps ? 'button' : undefined}
-                accessibilityLabel={onSteps ? t('today.changeStepsA11y') : undefined}
+                // Starts with the count it shows, said "2 of 5", so the name holds the words on the button.
+                accessibilityLabel={onSteps ? t('today.changeStepsA11y', { done: slices.done, total: slices.total }) : undefined}
                 hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
               >
                 <Text style={[styles.titleCount, onSteps && styles.titleCountLive]}>
@@ -942,7 +943,7 @@ export function TaskRow({
             onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onMoveTo && (() => act(onMoveTo))}
             style={styles.actionRow}
             accessibilityRole="button"
-            accessibilityLabel={t('today.moveSelectedA11y')}
+            accessibilityLabel={t('today.moveOneA11y', { title })}
             hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text style={styles.actionLabel}>{t('today.moveTo')}</Text>
@@ -953,7 +954,7 @@ export function TaskRow({
             onPressIn={markPress} onPressOut={releasePress} {...PRESS_NOW} onPress={onBig && (() => act(onBig))}
             style={[styles.actionRow, big && styles.actionRowActive]}
             accessibilityRole="button"
-            accessibilityLabel={big ? t('today.unmarkBigOneA11y') : t('today.markBigOneA11y')}
+            accessibilityLabel={big ? t('today.unmarkBigOneA11y', { title }) : t('today.markBigOneA11y', { title })}
             hitSlop={{ top: 6, bottom: 6 }}
           >
             <Text style={[styles.actionLabel, big && styles.actionLabelActive]}>{t('today.markAsALot')}</Text>

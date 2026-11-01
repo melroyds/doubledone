@@ -806,7 +806,8 @@ export default function PremiumScreen() {
               <Pressable
                 onPress={() => router.push('/terms')}
                 accessibilityRole="button"
-                accessibilityLabel={t('premium.termsLinkA11y')}
+                // Its own words, without the › some readers speak. It borrowed the store row's "Terms of use" name.
+                accessibilityLabel={t('premium.billedViaStripeA11y')}
                 hitSlop={6}
               >
                 <Text style={styles.foot}>{t('premium.billedViaStripe')}</Text>

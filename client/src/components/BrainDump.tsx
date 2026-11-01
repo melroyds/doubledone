@@ -112,9 +112,10 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 /**
  * The capture PANEL's contents (design_handoff_capture_pill, 2026-09-26): the heading and Close, the
- * field, one hint seat (an error, the Tidy offer, or the AI note), the tools (Speak, Scan, and the one AI
- * slot, Break it down or Sort for me), then When and Add. CaptureSheet owns the pill, the rise and the
- * keyboard; this owns the words and everything done with them.
+ * field, one hint seat (an error or the Tidy offer, with the AI note under it, which never leaves while an
+ * AI tool is on screen), the tools (Speak, Scan, and the one AI slot, Break it down or Sort for me), then
+ * When and Add. CaptureSheet owns the pill, the rise and the keyboard; this owns the words and everything
+ * done with them.
  *
  * The rules the earlier composers kept still hold, because the logic below is theirs: the text is never
  * lost (this stays mounted; only an Add, an accepted breakdown or a successful Sort clears it), the Add
@@ -487,14 +488,29 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   // Tidy is an AI call too, so it lives only where the AI shapers do. It used to show on the shared list,
   // whose promise is no AI but Scan, and whose disclosure never named it (found mapping Today v3).
   const showTidy = hasShapers && canSplit && (busyKind === 'split' || !busy);
+  // Tidy as it is actually on screen: an error takes its line, so the note then names only what is left.
+  const tidyOffered = showTidy && !error;
 
   /**
    * The egress disclosure, naming the affordances THIS surface actually has (Sort / Break it down,
-   * Scan, both, or none). A false statement about where your data goes is a worse bug than a missing
-   * one: it teaches you the disclosure is decorative.
+   * Scan, both, or none, and Tidy while it is offered). A false statement about where your data goes is
+   * a worse bug than a missing one: it teaches you the disclosure is decorative. It never leaves while an
+   * AI tool is on screen: until the 2026-11-01 copy batch, Tidy took the note's seat, so the one moment a
+   * third AI button appeared was the one moment nothing said where its words went (bug sweep #4).
    */
   const scanAI = aiEnabled && Boolean(onCamera);
-  const aiNoteKey = hasShapers && scanAI ? 'capture.aiNoteBoth' : hasShapers ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
+  const aiNoteKey =
+    hasShapers && scanAI
+      ? tidyOffered
+        ? 'capture.aiNoteBothTidy'
+        : 'capture.aiNoteBoth'
+      : hasShapers
+        ? tidyOffered
+          ? 'capture.aiNoteTidy'
+          : 'capture.aiNote'
+        : scanAI
+          ? 'capture.aiNoteScan'
+          : null;
 
   // When's overline names the rows BEHIND it, composed from the rows this surface actually has.
   const doorRows = [t('capture.rowWhen'), t('capture.rowRepeats'), ...(allowSteps ? [t('capture.rowSteps')] : [])];
@@ -615,7 +631,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                         hitSlop={4}
                         accessibilityRole="button"
                         aria-selected={monthDayEff === d}
-                        accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
+                        accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
                       >
                         <Text style={[styles.dayText, monthDayEff === d && styles.dayTextOn]}>{d}</Text>
                       </Pressable>
@@ -704,12 +720,16 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
             />
           </View>
 
-          {/* ONE hint seat, always the same place: an error, the Tidy offer, or the AI note, in that order. */}
+          {/* ONE hint seat, always the same place, in two stacked lines: an error or the Tidy offer first, then
+              the AI note, which never leaves while an AI tool is on screen (it names Tidy while Tidy is offered).
+              At rest only the note sits here, exactly as before. */}
           <View style={styles.hintSeat}>
             {error ? (
               <Text style={styles.error}>{error}</Text>
-            ) : showTidy ? (
-              <Pressable onPress={splitDump} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('capture.tidyA11y')} style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}>
+            ) : tidyOffered ? (
+              // The bottom slop stops at the gap: the note sits just under Tidy now, and a touch on the line that
+              // says where your words go must never be the touch that sends them.
+              <Pressable onPress={splitDump} disabled={busy} hitSlop={{ top: 8, bottom: 2, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={t('capture.tidyA11y')} style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}>
                 {busyKind === 'split' ? (
                   <View style={styles.busyRow}>
                     <ActivityIndicator size="small" color={theme.colors.accent} />
@@ -719,9 +739,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                   <Text style={styles.toolText}>{t('capture.tidy')}</Text>
                 )}
               </Pressable>
-            ) : aiNoteKey ? (
-              <Text style={styles.aiNote}>{t(aiNoteKey)}</Text>
             ) : null}
+            {aiNoteKey ? <Text style={styles.aiNote}>{t(aiNoteKey)}</Text> : null}
           </View>
 
           {/* TOOLS: Speak and Scan on the left, the one AI slot on the right (or, on the shared list, the
@@ -859,7 +878,9 @@ const makeStyles = (t: Theme) => {
       // the width and drew a yellow rectangle inside the box in an earlier preview.
       ...(Platform.OS === 'web' ? { outlineStyle: 'solid' as const, outlineWidth: 0 } : null),
     },
-    hintSeat: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 2 },
+    // Two stacked lines at most (an error or Tidy, then the AI note). The gap only shows when both do, so the
+    // seat at rest is the 36 it always was.
+    hintSeat: { minHeight: 36, justifyContent: 'center', gap: 2, paddingHorizontal: 2 },
     aiNote: { color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     error: { color: t.colors.accentText, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     tools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, minHeight: 44 },

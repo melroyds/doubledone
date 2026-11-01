@@ -19,7 +19,7 @@ import { debugLog } from '@/lib/debug-log';
 import { formatTodayLabel, friendlyDate, toISODate } from '@/lib/day';
 import { type CaptureWhen } from '@/lib/capture-door';
 import { type CaptureSchedule, scheduleFields } from '@/lib/recurrence';
-import { t } from '@/lib/locale';
+import { fmt, t } from '@/lib/locale';
 import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { knownOursName, rememberOursName } from '@/lib/ours-name';
@@ -999,7 +999,7 @@ export default function OursListScreen() {
         <View style={[styles.capture, { paddingBottom: insets.bottom + spacing.three }]}>
           <View style={styles.selectTop}>
             <Text style={selected.length === 0 ? styles.selectHint : styles.selectCount}>
-              {selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}
+              {selected.length === 0 ? t('today.selectHint') : fmt.plural(selected.length, { one: t('today.selectedCountOne'), other: t('today.selectedCountOther') })}
             </Text>
             <Pressable
               onPress={() => setSelected(visible.map((task) => task.id))}
@@ -1038,7 +1038,9 @@ export default function OursListScreen() {
               onPress={bulkRemove}
               disabled={selected.length === 0}
               accessibilityRole="button"
-              accessibilityLabel={t('today.removeCountA11y', { count: String(selected.length) })}
+              // One and Other, as Today does. This asked for a removeCountA11y key that no catalogue has, so a screen
+              // reader spoke the raw key (t() takes any string; lib/catalog-keys.test.ts now catches that).
+              accessibilityLabel={t(selected.length === 1 ? 'today.removeCountA11yOne' : 'today.removeCountA11yOther', { count: String(selected.length) })}
               hitSlop={6}
               style={selected.length === 0 ? styles.selectOff : undefined}
             >

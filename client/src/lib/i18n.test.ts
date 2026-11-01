@@ -9,10 +9,13 @@ import {
   formatTime,
   formatWeekday,
   languageName,
+  ordinalDay,
   pluralize,
   resolveLocale,
   translate,
 } from './i18n';
+import { setActiveLocale } from './i18n-active';
+import { describeRecurrence } from './recurrence';
 
 describe('resolveLocale', () => {
   it('keeps a supported base language', () => {
@@ -82,6 +85,95 @@ describe('pluralize (Intl.PluralRules)', () => {
     const forms = { one: '{count} jour', other: '{count} jours' };
     expect(pluralize('fr', 1, forms)).toBe('1 jour'); // fr: 1 is 'one'
     expect(pluralize('fr', 2, forms)).toBe('2 jours'); // fr: 2 is 'other'
+  });
+});
+
+// The day of the month as said after "on" (bug sweep #39). Italian carries its article, and elides it before a vowel
+// sound (otto, undici), so its templates never write "il" or "l'" themselves: "Ripeti ogni 15" and "il l'8" were the
+// two ways it read wrong. French writes the first as "1er".
+describe('ordinalDay', () => {
+  it('leaves English, German and Spanish as they were', () => {
+    expect(ordinalDay('en', 1)).toBe('1st');
+    expect(ordinalDay('en', 11)).toBe('11th');
+    expect(ordinalDay('en', 22)).toBe('22nd');
+    expect(ordinalDay('de', 1)).toBe('1.');
+    expect(ordinalDay('de', 15)).toBe('15.');
+    expect(ordinalDay('es', 1)).toBe('1');
+    expect(ordinalDay('es', 15)).toBe('15');
+  });
+
+  it('writes the French first as "1er", and every other day bare', () => {
+    expect(ordinalDay('fr', 1)).toBe('1er');
+    expect(ordinalDay('fr', 8)).toBe('8');
+    expect(ordinalDay('fr', 31)).toBe('31');
+  });
+
+  it('gives the Italian day its article, eliding it before 8 and 11', () => {
+    expect(ordinalDay('it', 1)).toBe('il 1º');
+    expect(ordinalDay('it', 8)).toBe("l'8");
+    expect(ordinalDay('it', 11)).toBe("l'11");
+    expect(ordinalDay('it', 15)).toBe('il 15');
+    expect(ordinalDay('it', 18)).toBe('il 18');
+    expect(ordinalDay('it', 28)).toBe('il 28');
+  });
+
+  it('elides the Italian article for exactly the days said with a vowel (otto, undici), across the month', () => {
+    for (let d = 1; d <= 31; d++) {
+      expect(ordinalDay('it', d).startsWith("l'"), `day ${d}`).toBe(d === 8 || d === 11);
+    }
+  });
+
+  it('marks the Italian first with the ordinal indicator, never the degree sign', () => {
+    expect(ordinalDay('it', 1)).toContain('º');
+    expect(ordinalDay('it', 1)).not.toContain('°');
+  });
+});
+
+describe('the monthly lines, as they render', () => {
+  afterEach(() => setActiveLocale('en', 'en-AU'));
+  const monthly = (day: number) => describeRecurrence({ kind: 'monthly', day });
+
+  it('Italian never doubles or drops the article, and starts each line with a capital', () => {
+    setActiveLocale('it', 'it-IT');
+    for (let d = 1; d <= 31; d++) {
+      const lines = [
+        translate('it', 'capture.monthlyOn', { day: ordinalDay('it', d) }),
+        monthly(d),
+        translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', d) }),
+      ];
+      for (const line of lines) {
+        expect(line, `day ${d}: ${line}`).not.toMatch(/il l'|il il|l'il/i);
+        expect(line, `day ${d}: ${line}`).not.toMatch(/Ripeti ogni/);
+        expect(line.charAt(0), `day ${d}: ${line}`).toBe(line.charAt(0).toUpperCase());
+      }
+    }
+    expect(translate('it', 'capture.monthlyOn', { day: ordinalDay('it', 8) })).toBe("Ogni mese: l'8");
+    expect(translate('it', 'capture.monthlyOn', { day: ordinalDay('it', 1) })).toBe('Ogni mese: il 1º');
+    expect(monthly(8)).toBe("L'8 di ogni mese");
+    expect(monthly(11)).toBe("L'11 di ogni mese");
+    expect(monthly(1)).toBe('Il 1º di ogni mese');
+    expect(monthly(15)).toBe('Il 15 di ogni mese');
+    expect(translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', 15) })).toBe('Ripeti il 15 di ogni mese');
+    expect(translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', 8) })).toBe("Ripeti l'8 di ogni mese");
+  });
+
+  it('French says the first as "1er"', () => {
+    setActiveLocale('fr', 'fr-FR');
+    expect(monthly(1)).toBe('Le 1er de chaque mois');
+    expect(monthly(15)).toBe('Le 15 de chaque mois');
+    expect(translate('fr', 'capture.monthlyOn', { day: ordinalDay('fr', 1) })).toBe('Mensuel : le 1er');
+    expect(translate('fr', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('fr', 1) })).toBe('Répéter le 1er de chaque mois');
+  });
+
+  it('the month-day chips speak a whole sentence in every language, not "Repeat on 15th"', () => {
+    expect(translate('en', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('en', 15) })).toBe('Repeat on the 15th of each month');
+    expect(translate('de', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('de', 15) })).toBe('Am 15. jedes Monats wiederholen');
+    expect(translate('es', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('es', 15) })).toBe('Repetir el día 15 de cada mes');
+  });
+
+  it('English keeps its lines, capital and all', () => {
+    expect(monthly(1)).toBe('Every month on the 1st');
+    expect(monthly(21)).toBe('Every month on the 21st');
   });
 });
 

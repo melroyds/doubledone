@@ -678,6 +678,10 @@ export default function SettingsScreen() {
                 <View style={[styles.row, styles.confirmStack]}>
                   <Text style={[styles.linkLabel, styles.dangerText]}>{t('settings.deleteAccountLink')}</Text>
                   <Text style={styles.confirmText}>{t('settings.deleteConfirmBody')}</Text>
+                  {/* What else goes, said before the tap (bug sweep #14): a shared list closes and keeps what you added
+                      for the other person (the server freezes the pair and deletes nothing of theirs), and this
+                      device is cleared too (runDelete's wipe), so Export comes first if a copy is wanted. */}
+                  <Text style={styles.confirmText}>{t('settings.deleteConfirmAlso')}</Text>
                   {/* Apple billing is out of our reach, so an Apple subscriber is told BEFORE they confirm. A
                       Google Play subscriber is told that deleting turns its renewal off. Plain text on every
                       platform, never a link: it asks nothing and sells nothing. */}

@@ -331,15 +331,13 @@ describe("convertSpokenKeys (what the trial panel's Go Premium says aloud)", () 
     }
   });
 
-  for (const loc of ['en', 'es', 'fr', 'it'] as const) {
+  // German joined the other four with the copy batch's native read (2026-11-01): it spoke "Hol dir Premium, um es
+  // nach deinem Gratismonat zu behalten" under a button that says "Hol dir Premium und behalt es".
+  for (const loc of ['en', 'de', 'es', 'fr', 'it'] as const) {
     it(`begins with the words on the button, in ${loc}`, () => {
       const cat = CATALOGS[loc];
       const spoken = String(lookup(cat, convertSpokenKeys('monthly')[0]));
       expect(spoken.startsWith(String(lookup(cat, 'premium.goPremiumKeepIt'))), `${loc}: ${spoken}`).toBe(true);
     });
   }
-
-  // German shows "Hol dir Premium und behalt es" but speaks "Hol dir Premium, um es nach deinem Gratismonat zu
-  // behalten". That is a line for the copy batch's native read, never a hand edit here.
-  it.todo('begins with the words on the button, in de, once the copy batch rewrites premium.goPremiumKeepItA11y');
 });

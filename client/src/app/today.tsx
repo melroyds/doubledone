@@ -1301,8 +1301,10 @@ export default function TodayScreen() {
   // selected Later repeat is still labelled honestly.
   const onlyTask = selected.length === 1 ? tasks.find((t) => t.id === selected[0] && !t.deletedAt) : undefined;
   // For the multi-select "Big" toggle: true when every selected task is already big, so the action flips to
-  // "Not big" (clear); a mixed or empty selection marks all big (the additive, validating default).
+  // "Not a lot" (clear); a mixed or empty selection marks all big (the additive, validating default).
   const allBig = selected.length > 0 && selected.every((id) => tasks.find((t) => t.id === id)?.big);
+  // The select bar's mark verb agrees with how many are picked (Italian, French and Spanish inflect it).
+  const manySelected = selected.length > 1;
   // The selected tasks eligible to combine (open one-offs); the Combine action shows at 2+.
   const combinable = selected.filter((id) => {
     const t = tasks.find((x) => x.id === id);
@@ -4287,7 +4289,7 @@ export default function TodayScreen() {
           >
             <View style={styles.selectTop}>
               <Text style={selected.length === 0 ? styles.selectHintText : styles.selectCount}>
-                {selected.length === 0 ? t('today.selectHint') : t('today.selectedCount', { count: selected.length })}
+                {selected.length === 0 ? t('today.selectHint') : fmt.plural(selected.length, { one: t('today.selectedCountOne'), other: t('today.selectedCountOther') })}
               </Text>
               {/* Select all wears the rail grammar (bordered = act-and-stay), dimming in place
                   once everything is selected rather than vanishing. */}
@@ -4310,8 +4312,17 @@ export default function TodayScreen() {
               <Pressable onPress={() => setMoveIds(selected)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={t('today.moveSelectedA11y')} hitSlop={6} style={styles.selectVerb}>
                 <Text style={styles.selectAction}>{t('today.moveTo')}</Text>
               </Pressable>
-              <Pressable onPress={() => markBig(selected, !allBig)} disabled={selected.length === 0} accessibilityRole="button" accessibilityLabel={allBig ? t('today.unmarkBigA11y') : t('today.markBigA11y')} hitSlop={6} style={styles.selectVerb}>
-                <Text style={styles.selectAction}>{allBig ? t('today.notALot') : t('today.markAsALot')}</Text>
+              {/* Two or more selected take the plural verb (Italian "Segna come grosse", French "gros morceaux"); the
+                  spoken name starts with whichever is on screen. */}
+              <Pressable
+                onPress={() => markBig(selected, !allBig)}
+                disabled={selected.length === 0}
+                accessibilityRole="button"
+                accessibilityLabel={allBig ? t(manySelected ? 'today.unmarkBigManyA11y' : 'today.unmarkBigA11y') : t(manySelected ? 'today.markBigManyA11y' : 'today.markBigA11y')}
+                hitSlop={6}
+                style={styles.selectVerb}
+              >
+                <Text style={styles.selectAction}>{allBig ? t(manySelected ? 'today.notALotMany' : 'today.notALot') : t(manySelected ? 'today.markAsALotMany' : 'today.markAsALot')}</Text>
               </Pressable>
             </View>
             {/* Combine, the surface's one tinted hero, in a slot reserved in EVERY state: eligible

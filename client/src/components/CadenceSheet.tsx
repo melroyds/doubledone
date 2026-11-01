@@ -369,7 +369,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
                 hitSlop={4}
                 accessibilityRole="button"
                 aria-selected={monthDay === d}
-                accessibilityLabel={t('capture.repeatOnDayA11y', { day: ordinalDay(d) })}
+                accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
               >
                 <Text style={[styles.monthDayText, monthDay === d && styles.dayTextOn]}>{d}</Text>
               </Pressable>

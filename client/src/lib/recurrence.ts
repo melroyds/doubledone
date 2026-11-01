@@ -86,8 +86,12 @@ function cadenceLabel(r: Recurrence): string {
       return t('repeat.oneOff');
     case 'daily':
       return t('repeat.everyDay');
-    case 'monthly':
-      return t('repeat.monthlyOnDay', { day: ordinalDay(r.day) });
+    case 'monthly': {
+      // Capitalised here, because Italian starts this line with the day and its article ("{day} di ogni mese",
+      // "l'8 di ogni mese"), and every caller starts a line with it or follows a "·". A no-op in the other four.
+      const label = t('repeat.monthlyOnDay', { day: ordinalDay(r.day) });
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }
     case 'interval':
       return r.days === 1 ? t('repeat.everyDay') : t('repeat.everyNDays', { days: r.days });
     case 'weekly': {

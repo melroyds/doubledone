@@ -97,15 +97,23 @@ export function pluralize(loc: Locale, count: number, forms: PluralForms, params
 }
 
 /**
- * A day of the month as that locale writes it: "15th" in English, "15." in German, "15" elsewhere.
+ * A day of the month as it is said after "on" ("on the 15th"): "15th" in English, "15." in German, "1er" for
+ * the first and the bare number otherwise in French, the bare number in Spanish, and in Italian the day WITH its
+ * article ("il 15", "il 1º", "l'8", "l'11"), because Italian elides the article before a vowel sound and only the
+ * number knows which it needs. So an Italian template never writes "il" or "l'" before {day}: "Ogni mese: {day}",
+ * not "Ogni mese: il {day}", which would read "il l'8". A template that starts a line with {day} gets a capital
+ * from its caller (lib/recurrence's monthly label).
  *
  * Hand-rolled for exactly the reason `pluralize` above is: Hermes has no `Intl.PluralRules`, so the
  * ordinal variant is not available on Android either, and reaching for it would crash on device
- * while passing every browser test. English is the only shipped locale that inflects the numeral;
- * Spanish, French and Italian write the bare number, and German appends a full stop.
+ * while passing every browser test. The Italian first is "1º" with the ordinal indicator U+00BA, not the
+ * degree sign U+00B0 that is often typed for it: the Italian read (2026-11-01) asked for it, so a screen reader
+ * has an ordinal to say rather than a degree.
  */
 export function ordinalDay(loc: Locale, day: number): string {
   if (loc === 'de') return `${day}.`;
+  if (loc === 'fr') return day === 1 ? '1er' : String(day);
+  if (loc === 'it') return day === 1 ? 'il 1º' : day === 8 || day === 11 ? `l'${day}` : `il ${day}`;
   if (loc !== 'en') return String(day);
   const teens = day % 100;
   if (teens >= 11 && teens <= 13) return `${day}th`;

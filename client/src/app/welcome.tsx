@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
+import { useSessionState } from '@/lib/auth';
 import { t } from '@/lib/locale';
 import { welcomeFineKey } from '@/lib/premium-ui';
 import { IAP_AVAILABLE } from '@/lib/purchases';
@@ -18,6 +19,7 @@ import { makeId, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 import { allOnToday, triageToTasks } from '@/lib/triage';
+import { welcomePrivacyKeys } from '@/lib/welcome-privacy';
 import { WIDGETS_SUPPORTED } from '@/widget/presence';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
@@ -92,6 +94,11 @@ export default function WelcomeScreen() {
   const theme = useTheme();
   const { settings, setSettings } = useSettings();
   const aiEnabled = settings.aiEnabled;
+  // A replay from Settings can be signed in, where "keeps everything on this device" and "Sign in to sync" are
+  // both false. Only someone KNOWN to be signed out reads those. Everyone else, including the moment before the
+  // session is known, reads lines that make no device or account claim (lib/welcome-privacy).
+  const { session, known } = useSessionState();
+  const privacy = welcomePrivacyKeys(aiEnabled, known && !session);
   const [step, setStep] = useState<Step>('welcome');
   const [dump, setDump] = useState('');
   const [busy, setBusy] = useState(false);
@@ -313,7 +320,7 @@ export default function WelcomeScreen() {
               accessibilityLabel={t('welcome.captureInputA11y')}
             />
             <Text style={styles.speak}>
-              {aiEnabled ? t('welcome.capturePrivacyAi') : t('welcome.capturePrivacyNoAi')}
+              {t(privacy.capture)}
             </Text>
           </View>
         )}
@@ -530,7 +537,7 @@ export default function WelcomeScreen() {
 
             <Text style={styles.ethos}>{t('welcome.handoffEthos')}</Text>
             <Text style={styles.fine}>
-              {aiEnabled ? t('welcome.handoffFineAi') : t('welcome.handoffFineNoAi')}
+              {t(privacy.handoff)}
             </Text>
           </View>
         )}

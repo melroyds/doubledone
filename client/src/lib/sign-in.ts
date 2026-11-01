@@ -14,7 +14,17 @@ export function isRateLimit(e: unknown): boolean {
 }
 
 /** Why a typed code did not sign you in, as far as the error can honestly tell. */
-export type VerifyFailure = 'offline' | 'rateLimited' | 'codeRefused' | 'unexplained';
+export type VerifyFailure = 'offline' | 'storageBlocked' | 'rateLimited' | 'codeRefused' | 'unexplained';
+
+/**
+ * A browser refusing to let the app save, which is what a session save meets with site data blocked: a
+ * SecurityError, or a QuotaExceededError (Safari's old private mode). Read by NAME, never `instanceof`, because
+ * Hermes has no DOMException, and only a browser throws these on a save anyway.
+ */
+function isStorageBlocked(e: unknown): boolean {
+  const name = (e as { name?: unknown } | null | undefined)?.name;
+  return name === 'SecurityError' || name === 'QuotaExceededError';
+}
 
 /**
  * Read a `verifyOtp` failure. Until 2026-11-01 every failure said "That code did not work", so a good code on a
@@ -22,25 +32,29 @@ export type VerifyFailure = 'offline' | 'rateLimited' | 'codeRefused' | 'unexpla
  *
  * - `offline`: auth-js wraps every fetch that never got an answer as an AuthRetryableFetchError with status 0,
  *   on the web and on the phones alike, so this needs no navigator check (which the phones cannot make).
+ * - `storageBlocked`: the browser would not let the session be saved. The server took the code, so it is spent,
+ *   but it was not the code's fault, and the fix is a browser setting, not a retry.
  * - `rateLimited`: a 429, "you just asked".
  * - `codeRefused`: the server read the code and said no. Only an AuthApiError with a 4xx status means that.
- * - `unexplained`: everything else, chiefly a server error, or a browser that blocks saving (the server took the
- *   code and the session could not be kept). Neither is the code's fault.
+ * - `unexplained`: everything else, chiefly a server error. Not the code's fault either.
  */
 export function verifyFailure(e: unknown): VerifyFailure {
   if (isAuthRetryableFetchError(e) && e.status === 0) return 'offline';
+  if (isStorageBlocked(e)) return 'storageBlocked';
   if (isRateLimit(e)) return 'rateLimited';
   if (isAuthApiError(e) && e.status >= 400 && e.status < 500) return 'codeRefused';
   return 'unexplained';
 }
 
+// Two lines rather than one for the two readings that are not the code's fault: only a browser can block saving, so
+// a line naming the browser would be wrong on a phone, and a line without it would send a blocked browser round a
+// retry loop on a reassuring sentence.
 const VERIFY_FAILURE_KEY: Record<VerifyFailure, string> = {
   offline: 'common.offlineLine',
+  storageBlocked: 'signIn.storageBlocked',
   rateLimited: 'signIn.rateLimited',
   codeRefused: 'signIn.codeInvalid',
-  // No line in all five languages yet tells a server error or blocked storage honestly, so today's line stands
-  // until the copy batch adds one. That new key replaces this entry, and nothing else has to change.
-  unexplained: 'signIn.codeInvalid',
+  unexplained: 'signIn.codeNotChecked',
 };
 
 /** The catalogue key the screen shows for a reading. */
