@@ -17,7 +17,9 @@
 //      words as the first. No counters, no "3rd reminder", no guilt inflection. It just arrives
 //      again.
 //   3. THE EXIT IS ONE TAP AND NEVER QUESTIONED. Ticking the task ends it. "Let it go" ends it.
-//      Neither is ever met with a confirm dialog or a comment.
+//      Neither is ever met with a confirm dialog or a comment. Taking the task off Today ends it
+//      too (holdOutcome), because a knock about a task you cannot find, tick or let go is a
+//      contract with no exit.
 //
 // The OCD caveat, written where the cadence lives: for a checking-loop brain a relentless reminder
 // can become an anxiety machine, which is why this is opt-in per task, visibly bounded (you can
@@ -28,6 +30,8 @@
 // app to run at fire time, and the whole point is reaching someone who has not opened the app. So
 // the day's steps are all scheduled up front (four ids plus one daily repeat, far under iOS's 64
 // pending-notification cap), and cancelling the contract cancels every id.
+
+import { currentRound, isDoneOn, type Scheduled, tasksForToday } from './today';
 
 /** Minutes after the hold when each same-day step fires, before quiet-hours shifting.
  *  Half an hour, then roughly doubling: present without being a metronome. */
@@ -102,6 +106,57 @@ export function escalationTimes(heldAt: Date): Date[] {
  */
 export function holdRequiresSwap(current: HoldContract | null, taskId: string): boolean {
   return current !== null && current.taskId !== taskId;
+}
+
+/** What the watcher reads off a task: where Today places it, and whether it is a tiny step's real task. */
+type Holdable = Scheduled & { id: string; parentId?: string; openParent?: boolean; createdAt?: number };
+
+const onToday = (task: Scheduled, date: Date): boolean => tasksForToday([task], date).length === 1;
+
+/**
+ * Whether the held task is still on Today, where its row, and with it "Let it go", can be reached.
+ *
+ * Not when it is missing, tombstoned (Remove, Combine, a delete synced from another device), broken
+ * down into steps (a silent parent), moved to a later day, or a repeat that is not due today or was
+ * removed from today: everything tasksForToday leaves out.
+ *
+ * The one exception is a task made tiny. Its real task hides while the pebble is out and always comes
+ * back (tick the pebble, remove it or fold it, and the task returns), so it still stands on Today
+ * through that pebble, unless the pebble itself went to a later day. A parent counts as tiny only while
+ * its current round holds at most one child, the rule settleCompletions keeps: with two or more, the
+ * flag is a stale one on a breakdown. Pure.
+ */
+export function heldOnToday<T extends Holdable>(tasks: readonly T[], heldId: string, date: Date): boolean {
+  const held = tasks.find((t) => t.id === heldId);
+  if (!held) return false;
+  if (onToday(held, date)) return true;
+  if (held.deletedAt || held.done || !held.silentParent || !held.openParent) return false;
+  const round = currentRound(tasks.filter((c) => c.parentId === held.id));
+  return round.length <= 1 && round.every((pebble) => isDoneOn(pebble, date) || pebble.silentParent || onToday(pebble, date));
+}
+
+/** What Today's watcher does with the live contract. */
+export type HoldOutcome = 'keep' | 'completed' | 'released';
+
+/** What can hold an ending back for a moment: the ids on Today's Undo bar, and the swap question. */
+export type HoldWaits = { undoable?: readonly string[] | null; asking?: boolean };
+
+/**
+ * The contract's ending, decided in one place for every path that finishes or moves the held task.
+ *
+ * - completed: the held task is done for `date` (a tick, bulk Done, Focus, a sync). Checked first, so a
+ *   task finished and then removed still counts as finished.
+ * - keep: it is still on Today (heldOnToday), or it may be about to come back. While its Remove can still
+ *   be undone (`undoable`), Undo must find the contract and every knock where they were. While the swap
+ *   question is on screen (`asking`), that question names this contract, and its answer ends it.
+ * - released: it has left Today, with no row left to tick or let go.
+ */
+export function holdOutcome<T extends Holdable>(tasks: readonly T[], heldId: string, date: Date, waits: HoldWaits = {}): HoldOutcome {
+  const held = tasks.find((t) => t.id === heldId);
+  if (held && isDoneOn(held, date)) return 'completed';
+  if (heldOnToday(tasks, heldId, date)) return 'keep';
+  if (waits.asking || (waits.undoable ?? []).includes(heldId)) return 'keep';
+  return 'released';
 }
 
 /**

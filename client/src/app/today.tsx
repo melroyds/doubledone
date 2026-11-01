@@ -80,7 +80,7 @@ import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
-import { type HoldContract, holdRequiresSwap, holdStepAt } from '@/lib/hold';
+import { type HoldContract, holdOutcome, holdRequiresSwap, holdStepAt } from '@/lib/hold';
 import { loadClosedDate, loadDayEnergy, loadGiftOffer, loadMonthEnd, loadOfferCardRetired, retireOfferCard, saveGiftOffer, saveMonthEnd, stampFirstSeen, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
 import { restedOffer } from '@/lib/offers';
 import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
@@ -401,6 +401,10 @@ export default function TodayScreen() {
   // restart always agree with the screen.
   const [hold, setHold] = useState<HoldContract | null>(null);
   const [holdSwapFor, setHoldSwapFor] = useState<Task | null>(null);
+  // The heldAt of the contract whose end is already under way: the watcher's own (its saves are async, and a
+  // render before they land must not end it twice), or a Switch replacing it (the new contract's scheduleHold
+  // cancels the old knocks itself, so the watcher must never cancel or clear under it).
+  const endingHold = useRef<number | null>(null);
   // The contract's ENDING: the completed contract's TASK ID, alive for one last frame ("You
   // closed the one I was holding." plays inside that row's cell, still floated at the top), the
   // emotional payoff of the whole feature. Null = no beat playing.
@@ -634,6 +638,9 @@ export default function TodayScreen() {
   const pendingTasks = useRef<Task[] | null>(null); // the list the last commit left, until it renders (commit)
   // The ids whose Remove can still be undone, for the parent repair to leave alone (healStuckParents).
   const undoRemovedRef = useRef<string[] | null>(null);
+  // The same ids as state, for the Undo bar and for the Hold watcher, which waits them out. Declared up here,
+  // above the watcher, because a deps array cannot name a state declared below it.
+  const [undoRemoved, setUndoRemoved] = useState<string[] | null>(null);
   const reduced = useReducedMotion();
   // The close-the-day card's gentle entrance (0 = below + transparent, 1 = settled).
   // useState, not useRef: reading a ref in render trips the React Compiler lint.
@@ -894,15 +901,21 @@ export default function TodayScreen() {
   // The contract's ONE ending choke point. Every path that finishes or removes the held task
   // (tick, bulk-complete, remove, defer, sync pulling a change from another device) flows through
   // the tasks array, so watching it here ends the contract on ALL of them without each call site
-  // having to remember. Done = completed; gone = released. Both cancel every scheduled knock.
+  // having to remember. Done = completed; off Today = released. Both cancel every scheduled knock.
+  // "Off Today" is not only "gone from the list" (bug #8, 2026-11-01): Remove and Combine leave a
+  // tombstone, Break it down a silent parent, Move to a later date, a repeat a day it is not due, and
+  // each of those kept knocking every morning with "Let it go" nowhere on screen (holdOutcome).
+  // A Remove waits out its Undo first (`undoRemoved` in the deps), so Undo brings back a contract
+  // whose knocks never stopped. `today` is in the deps so a new day is judged as one.
   // The `loaded` guard is load-bearing: on boot the stored contract can arrive BEFORE the stored
   // tasks, and judging "gone" against the not-yet-loaded empty list silently released a live
   // contract (caught on web 2026-08-30; devices had only been winning the race, not immune).
   useEffect(() => {
-    if (!loaded || !hold) return;
-    const held = tasks.find((x) => x.id === hold.taskId);
-    const doneNow = held ? isDoneOn(held, today) : false;
-    if (held && !doneNow) return;
+    if (!loaded || !hold || endingHold.current === hold.heldAt) return;
+    const outcome = holdOutcome(tasks, hold.taskId, today, { undoable: undoRemoved, asking: holdSwapFor != null });
+    if (outcome === 'keep') return;
+    const doneNow = outcome === 'completed';
+    endingHold.current = hold.heldAt;
     const step = holdStepAt(new Date(hold.heldAt), new Date());
     // Persist and cancel FIRST, then reflect in state from the async callback: the ordering is
     // honest (the world changes before the screen says so), and the React Compiler's
@@ -934,7 +947,7 @@ export default function TodayScreen() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, hold, loaded]);
+  }, [tasks, hold, loaded, today, undoRemoved, holdSwapFor]);
 
   // Every Later fold starts closed each time Today opens (Melroy, 2026-10-24), apart from the ones a reset must keep.
   // Its own focus effect with no deps: the one above also re-runs on a session refresh (TOKEN_REFRESHED, about
@@ -1416,7 +1429,7 @@ export default function TodayScreen() {
   // by Routines since day one and, until the 2026-09-21 flow audit, not by Today: one tap, gone,
   // silence). The delete is already a soft tombstone, so undo is a one-field revert. Recurring
   // tasks are not in here: their Remove is a skip-today that comes back tomorrow by itself.
-  const [undoRemoved, setUndoRemoved] = useState<string[] | null>(null);
+  // (`undoRemoved` itself is declared beside undoRemovedRef, above the Hold watcher that reads it.)
   const undoRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function offerUndoRemove(ids: string[]) {
     if (ids.length === 0) return;
@@ -2116,6 +2129,8 @@ export default function TodayScreen() {
     const ids = await scheduleHold(task.id, task.title, heldAt);
     if (!ids) {
       // Notifications are off: the contract cannot knock, so it does not pretend to exist.
+      // A Switch that fails leaves the old contract live, so the watcher may judge it again.
+      endingHold.current = null;
       affirm(t('today.holdNoPermission'));
       dismissActions();
       return;
@@ -2155,6 +2170,9 @@ export default function TodayScreen() {
     setHoldSwapFor(null);
     if (!task || !hold) return;
     track('hold.released', { step: holdStepAt(new Date(hold.heldAt), new Date()), swapped: 1 });
+    // The Switch ends this contract. Once the question closes, a held task that has left Today would
+    // also read as released to the watcher, whose cancel could land on the new contract's knocks.
+    endingHold.current = hold.heldAt;
     void engageHold(task); // scheduleHold cancels the old ids itself (idempotent by prefix)
   }
 

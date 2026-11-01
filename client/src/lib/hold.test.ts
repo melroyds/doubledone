@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { DAILY_FOLLOW_UP, escalationTimes, holdRequiresSwap, holdStepAt, LADDER_OFFSETS_MIN, shiftOutOfQuiet } from './hold';
+import { DAILY_FOLLOW_UP, escalationTimes, heldOnToday, holdOutcome, holdRequiresSwap, holdStepAt, type HoldWaits, LADDER_OFFSETS_MIN, shiftOutOfQuiet } from './hold';
+import { type Recurrence } from './recurrence';
 
 // Local-time constructor, matching how the engine reads the clock.
 const at = (h: number, m = 0, day = 16) => new Date(2026, 7, day, h, m); // Aug 2026
@@ -108,5 +109,93 @@ describe('holdStepAt (the moat resolution)', () => {
 
   it('caps, so telemetry can never carry an unbounded number', () => {
     expect(holdStepAt(held, new Date(2027, 7, 16))).toBe(30);
+  });
+});
+
+// Bug #8 (2026-11-01): every path below used to leave the contract knocking each morning about a task
+// that was no longer on Today, with "Let it go" nowhere on screen to stop it.
+describe('the watcher: heldOnToday and holdOutcome', () => {
+  type Row = {
+    id: string;
+    done: boolean;
+    due?: string | null;
+    completedAt?: number | null;
+    createdAt?: number;
+    recurrence?: Recurrence;
+    completedDates?: string[];
+    skippedDates?: string[];
+    deletedAt?: number | null;
+    silentParent?: boolean;
+    openParent?: boolean;
+    parentId?: string;
+  };
+  const sunday = at(10, 0); // 2026-08-16 is a Sunday
+  const monday = at(10, 0, 17);
+  const row = (id: string, extra: Partial<Row> = {}): Row => ({ id, done: false, ...extra });
+  const heldRow = (extra: Partial<Row> = {}) => row('held', extra);
+  const outcome = (tasks: Row[], date = sunday, waits: HoldWaits = {}) => holdOutcome(tasks, 'held', date, waits);
+
+  it('keeps an open task that is on Today, today and after the day rolls', () => {
+    expect(heldOnToday([heldRow()], 'held', sunday)).toBe(true);
+    expect(outcome([heldRow()])).toBe('keep');
+    expect(outcome([heldRow()], monday)).toBe('keep'); // undated: still today's
+    expect(outcome([heldRow({ due: '2026-08-10' })], monday)).toBe('keep'); // overdue rolls forward, calmly
+    expect(outcome([heldRow({ recurrence: { kind: 'daily' } })], monday)).toBe('keep'); // due again tomorrow
+  });
+
+  it('completes on a tick, a one-off or a repeat’s day', () => {
+    expect(outcome([heldRow({ done: true, completedAt: sunday.getTime() })])).toBe('completed');
+    expect(outcome([heldRow({ recurrence: { kind: 'daily' }, completedDates: ['2026-08-16'] })])).toBe('completed');
+  });
+
+  it('counts a task finished and then removed as finished', () => {
+    expect(outcome([heldRow({ done: true, completedAt: sunday.getTime(), deletedAt: sunday.getTime() + 1 })])).toBe('completed');
+  });
+
+  it('releases a task that has left Today', () => {
+    expect(heldOnToday([], 'held', sunday)).toBe(false);
+    expect(outcome([])).toBe('released'); // missing
+    expect(outcome([heldRow({ deletedAt: 1 })])).toBe('released'); // Remove, Combine, a delete synced from another device
+    const brokenDown = [heldRow({ silentParent: true, openParent: false }), row('s1', { parentId: 'held' }), row('s2', { parentId: 'held' })];
+    expect(outcome(brokenDown)).toBe('released'); // Break it down: its steps are on Today, the task is not
+    expect(outcome([heldRow({ due: '2026-08-20' })])).toBe('released'); // Move to, or Lighten today
+    expect(outcome([heldRow({ recurrence: { kind: 'weekly', weekdays: [0] } })], monday)).toBe('released'); // a repeat not due today
+    expect(outcome([heldRow({ recurrence: { kind: 'daily' }, skippedDates: ['2026-08-16'] })])).toBe('released'); // a repeat removed from today
+  });
+
+  it('waits out Remove’s Undo, so Undo finds the contract and every knock where they were', () => {
+    const removed = [heldRow({ deletedAt: 1 })];
+    expect(outcome(removed, sunday, { undoable: ['held'] })).toBe('keep');
+    expect(outcome(removed, sunday, { undoable: ['other'] })).toBe('released'); // the Undo bar moved on to another task
+    expect(outcome(removed, sunday, { undoable: null })).toBe('released'); // the window closed
+    expect(outcome([heldRow()], sunday, { undoable: null })).toBe('keep'); // Undo was tapped: back on Today
+  });
+
+  it('waits while the swap question naming it is on screen, and a finish still finishes', () => {
+    expect(outcome([heldRow({ deletedAt: 1 })], sunday, { asking: true })).toBe('keep');
+    expect(outcome([heldRow({ done: true, completedAt: sunday.getTime() })], sunday, { asking: true })).toBe('completed');
+  });
+
+  describe('Make it tiny', () => {
+    const tinyParent = heldRow({ silentParent: true, openParent: true, createdAt: 1 });
+    const pebble = (extra: Partial<Row> = {}) => row('pebble', { parentId: 'held', createdAt: 2, ...extra });
+
+    it('stands on Today through its pebble, because the real task always comes back', () => {
+      expect(heldOnToday([tinyParent, pebble()], 'held', sunday)).toBe(true);
+      expect(outcome([tinyParent, pebble()])).toBe('keep');
+      expect(heldOnToday([tinyParent, pebble({ deletedAt: 3 })], 'held', sunday)).toBe(true); // removed: the repair brings it back
+      expect(heldOnToday([tinyParent, pebble({ done: true, completedAt: 5 })], 'held', sunday)).toBe(true); // finished elsewhere: same
+      const pebbleBrokenDown = [tinyParent, pebble({ silentParent: true }), row('step', { parentId: 'pebble', createdAt: 3 })];
+      expect(heldOnToday(pebbleBrokenDown, 'held', sunday)).toBe(true);
+    });
+
+    it('leaves Today when its pebble went to a later day, or when the task itself was removed', () => {
+      expect(outcome([tinyParent, pebble({ due: '2026-08-20' })])).toBe('released');
+      expect(outcome([{ ...tinyParent, deletedAt: 3 }, pebble()])).toBe('released');
+    });
+
+    it('reads a stale tiny flag on a breakdown as the breakdown it is', () => {
+      expect(outcome([tinyParent, pebble(), row('second', { parentId: 'held', createdAt: 3 })])).toBe('released');
+    });
   });
 });
