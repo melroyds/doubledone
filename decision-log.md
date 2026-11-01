@@ -11045,3 +11045,27 @@ hidden meanwhile. CAP-20 covers it, three ways in.
 way to put the keyboard down from a multiline box where Return makes a new line; dropping the prop entirely and
 owning every keyboard lift by hand, a bigger change for a field (the card's line) the prop already serves and that
 cannot climb; reading the frame events and undoing them, which fights React Native instead of switching it off.
+
+## 2026-11-01: a channel link labels the store badges, and the privacy page says "the Calendar"
+
+Melroy committed to Instagram and Facebook for 12 weeks (the social kit), which fired the parked "one campaign label
+per channel" trigger. The kit's week-12 checkpoint asks which installs each channel brought, and every badge on
+doubledone.app said `website`. Melroy: "fix the website first. I'd rather get them out of the way."
+
+**Decided:**
+- **`doubledone.app/?ref=instagram` and `?ref=facebook`** make the store badges carry that channel: Apple's `ct` and
+  Play's `utm_campaign` (utm_source stays `doubledone.app`, utm_medium `website`, because the click still happens on
+  the site). The list is fixed (`CHANNELS` in `lib/store-links.ts`): any other `ref`, or none, stays `website`, so a
+  link can never write free text into a store's analytics. Nothing is stored or read back; the word only rides the
+  badge's link. No privacy policy change: a channel word is not about the person, and the policy already covers
+  the site's visits.
+- **The static landing relabels its badges with a self-contained inline script** (`landingCampaign`, after the
+  localiser, so it acts on whichever language is in place), tested by its `toString()` and run as it SHIPS by
+  `scripts/check-landing-boot.mjs` in CI; the app's own welcome page reads the same `campaignFrom` when a badge is
+  tapped. LP-11 covers it.
+- **The public privacy page now says "the Calendar"** where it said "the Lookback", the screen's old name (the in-app
+  copy already had it). One word; Melroy's OK, the same message.
+
+**Decided against:** free-text labels (`ref` passed straight through), storing the label in the browser so it
+survives a click to another page, and per-post labels (a store hides a campaign under five first-time installs, so
+finer labels would only show empty rows).

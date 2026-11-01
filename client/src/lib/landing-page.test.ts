@@ -10,6 +10,7 @@ import {
   FAQ,
   LANDING_LOCALES,
   landingBoot,
+  landingCampaign,
   landingCss,
   landingLocalise,
   ONBOARDED_STORAGE_KEY,
@@ -21,6 +22,7 @@ import {
   structuredData,
   TOKENS,
 } from './landing-page';
+import { APP_STORE_URL, appStoreUrl, CHANNELS, PLAY_URL, playUrl } from './store-links';
 
 const PUBLIC = join(__dirname, '..', '..', 'public');
 
@@ -172,6 +174,57 @@ describe('landingBoot: who sees the static page, decided before first paint', ()
     // The compiled source may carry either quote style. What matters is the exact key, compared to 'yes'.
     const src = landingBoot.toString().replace(/"/g, "'");
     expect(src).toContain(`getItem('${ONBOARDED_STORAGE_KEY}') === 'yes'`);
+  });
+});
+
+describe('landingCampaign: a channel link labels the store badges, and nothing else does', () => {
+  // A fake page holding the two badge links exactly as renderPage writes them.
+  const page = (search: string) => {
+    const anchors = [APP_STORE_URL, PLAY_URL, '/today'].map((href) => {
+      const a = { href, getAttribute: (k: string) => (k === 'href' ? a.href : null), setAttribute: (k: string, v: string) => { if (k === 'href') a.href = v; } };
+      return a;
+    });
+    const w = {
+      URLSearchParams,
+      location: { search },
+      document: { querySelectorAll: () => anchors.filter((a) => a.href.includes('ct=website') || a.href.includes('utm_campaign%3Dwebsite')) },
+    };
+    return { w, anchors };
+  };
+
+  it('repeats the channel list exactly as lib/store-links CHANNELS has it', () => {
+    const src = landingCampaign.toString().replace(/"/g, "'");
+    expect(src).toContain(`[${CHANNELS.map((c) => `'${c}'`).join(', ')}]`);
+  });
+
+  it.each(CHANNELS)('?ref=%s gives both badges that channel, as the store-links builders would', (channel) => {
+    const { w, anchors } = page(`?ref=${channel}`);
+    landingCampaign(w);
+    expect(anchors[0].href).toBe(appStoreUrl(channel));
+    expect(anchors[1].href).toBe(playUrl(channel));
+    expect(anchors[2].href).toBe('/today');
+  });
+
+  it('anything off the list, or nothing, leaves the website label alone', () => {
+    for (const search of ['', '?ref=', '?ref=tiktok', '?ref=instagram%20x', '?ref=<b>', '?x=instagram']) {
+      const { w, anchors } = page(search);
+      landingCampaign(w);
+      expect(anchors[0].href).toBe(APP_STORE_URL);
+      expect(anchors[1].href).toBe(PLAY_URL);
+    }
+  });
+
+  it('survives being inlined: the toString() that ships runs on its own', () => {
+    const { w, anchors } = page('?ref=Facebook');
+    new Function('window', `(${landingCampaign.toString()})(window);`)(w);
+    expect(anchors[0].href).toBe(appStoreUrl('facebook'));
+  });
+
+  it('ships in the page, after the localiser has put the right language in place', () => {
+    const { body } = buildLanding();
+    const campaign = body.indexOf('<script id="dd-landing-campaign">');
+    expect(campaign).toBeGreaterThan(-1);
+    expect(campaign).toBeGreaterThan(body.lastIndexOf('ddl-ready'));
   });
 });
 

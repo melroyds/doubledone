@@ -104,6 +104,27 @@ export function landingLocalise(w: any): void {
   h.classList.add('ddl-ready');
 }
 
+/** A visitor who came by a channel link (doubledone.app/?ref=instagram) gets store badges that name that channel
+ *  instead of `website`, so each store can count the installs that channel brought (lib/store-links CHANNELS). Runs
+ *  inline after landingLocalise, on whichever language's page is now in the DOM. Self-contained like landingBoot:
+ *  the channel list is a literal copy of CHANNELS, held equal by a test, and only an exact match changes anything. */
+export function landingCampaign(w: any): void {
+  const channels = ['instagram', 'facebook'];
+  let ref = '';
+  try {
+    ref = (new w.URLSearchParams(w.location.search).get('ref') || '').trim().toLowerCase();
+  } catch (e) {
+    return;
+  }
+  if (channels.indexOf(ref) < 0) return;
+  const links = w.document.querySelectorAll('a[href*="ct=website"], a[href*="utm_campaign%3Dwebsite"]');
+  for (let i = 0; i < links.length; i++) {
+    const a = links[i];
+    const href = a.getAttribute('href') || '';
+    a.setAttribute('href', href.replace('ct=website', 'ct=' + ref).replace('utm_campaign%3Dwebsite', 'utm_campaign%3D' + ref));
+  }
+}
+
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 /** HTML-escape text or an attribute value. */
 export function esc(s: string): string {
@@ -507,6 +528,7 @@ export function buildLanding(): LandingParts {
 ${renderPage('en')}
 ${templates}
 <script>(${landingLocalise.toString()})(window);</script>
+<script id="dd-landing-campaign">(${landingCampaign.toString()})(window);</script>
 </div>`;
   return { head, body };
 }

@@ -8,8 +8,14 @@ import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { t } from '@/lib/locale';
 import { hasStaticLanding, hideStaticLanding, showStaticLanding } from '@/lib/landing-dom';
 import { loadOnboarded } from '@/lib/storage';
-import { APP_STORE_URL, PLAY_URL } from '@/lib/store-links';
+import { appStoreUrl, campaignFrom, playUrl } from '@/lib/store-links';
 import { useThemedStyles } from '@/lib/theme-provider';
+
+/** The channel this visit came by (doubledone.app/?ref=instagram), read when a badge is tapped, so the badges carry
+ *  it as the static landing's do (lib/store-links CHANNELS). This page only ever runs on the web. */
+function pageCampaign() {
+  return campaignFrom(typeof window !== 'undefined' && window.location ? window.location.search : '');
+}
 
 // The web first-touch front door (the completeness audit's Tier-1 conversion gap). The app itself lives at
 // /today; this page leads with the feeling, shows a calm half-finished day, states the never-shame promise, then
@@ -194,7 +200,7 @@ export default function Landing() {
               the iOS app, which App Review would reject. */}
           <View style={styles.storeRow}>
             <Pressable
-              onPress={() => Linking.openURL(APP_STORE_URL)}
+              onPress={() => Linking.openURL(appStoreUrl(pageCampaign()))}
               accessibilityRole="link"
               accessibilityLabel={t('welcome.appStoreBadgeA11y')}
               style={({ pressed }) => [pressed && styles.badgePressed]}
@@ -202,7 +208,7 @@ export default function Landing() {
               <Image source={require('../../assets/store/app-store-badge.svg')} style={styles.appStoreBadge} resizeMode="contain" />
             </Pressable>
             <Pressable
-              onPress={() => Linking.openURL(PLAY_URL)}
+              onPress={() => Linking.openURL(playUrl(pageCampaign()))}
               accessibilityRole="link"
               accessibilityLabel={t('welcome.playBadgeA11y')}
               style={({ pressed }) => [pressed && styles.badgePressed]}

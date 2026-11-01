@@ -50,5 +50,41 @@ for (const [name, result, ok] of cases) {
     console.error(`check-landing-boot: FAILED ${name}: ${JSON.stringify({ attrs: result.attrs, classes: [...result.classes] })}`);
   }
 }
+
+// The channel label (doubledone.app/?ref=instagram), run as it SHIPS against the export's own badge links: a channel
+// on the list relabels every store link, anything else leaves the `website` label alone.
+const c = html.match(/<script id="dd-landing-campaign">([\s\S]*?)<\/script>/);
+if (!c) {
+  console.error('check-landing-boot: no <script id="dd-landing-campaign"> in client/dist/index.html');
+  process.exit(1);
+}
+const decode = (s) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+const storeLinks = [...new Set([...html.matchAll(/href="(https:\/\/(?:apps\.apple\.com|play\.google\.com)[^"]+)"/g)].map((x) => decode(x[1])))];
+if (storeLinks.length < 2 || !storeLinks.every((h) => h.includes('ct=website') || h.includes('utm_campaign%3Dwebsite'))) {
+  console.error(`check-landing-boot: the export's store links do not all carry the website label: ${JSON.stringify(storeLinks)}`);
+  process.exit(1);
+}
+function relabel(search) {
+  const anchors = storeLinks.map((href) => ({ href, getAttribute() { return this.href; }, setAttribute(k, v) { this.href = v; } }));
+  const window = {
+    URLSearchParams,
+    location: { search },
+    document: { querySelectorAll: () => anchors.filter((a) => a.href.includes('ct=website') || a.href.includes('utm_campaign%3Dwebsite')) },
+  };
+  new Function('window', c[1])(window);
+  return anchors.map((a) => a.href);
+}
+const campaignCases = [
+  ['?ref=instagram relabels every store link', relabel('?ref=instagram'), (hrefs) => hrefs.every((h) => h.includes('ct=instagram') || h.includes('utm_campaign%3Dinstagram')) && !hrefs.some((h) => h.includes('ct=website') || h.includes('utm_campaign%3Dwebsite'))],
+  ['?ref=facebook relabels every store link', relabel('?ref=facebook'), (hrefs) => hrefs.every((h) => h.includes('ct=facebook') || h.includes('utm_campaign%3Dfacebook'))],
+  ['an unknown ref leaves the website label', relabel('?ref=tiktok'), (hrefs) => hrefs.every((h, i) => h === storeLinks[i])],
+  ['no ref leaves the website label', relabel(''), (hrefs) => hrefs.every((h, i) => h === storeLinks[i])],
+];
+for (const [name, hrefs, ok] of campaignCases) {
+  if (!ok(hrefs)) {
+    failed += 1;
+    console.error(`check-landing-boot: FAILED ${name}: ${JSON.stringify(hrefs)}`);
+  }
+}
 if (failed) process.exit(1);
-console.log(`check-landing-boot: the shipped boot decides all ${cases.length} cases correctly`);
+console.log(`check-landing-boot: the shipped boot decides all ${cases.length} cases correctly, and the channel label all ${campaignCases.length}`);

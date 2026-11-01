@@ -65,7 +65,7 @@ on Apple's keyboard made Today's list BEHIND the panel climb one step per keystr
 from Tue 10 Nov. The kit (set-up, P1 to P12, R1 to R8, the reply guide, and twenty calls each with a default) is a
 private claude.ai page, its source in `docs/doubledone-social-kit.md` (gitignored by `docs/doubledone-*`, kept out of
 this public repo). Every claim was checked against the code on 1 Nov, every line red-teamed for truth, Meta policy
-and voice. **Before P1 on 10 Nov, two web changes on Melroy's word (weekend of 7 to 8 Nov):** (1) the parked "one
+and voice. **The two web changes it needed are DONE and pushed 2026-11-01, on Melroy's word:** (1) the parked "one
 campaign label per channel" (Backlog; its trigger, Melroy posting on a schedule, has now fired): `?ref=instagram` and
 `?ref=facebook` passed into the badges' `ct` and `utm_campaign`, from a fixed list; (2) `client/public/privacy.html`
 line 70 still says "the Lookback" where the app says "the Calendar" (legal page, needs his OK). Ruana item 8 (the
@@ -325,7 +325,7 @@ the ladder is fixed and readable, never randomised.
   on screen; a row dragged to the list's edge does not scroll the list along. Parked because Today is sized to be
   doable and the card's Move up / Move down still moves a task any distance. Trigger: a report of a list too long to
   drag across, or `task.dragged` counts showing people drag often enough that the edge matters.
-- **One campaign label per channel, passed through the website (parked 2026-10-25, Ruana item 10).** Today the
+- ~~**One campaign label per channel, passed through the website (parked 2026-10-25, Ruana item 10).**~~ **BUILT 2026-11-01** (`?ref=instagram`, `?ref=facebook`; decision log, same day). *(The original entry follows.)* Today the
   website's badges carry one label, `website` (`client/src/lib/store-links.ts`), and which post sent a visitor is
   Cloudflare Web Analytics' referrer question. The precise version: a link like `doubledone.app/?ref=instagram`
   whose label the landing passes on into the badges' `ct` and `utm_campaign`, from a fixed list of labels (never
