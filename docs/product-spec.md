@@ -164,7 +164,7 @@ Two hard rules from this:
 
 - Not a project manager (no dependencies, assignees, Gantt)
 - Not a team tool (single-user, or it is fighting Asana. Ours, one list shared by exactly two people, is as far as it goes)
-- Not a calendar replacement (it reads your day, it does not run your meetings)
+- Not a calendar replacement (it weighs your day, it does not run your meetings)
 - Not a habit tracker that shames (streaks break gently, never a guilt mechanic)
 - Not grand or mythical (that is Chronoloria; DoubleDone is calm and grounded on purpose)
 - Not a notes app (one line per task to come back to, never pages, folders or a log to keep up)

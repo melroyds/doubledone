@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DAY_TOOL_ORDER, dayTools, occupantTool, planEnergyFromDay, toolGate } from './day-tools';
+import { DAY_TOOL_ORDER, dayTools, occupantTool, planEnergyFromDay, toolGate, energyChosenFor } from './day-tools';
 
 describe('dayTools', () => {
   it('is the same five, in day order, with AI on (Settle joined 2026-08-01, between Lighten and Close)', () => {
@@ -94,5 +94,14 @@ describe('settle (the breathing room)', () => {
       expect(occupantTool(h, true)).not.toBe('settle');
       expect(occupantTool(h, false)).not.toBe('settle');
     }
+  });
+});
+
+describe('energyChosenFor (the morning reset, warm or cold)', () => {
+  it("is today's choice, and nothing for a choice made on another day", () => {
+    expect(energyChosenFor({ date: '2026-11-01', level: 'low' }, '2026-11-01')).toBe('low');
+    // The app left open across midnight: yesterday's Low no longer counts, so the day reads as Normal.
+    expect(energyChosenFor({ date: '2026-11-01', level: 'low' }, '2026-11-02')).toBeNull();
+    expect(energyChosenFor(null, '2026-11-02')).toBeNull();
   });
 });

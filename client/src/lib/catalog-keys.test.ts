@@ -114,7 +114,7 @@ describe('every catalogue key the client names exists', () => {
     }
     // ...and the keys a screen chooses before calling t()
     const named = new Set(keysNamedAnywhere().map(({ key }) => key));
-    for (const key of ['capture.aiNoteBothTidy', 'capture.aiNoteTidy', 'welcome.handoffFineAiSignedIn']) expect(named.has(key), key).toBe(true);
+    for (const key of ['welcome.handoffFineAiSignedIn']) expect(named.has(key), key).toBe(true);
   });
 
   it('a key that is not there is caught, whichever way it is written', () => {

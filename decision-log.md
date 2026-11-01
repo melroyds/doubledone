@@ -11226,3 +11226,120 @@ Melroy's calls on three of the sweep's Group C items ("Fix the privacy page", "R
 **Decided against:** deleting the gift record without proof the account is gone, removing the "I also did that"
 button (a Today change during the freeze, and the count says people use it), and a privacy line that names the web
 share instead of removing it (most Android users have the Play app).
+
+## 2026-11-01: a late or retried Stripe event can no longer switch a payer to free or to "fix your card"
+
+Melroy: "Build the Stripe fix." Sweep #1 is the riskiest item on the list, because every Stripe payer depends on this
+webhook. Stripe delivers at least once, out of order, and retries a failed delivery for up to three days. The
+webhook wrote each event's own copy of the subscription and bound no event time and no subscription id. So a
+retried past_due after the card was fixed, or an old subscription's incomplete_expired after a new paid one,
+overwrote the live state until the next event, up to a month away. Built in a4573db, server only, its own Worker
+deploy.
+
+**Decided:**
+- **The webhook writes the subscription as Stripe holds it now.** Every customer.subscription.* event, and the
+  subscription behind checkout.session.completed, is read by id (GET /v1/subscriptions/{id}, one read per event).
+  The live object goes through the same mapper as an event's own copy. That settles the order of one
+  subscription's events without trusting any clock. A redelivered event is still skipped before the read.
+- **A read that fails answers 500, with nothing written or marked processed**, so Stripe's retry reads again. No
+  key, a dropped connection and an object that is not the one asked for all count as failed.
+- **The row records which Stripe subscription it is about (`stripe_sub`), the twin of RevenueCat's rc_txn.** While
+  that subscription is alive, a non-sale about a different one writes nothing. Alive means premium, OR a Stripe row
+  in past_due or unpaid. Stripe maps dunning to premium off, and the checkout guard reads that state to refuse a
+  second subscription. A literal "while premium" rule would have let an old subscription's ending erase that state.
+  The pair stays true the RevenueCat way: a write that names a subscription records it, a premium write that names
+  none (a store sale, the reconcile) clears it, and a lapse that names none leaves it.
+- **The column is added at runtime, not by a hand ALTER before the deploy** (the sweep report had asked for one).
+  writeEntitlement looks with PRAGMA table_info once per D1 binding and adds the column where it is missing. If
+  another isolate adds it first, a second look settles it. d1/schema.sql carries it too. A deploy that depends on a
+  hand step breaks every entitlement write on the day the step is missed, as docs/operations.md warns for
+  rc_event_ms.
+- **The reply names what happened**: `live`, plus `kept` and `by` when a guard refused the write. This Worker
+  answers 200 to unknown paths, so the reply in Stripe's dashboard is the proof that the new path ran.
+- **A checkout that names no subscription keeps writing its own copy, as before.** Every Checkout we open is
+  mode=subscription, so our checkouts never take that path, and the existing tests stand.
+- **After a rollback past this change, stripe_sub is cleared before it is deployed again.** The old Worker leaves
+  the column stale, and a stale id would keep Premium on through the real subscription's ending
+  (docs/operations.md).
+
+**Decided against:**
+- **An order guard on Stripe's `created` event time, the RevenueCat shape.** With the live read, an event's age no
+  longer matters, and an order guard would refuse the very write that corrects a stale row. `created` is also whole
+  seconds, so close events tie.
+- **A 200 for a subscription Stripe says does not exist.** That only happens with a key for the wrong mode or
+  account, and acknowledging would drop every subscription change silently. A 500 brings Stripe's failing-endpoint
+  emails, and three days of retries recover everything once the key is fixed.
+- **Writing a terminal event's own copy without a read** (canceled and incomplete_expired never come back). It saves
+  a read, but one path for every event is easier to reason about, and the id guard covers what a terminal copy gets
+  wrong.
+- **Searching for another live subscription before an ending lands**, to cover two live Stripe subscriptions at once.
+  That is an extra, eventually consistent search on every event, for a state the checkout guard exists to prevent.
+  It joins the row-per-(user, store) Backlog item.
+- **Backfilling `stripe_sub` for existing rows.** Each row gets its id at its subscription's next event, at most one
+  billing period away. Until then the which-subscription rule stands aside for it, as RevenueCat's did before
+  rc_txn, and the live read already fixes the same-subscription order. A metadata touch in the dashboard backfills
+  one row at once, if that is ever wanted.
+
+## 2026-11-01: the Stripe live read never strands an ending, a stale subscription id heals itself, and a failed read tells the owner
+
+Two adversarial reviews of a4573db (sweep #1's Stripe order guard) found three problems. All three were checked against the code, git and Stripe's own docs, and all three are real. They are fixed in 78410dd, which is on main with a4573db; neither is deployed. (a4573db itself added a data-model column and has no entry of its own yet.)
+
+**Decided:**
+- **An ending is written as the event carries it, with no read.** Stripe documents canceled as "a terminal state that can't be updated" (its metadata excepted) and incomplete_expired as "a terminal status". So a copy of either cannot be stale, and a canceled subscription never sends another event. Before this, a wrong STRIPE_SECRET_KEY answered every delivery 500 for Stripe's three days of retries. After that, every lost ending kept Premium on for good, and a past_due row whose subscription then ended answered 409 billing_issue to that person for good.
+- **A paid checkout whose read fails is granted from the session's own copy before the 500.** The grant names its subscription, so the purchase shows and the checkout guard refuses a second subscription. Stripe's retry then writes the live state. The grant lands only where the row does not already name that subscription (ifSubUnknown). The session is the oldest news there is about its subscription, and a session retried after the subscription ended must never undo the ending.
+- **Every failed read emails the owner, at most once every six hours** (alerts_sent, the RevenueCat bad-signature pattern). The email names Stripe's HTTP status and error code and the event. It never carries a user id or Stripe's message, which quotes part of the key. The read times out after 8 seconds, so a hung read fails with an alert instead of silently timing the delivery out.
+- **The which-subscription guard heals a stale id.** A Worker from before the column leaves the old stripe_sub behind: a rollback, a deploy from premium (which lacks a4573db today), or a D1 Time Travel restore. That id would then refuse the real subscription's past_due and ending for good. Now a refused write on a Stripe row reads the recorded subscription once:
+  - If Stripe says it is alive (active, trialing, past_due, unpaid), the refusal stands.
+  - Otherwise, when the row's customer is that subscription's or the incoming one's (every Checkout makes its own Stripe customer), the write is judged again with that one id set aside, in the same SQL statement (endedSub).
+  - A row about a third subscription keeps the refusal, and that subscription's own next event heals it.
+  The hand-run UPDATE after a rollback is gone from docs/operations.md.
+- docs/operations.md gains the alarm row, the new replies ("final", "healed"), the alert, and the recovery path after three days: Workbench Resend up to 15 days after the event, the CLI's stripe events resend up to 30.
+
+**Decided against:**
+- **Reading a 404 resource_missing as "ended"** (an optional idea in the review). A test-mode key answers resource_missing for every live id, so this would switch off paying members exactly when the key is wrong. A 404 is a failed read: a 500 and an alert.
+- **Writing the recorded subscription's ending, then re-running the refused write** (the review's shape for the heal). That is two statements, and if the second fails, a payer whose subscription is set to cancel is left without Premium until Stripe retries. One statement with endedSub has no in-between state.
+- **Healing only when the recorded subscription is terminal.** Any state the guard does not count as alive (paused or incomplete too) means it protects nothing.
+- **Healing without the customer check.** A third, live subscription written by an older Worker could then be switched off by an old subscription's late ending, which is the bug the guard was built to stop.
+- **For an ending, reading first and falling back to the copy only when the read fails** (finding 3's shape). A terminal copy is as true as a read, so the read buys nothing and keeps the dependency.
+- **An hourly cron re-read of Stripe rows still premium a couple of days past their period end** (optional in the review). A new writer of entitlements is its own change. Parked for the Backlog. Trigger: the first lost Stripe event found, or a webhook endpoint failing for a day.
+- **Merging main into premium in this commit.** That is a separate branch operation, and it must happen before any Worker deploy from premium.
+
+**Accepted edges:**
+- The customer check assumes one Stripe customer per Checkout, which holds while checkoutSessionForm sends customer_email rather than customer. If that changes, the heal falls back to healing whenever the recorded subscription has ended.
+- Two genuinely live subscriptions for one person still resolve as before (the row-per-store Backlog item).
+- While the key is broken, a refused old ending now answers 500 until the key is fixed (the heal has to read). That is harmless, because it would have been kept anyway.
+
+## 2026-11-01: the five-language copy batch, its review, and Low that resets overnight
+
+Melroy: "Do the language copy batch too." A specification in English (62 keys, 19 code changes), then a native
+writer and an adversarial native reviewer for each language, then the build (0fbe199) and two more reviewers on its
+diff. Those last two found two blockers and three majors, fixed here, and the build's own "needs Melroy's look"
+list decided what waits.
+
+**Decided:**
+- **Every signed-in, AI-off line speaks only for the app's AI features.** French, Spanish and Italian had written
+  "nothing you write is sent to an AI", which is false for anyone with an assistant connected (the AI switch never
+  reaches it). Each language now says what its settled aiOffNote says, and a test holds all five to that limit.
+  The consent card's last sentence is narrowed the same way in the four translations.
+- **The delete confirmation says what is cleared and what Export keeps**, in all five: tasks, routines and
+  scrapbooks leave this device, and Export copies the tasks. The translations had promised "a copy" of everything.
+- **A blocked browser sends you for a new code in every language**, as the English does, because the server has
+  spent the old one.
+- **The add panel's stacked hint seat waits for Melroy's look.** It overflowed the panel at its keyboard-up floor on
+  the web (CaptureSheet budgets the seat at one line), and it is a visible change to a frozen screen. The seat is
+  back to one line (an error, Tidy, or the note), so the note still leaves while Tidy is offered, the gap the sweep
+  named (#4). Its two Tidy-aware strings are out until then.
+- **The select bar's plural ships.** "Segna come grosse", "Marquer comme gros morceaux", "Marcar que son mucho": each
+  plural is at most one character longer than its singular, so the bar cannot reflow, and the singular for one
+  ("1 sélectionnée") is a grammar fix.
+- **Five spoken names now start with their visible words in German and Italian** (Remove, Pin, Cancel, Combine,
+  the series Remove).
+- **Low resets each morning on a warm resume too.** The day's energy choice now carries the date it was made on and
+  counts only on that date (energyChosenFor), because a resume after midnight loaded no record for the new day and
+  nothing cleared yesterday's Low (found by the social session).
+- **The landing says "The day is weighed in plain words, never a number."**, as the social kit now does: the app
+  reads nothing aloud.
+
+**Decided against, for now (parked with the review's wording):** a QuotaExceededError line of its own (a full
+browser store is not a blocked one), the paywall's privacy and Google Play link names, a leading number on the
+month-day chips' spoken names, and tightening the catalogue-key test's section filter.

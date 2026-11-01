@@ -55,7 +55,7 @@ import { aiErrorLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isMorningClose, isReentry, presetDate, toISODate } from '@/lib/day';
-import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
+import { type DayEnergy, type DayEnergyChoice, type DayTool, dayTools, energyChosenFor, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
 import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, dragLifted, stepsLanded, taskDone } from '@/lib/haptics';
 import { dragSpan, dragTargetIndex, moveToIndex, settleOffset, shiftFor, type Slot } from '@/lib/drag-order';
@@ -352,8 +352,9 @@ export default function TodayScreen() {
   const [lowDayDate, setLowDayDate] = useState<string | null>(null);
   // The Energy day-state (the constant frame). null = the pills were not touched today, which reads
   // as Normal; it is a DAY-state, never a setting, so a stored record from yesterday is ignored on
-  // load and the day starts at Normal by construction.
-  const [dayEnergySel, setDayEnergySel] = useState<DayEnergy | null>(null);
+  // load, and the choice carries its own date so it is ignored at render once the day turns
+  // (energyChosenFor), which is the morning reset on a warm resume as well as on a cold start.
+  const [dayEnergyChoice, setDayEnergyChoice] = useState<DayEnergyChoice | null>(null);
   // The fixed action layer: whether the caret panel is open, and which unavailable tool (if any)
   // is currently explaining itself in one plain line.
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -758,7 +759,7 @@ export default function TodayScreen() {
       // A record from a past day comes back null, which IS the morning reset: the day starts at
       // Normal because nothing says otherwise, not because anything ran at midnight.
       void loadDayEnergy(toISODate(today)).then((rec) => {
-        if (active && rec) setDayEnergySel(rec.level);
+        if (active && rec) setDayEnergyChoice({ date: rec.date, level: rec.level });
       });
       void checkForUpdate(runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)).then((status) => {
         if (active) setUpdateStatusNow(status);
@@ -1226,6 +1227,7 @@ export default function TodayScreen() {
   // Closed when the stored close-date is today's; it self-clears when the date rolls over.
   const isClosed = closedDate === toISODate(today);
   const isLowDay = lowDayDate === toISODate(today);
+  const dayEnergySel = energyChosenFor(dayEnergyChoice, toISODate(today));
   const windDown = isWindDownTime(today); // evening: a gentle in-app nudge toward closing the day
   const todayDone = useMemo(() => completionsByDay(tasks).get(toISODate(today)) ?? [], [tasks, today]);
   // The rested screen's ONE offer tonight, decided once by the pure `restedOffer` rules. Hoisted so the
@@ -2335,7 +2337,7 @@ export default function TodayScreen() {
   function setEnergy(level: DayEnergy) {
     if (level === dayEnergy && dayEnergySel != null) return; // radiogroup: re-tapping the chosen pill is a no-op
     const iso = toISODate(today);
-    setDayEnergySel(level);
+    setDayEnergyChoice({ date: iso, level });
     void saveDayEnergy({ date: iso, level });
     if (level === 'low') {
       setLowDayDate(iso);

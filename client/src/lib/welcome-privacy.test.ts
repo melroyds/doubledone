@@ -73,3 +73,21 @@ describe('welcomePrivacyKeys: the signed-out lines only for someone known to be 
     expect(translate('en', 'welcome.handoffFineAiSignedIn')).toContain('text or photo');
   });
 });
+
+// The copy review (2026-11-01): signed in is exactly when an AI assistant may be connected, and the AI switch never
+// reaches it, so a signed-in, AI-off line may only speak for the APP's AI features, never claim nothing reaches any AI.
+describe("the signed-in, AI-off lines speak only for the app's AI features", () => {
+  const LIMIT: Record<string, RegExp> = {
+    en: /the app's AI features/,
+    de: /KI-Funktionen/,
+    fr: /fonctions IA/,
+    es: /funciones de IA/,
+    it: /funzioni AI/,
+  };
+  it('in all five languages, each line names that limit', () => {
+    for (const key of ['welcome.capturePrivacyNoAiSignedIn', 'welcome.handoffFineNoAiSignedIn']) {
+      for (const loc of SUPPORTED) expect(translate(loc, key), `${loc} ${key}`).toMatch(LIMIT[loc]);
+    }
+  });
+});
+

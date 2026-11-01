@@ -42,6 +42,14 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE STRIPE GUARD, THE COPY BATCH AND THE LOW FIX: BUILT AND REVIEWED (2026-11-02, overnight, on Melroy's "run
+whatever needs running").** a4573db and 78410dd (the Stripe webhook writes the live subscription; an ending never
+waits on the read; a stale id heals; a failed read emails the owner), 0fbe199 and its review fixes (the copy batch
+in five languages), and the Low reset, released as web 1.10.3. **Waiting on Melroy's look:** the add panel's stacked
+hint seat (#4, reverted after it overflowed the panel), plus the parked review items in the decision log. Still
+open from the sweep: #24 (an agent naming its day), #26 (the Add label in German), #27 (the store listings), #33 and
+#37 (the web a11y pair), #35 and #36 (contrast).
+
 **THE 1 NOV BUG SWEEP: 24 FIXED, LIVE ON THE WEB AND THE WORKER (2026-11-01 evening).** Melroy deployed Worker `7139f696` from main `586b2de` (rollback `636a1611`; bindings identical, `info.version` 1.3.1, money routes 401 JSON), then the web went out as 1.10.2 (deploy-web and CI green; the live bundle carries the fixes, sw.js renotifies and takes over at once). Still to run: PREM-62 (a real card, then cancel), and the phones get the client fixes with the store build in the week of 16 to 22 Nov. *(The plan as written before the deploy follows.)* **Was: 24 FIXED ON MAIN, NOTHING PUSHED OR DEPLOYED.** 40 bugs confirmed besides R8;
 the full report with every file and fix is the sweep's own (decision-log, same day). Fixed and tested, in lanes
 6b9f52d, d51961c, 5942fc0, 71bcbc3, 51a8533, b4851c8 and 54dba4d, plus the review's follow-ups. **Deploy order, each on

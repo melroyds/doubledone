@@ -21,6 +21,17 @@ export const DAY_TOOL_ORDER: readonly DayTool[] = ['plan', 'focus', 'lighten', '
 /** The user's stated energy for TODAY: a day-state, not a setting. Resets each morning. */
 export type DayEnergy = 'low' | 'normal' | 'high';
 
+/** The pills' choice, carried with the day it was made on. */
+export type DayEnergyChoice = { date: string; level: DayEnergy };
+
+/** The energy chosen for TODAY, or null when the pills were not touched today (which reads as Normal). A choice
+ *  from an earlier day is ignored, so the day resets each morning even when the app stays open across midnight:
+ *  a warm resume after midnight loaded no record for the new day, and nothing ever cleared yesterday's Low
+ *  (found by the social session, 2026-11-01). Pure. */
+export function energyChosenFor(choice: DayEnergyChoice | null, todayIso: string): DayEnergy | null {
+  return choice != null && choice.date === todayIso ? choice.level : null;
+}
+
 /**
  * Which tools exist at all. With AI off, Plan and Lighten are not "quiet", they are GONE: the
  * product rule everywhere else (E2E: "every AI affordance disappears") is that AI-off hides AI,
