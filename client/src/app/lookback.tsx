@@ -25,7 +25,7 @@ import { retireReplacedKeepsake } from '@/lib/scrapbook-sync';
 import { shareScrapbook } from '@/lib/share';
 import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
-import { updateStoredTasks } from '@/lib/task-writes';
+import { addTaskForDay } from '@/lib/task-writes';
 import { makeId, nowMs, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -261,7 +261,7 @@ export default function LookbackScreen() {
     // rooms share (lib/task-writes) stamps, saves and keeps the widget in step. The day's mark shows at once, and the
     // stored list takes over when the write lands.
     setTasks((prev) => [...prev, added]);
-    void updateStoredTasks((list) => [...list, added], tasks)
+    void addTaskForDay(added, tasks)
       .then((next) => setTasks(next))
       .catch(() => undefined);
     setAddText('');

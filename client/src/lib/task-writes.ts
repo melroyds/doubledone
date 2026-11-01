@@ -110,3 +110,9 @@ export function updateStoredTasks(change: (tasks: Task[]) => Task[], onScreen: T
   queue = run.catch(() => undefined);
   return run;
 }
+
+/** The Calendar's "Add for this day": one new task, added to what is STORED now (#2, 2026-11-01). Until then the
+ *  Calendar wrote its own list from when it opened plus the task, erasing anything saved since. */
+export function addTaskForDay(added: Task, onScreen: Task[]): Promise<Task[]> {
+  return updateStoredTasks((list) => [...list, added], onScreen);
+}

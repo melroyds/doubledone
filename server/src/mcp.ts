@@ -223,7 +223,7 @@ export const TOOLS = [
             'Track this one-off in parts (2-50). Progress so far carries over, and a count at or below the parts already done finishes it. null makes it one whole task again. Not for a repeating task, or one waiting on its steps.',
         },
         done: { type: 'boolean', description: 'true ticks it (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward one part); false reopens a one-off, or un-ticks a day on a repeat (server only: a device that already synced the tick brings it back). false is refused on a task tracked in parts.' },
-        day: { type: 'string', description: "Optional 'YYYY-MM-DD' for `done` on a repeating task: the day to tick or un-tick (the user's local date). Defaults to the UTC day." },
+        day: { type: 'string', description: "Optional 'YYYY-MM-DD', the user's local date. With `done` on a repeating task: the day to tick or un-tick (defaults to the UTC day). With a new `repeat` on a task that is already done, and no `done`: the day it was finished, so its finish is kept on that day (defaults to the UTC day it was finished)." },
       },
       required: ['id'],
       additionalProperties: false,
@@ -1463,7 +1463,9 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     // A repeat set on a task that is DONE reopens it as a series, its finish kept as a tick on the day it was
     // finished (cadence.ts reopenForRepeat), pinned to the row still being done. Left done, it vanished from every
     // read here and from the Calendar (#23). A `done` riding with it is decided on the row as reopened.
-    const reopen = fields.recurrence != null ? reopenForRepeat(row) : null;
+    // With no `done` riding along, a `day` names the local day the task was finished, so the kept tick lands on it.
+    // (`day` falls back to the UTC day, so only a day the agent actually NAMED dates the finish.)
+    const reopen = fields.recurrence != null ? reopenForRepeat(row, done === undefined && args.day !== undefined ? day ?? undefined : undefined) : null;
     const reopened: TaskState = reopen ? { ...row, done: false, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : row;
     const reopenFields = reopen ? { done: false, completed_at: null, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : {};
     const reopenNote = reopen

@@ -37,21 +37,6 @@ export async function giftState(db: D1LikeDatabase, userId: string, nowSec: numb
   }
 }
 
-/**
- * Delete every gift record of this account, on the way to deleting the account (stripe.ts handleCloseBilling,
- * once billing is closed). The privacy policy names exactly two records that outlive a deleted account, the
- * billing record and the trial note, and the gift row was a third (#6, 2026-11-01). Best effort: true when the
- * delete ran, false on a store error (a missing table has nothing to delete either way). Never throws.
- */
-export async function forgetGifts(db: D1LikeDatabase, userId: string): Promise<boolean> {
-  try {
-    await db.prepare('DELETE FROM gifts WHERE user_id = ?1').bind(userId).run();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** Whether a gift given at `lastGrantedAt` still blocks a new one at `nowSec` (the 180-day spacing). */
 export function withinSpacing(lastGrantedAt: number | null, nowSec: number): boolean {
   return lastGrantedAt != null && nowSec - lastGrantedAt < GIFT_SPACING_DAYS * DAY;

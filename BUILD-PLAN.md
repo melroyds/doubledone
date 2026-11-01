@@ -42,6 +42,20 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE 1 NOV BUG SWEEP: 24 FIXED ON MAIN, NOTHING PUSHED OR DEPLOYED (2026-11-01).** 40 bugs confirmed besides R8;
+the full report with every file and fix is the sweep's own (decision-log, same day). Fixed and tested, in lanes
+6b9f52d, d51961c, 5942fc0, 71bcbc3, 51a8533, b4851c8 and 54dba4d, plus the review's follow-ups. **Deploy order, each on
+Melroy's word:** (1) the Worker, carrying the billing fix 80d8823 and the Worker batch 6b9f52d (rollback target
+`636a1611`), then PREM-62; (2) the push to main, which ships the web fixes and app version 1.10.2, and must follow the
+Worker because the paywall's new spoken label promises the free month's end; (3) the store build in the week of 16 to
+22 Nov, carrying every client fix to the phones. Deploy checks probe behaviour, never a 200: `/push/subscribe` answers
+503 JSON when it cannot store, `GET /api/v1/openapi.json` reports `1.3.1`, a cron log shows ticks at :15/:30/:45 with
+no heartbeat on them, and `breakdown_counts` exists after the first break_down. **Waiting on Melroy (Group C):** the
+Stripe order guard (#1, a D1 change and its own deploy), the share target (#5, remove it), the "I also did that" count
+(#6, stop it), the privacy page's record count (#6, three, or a provable deletion), the social kit's "read to you"
+(#28, before 10 Nov), the contrast pass (#35, #36), the store listings (#27) and the five-language copy batch (#4,
+#13, #14, #25, #34, #38, #39, #40, #10/#31), plus #24 and #26, and the a11y pair #33 and #37.
+
 **CORE-SCREEN FREEZE until Sun 3 Jan 2027 (Melroy, 2026-11-01: "do a freeze of the core screens").** Today, the add
 panel, the held card and the Calendar do not change, because the posts from Tue 10 Nov show them as they are.
 Still allowed: bug fixes (Melroy: "I want to fix all bug fixes, especially if it's on web"), anything that makes the

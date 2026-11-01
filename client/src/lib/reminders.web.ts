@@ -37,6 +37,16 @@ function noteSentOffset(offset: number): void {
   }
 }
 
+// A save the Worker refused (it now answers 503 when it could not store the subscription): forget the noted offset,
+// so the next open re-sends while the switch is on, which heals a failed hour change.
+function forgetSentOffset(): void {
+  try {
+    localStorage.removeItem(OFFSET_KEY);
+  } catch {
+    // nothing to forget
+  }
+}
+
 // applicationServerKey wants the url-base64 VAPID public key as bytes.
 function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -76,6 +86,7 @@ export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = 
       body: JSON.stringify({ subscription: sub.toJSON(), hour, tzOffset }),
     });
     if (res.ok) noteSentOffset(tzOffset);
+    else forgetSentOffset();
     return res.ok ? { ok: true } : { ok: false, reason: 'error' };
   } catch {
     return { ok: false, reason: 'error' };

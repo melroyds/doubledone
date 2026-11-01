@@ -206,19 +206,24 @@ function utcDayOf(v: unknown): string | null {
  * Its finish is kept as a tick on the day it was finished, because a repeat's finishes live only in
  * completed_dates, and without it the finish would drop out of the Lookback.
  *
- * The day is completed_at's, else updated_at's (the app's own fallback for a row finished before completedAt
- * existed), as a UTC day, the basis both surfaces use. When neither reads, no tick is invented: `dates` is null
- * and completed_dates is left alone. Returns null for a task that is not done, so there is nothing to reopen.
- * Pure and shared, so REST and MCP write the same columns.
+ * The day is the caller's `finishedOn` when it names one (the user's local date, which an agent knows and a UTC
+ * day gets wrong for a morning finish east of Greenwich), else completed_at's, else updated_at's (the app's own
+ * fallback for a row finished before completedAt existed), as a UTC day, the basis both surfaces use. When none
+ * reads, no tick is invented: `dates` is null and completed_dates is left alone. Returns null for a task that is
+ * not done, so there is nothing to reopen. Pure and shared, so REST and MCP write the same columns.
  */
-export function reopenForRepeat(row: {
-  done?: unknown;
-  completed_at?: unknown;
-  updated_at?: unknown;
-  completed_dates?: unknown;
-}): { day: string | null; dates: string[] | null } | null {
+export function reopenForRepeat(
+  row: {
+    done?: unknown;
+    completed_at?: unknown;
+    updated_at?: unknown;
+    completed_dates?: unknown;
+  },
+  finishedOn?: string,
+): { day: string | null; dates: string[] | null } | null {
   if (row.done !== true) return null;
-  const day = utcDayOf(row.completed_at) ?? utcDayOf(row.updated_at);
+  const named = typeof finishedOn === 'string' && isValidIsoDay(finishedOn) ? finishedOn : null;
+  const day = named ?? utcDayOf(row.completed_at) ?? utcDayOf(row.updated_at);
   return { day, dates: day ? tickForDay(row.completed_dates, day, true).dates : null };
 }
 

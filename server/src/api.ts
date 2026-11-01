@@ -536,7 +536,8 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
     body.title = t;
   }
   if (typeof o.done === 'boolean') body.done = o.done;
-  // The day a repeat is ticked for (with `done`); a real calendar day, defaulting to the UTC day.
+  // The day a repeat is ticked for (with `done`), or the day a done task was finished (with a new repeat); a real
+  // calendar day, defaulting to the UTC day.
   if (typeof o.day !== 'undefined') {
     if (typeof o.day === 'string' && isValidIsoDay(o.day)) body.day = o.day;
     else return { error: 'day must be a real calendar day (YYYY-MM-DD)' };
@@ -572,7 +573,8 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
   if ((body.partsTotal !== undefined || body.partsDone !== undefined) && body.repeat != null) {
     return { error: 'a task tracked in parts cannot repeat: send parts or a repeat, not both' };
   }
-  if (body.day !== undefined && body.done === undefined) return { error: 'day only makes sense with done' };
+  // A day also dates the finish a new repeat keeps when it lands on a task that is already done (#23).
+  if (body.day !== undefined && body.done === undefined && body.repeat == null) return { error: 'day only makes sense with done, or with a new repeat' };
   if (Object.keys(body).length === 0) return { error: 'nothing to update: send title, done, due, repeat, partsTotal or partsDone' };
   return { body };
 }
@@ -666,7 +668,8 @@ export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIs
     if (parts) return { status: 409, error: 'a task tracked in parts cannot repeat: send partsTotal: null first' };
     if (hidden) return { status: 409, error: 'that task is waiting on its steps, so it cannot repeat' };
     if (isStep) return { status: 409, error: 'that task is a step toward a bigger task, so it cannot repeat' };
-    const reopen = reopenForRepeat(row);
+    // With no `done` in the body, a `day` names the local day the task was finished (the kept tick lands on it).
+    const reopen = reopenForRepeat(row, body.done === undefined ? body.day : undefined);
     if (reopen) {
       patch.done = false; // updateRequest sends completed_at: null with it
       if (reopen.dates) patch.completedDates = reopen.dates;

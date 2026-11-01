@@ -20,7 +20,7 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.3.0',
+    version: '1.3.1',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
       '(in the app: Settings → AI agent access (MCP) → Copy my token), which scopes every call to your own data through ' +
@@ -327,7 +327,7 @@ export const OPENAPI_SPEC = {
         properties: {
           title: { type: 'string' },
           done: { type: 'boolean' },
-          day: { type: 'string', description: "With done on a repeating task: the calendar day to tick or un-tick ('YYYY-MM-DD', the user's local date). Defaults to the UTC day." },
+          day: { type: 'string', description: "The user's local date ('YYYY-MM-DD'). With done on a repeating task: the calendar day to tick or un-tick (defaults to the UTC day). With a new repeat on a task that is already done, and no done: the day it was finished, so its finish is kept on that day (defaults to the UTC day it was finished)." },
           due: { type: ['string', 'null'], format: 'date' },
           repeat: { oneOf: [{ $ref: '#/components/schemas/Repeat' }, { type: 'null' }], description: 'A repeat to make the task recur, or null to stop it recurring.' },
           partsTotal: {

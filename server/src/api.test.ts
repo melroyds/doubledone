@@ -579,7 +579,9 @@ describe('PR B review: REST resolves done against the shape after the patch, and
 
   it('an impossible day, or a day without done, is a calm 400', () => {
     expect(parseUpdate({ done: true, day: '2026-02-30' })).toEqual({ error: 'day must be a real calendar day (YYYY-MM-DD)' });
-    expect(parseUpdate({ day: '2026-09-24' })).toEqual({ error: 'day only makes sense with done' });
+    expect(parseUpdate({ day: '2026-09-24' })).toEqual({ error: 'day only makes sense with done, or with a new repeat' });
+    // A day may date the finish a new repeat keeps on a task that is already done (#23).
+    expect('body' in parseUpdate({ day: '2026-09-24', repeat: { kind: 'daily' } })).toBe(true);
   });
 });
 
@@ -815,7 +817,7 @@ describe('parts over REST: partsTotal / partsDone, absolute and forward-only', (
 
   // --- the contract and the parity with MCP ---------------------------------------------------
 
-  it('OpenAPI is 1.3.0 and documents the parts fields and the 409', async () => {
+  it('OpenAPI is 1.3.1 and documents the parts fields and the 409', async () => {
     const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
     type Schema = { properties: Record<string, unknown>; required?: string[] };
     const spec = (await res.json()) as {
@@ -823,7 +825,7 @@ describe('parts over REST: partsTotal / partsDone, absolute and forward-only', (
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
       components: { schemas: Record<string, Schema>; responses: Record<string, unknown> };
     };
-    expect(spec.info.version).toBe('1.3.0');
+    expect(spec.info.version).toBe('1.3.1');
     const { Task, TaskInput, TaskPatch } = spec.components.schemas;
     expect(Task.required).toEqual(expect.arrayContaining(['partsTotal', 'partsDone']));
     expect(TaskInput.properties).toHaveProperty('partsTotal');
@@ -1266,7 +1268,7 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
 
   // --- the contract -----------------------------------------------------------------------------------------------
 
-  it('OpenAPI 1.3.0 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
+  it('OpenAPI 1.3.1 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
     const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
     type Schema = { properties: Record<string, unknown>; required?: string[] };
     const spec = (await res.json()) as {
@@ -1274,7 +1276,7 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
       components: { schemas: Record<string, Schema> };
     };
-    expect(spec.info.version).toBe('1.3.0');
+    expect(spec.info.version).toBe('1.3.1');
     expect(spec.paths['/tasks/{id}/steps'].post.responses).toMatchObject({
       '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/StepsCreated' } } } },
       '409': { $ref: '#/components/responses/Conflict' },

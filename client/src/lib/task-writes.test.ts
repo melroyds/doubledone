@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type Recurrence } from './recurrence';
 import { type Task } from './tasks';
-import { clearNudgeIfAny, editSeriesIn, removeSeriesIn, restoreSeriesIn, toggleIn, updateStoredTasks, writeTasks } from './task-writes';
+import { addTaskForDay, clearNudgeIfAny, editSeriesIn, removeSeriesIn, restoreSeriesIn, toggleIn, updateStoredTasks, writeTasks } from './task-writes';
 
 // The seams are native (AsyncStorage, notifications, the Android widget), so they are mocked and the
 // tests assert what reaches them: which list is saved, which nudge is cancelled, what the widget is told.
@@ -125,11 +125,20 @@ describe('updateStoredTasks', () => {
     const savedSince = [task({ id: 'a', title: 'renamed on Today', updatedAt: 9 }), task({ id: 'from-sync' })];
     loadTasks.mockImplementation(() => Promise.resolve(savedSince));
     const added = task({ id: 'friday', due: '2026-10-02' });
-    const out = await updateStoredTasks((ts) => [...ts, added], openedWith);
+    const out = await addTaskForDay(added, openedWith);
     expect(out.map((x) => x.id)).toEqual(['a', 'from-sync', 'friday']);
     expect(out[0].title).toBe('renamed on Today');
     expect(out[2].due).toBe('2026-10-02');
     expect(saveTasks).toHaveBeenCalledWith(out);
+  });
+
+  // The screen half of #2: a test of the helper passes even if the Calendar stops calling it, so the Calendar's own
+  // source is held to the one write path (a review find, 2026-11-01).
+  it('the Calendar adds through addTaskForDay and never writes the list itself', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../app/lookback.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('addTaskForDay(added, tasks)');
+    expect(src).not.toContain('saveTasks(');
   });
 
   it('never writes a change onto an empty read while the screen still shows tasks', async () => {

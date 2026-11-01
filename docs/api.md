@@ -19,7 +19,7 @@ plain create and update, so it is here too.
 |---|---|
 | Base URL | `https://api.doubledone.app/api/v1` |
 | Interactive docs (Swagger UI) | [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) |
-| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.3.0** |
+| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.3.1** |
 | Auth | `Authorization: Bearer <your DoubleDone token>` on every task call |
 | Format | JSON in, JSON out. Errors are `{ "error": "<plain message>" }` |
 | CORS | Open to any origin (the token is the auth, not the origin) |

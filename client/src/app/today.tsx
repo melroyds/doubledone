@@ -75,7 +75,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { buildOutcome } from '@/lib/outcome';
 import { scheduleFields, type CaptureSchedule } from '@/lib/recurrence';
 import { availableNudgePresets, isWindDownTime, type NudgePreset, nudgeTargetFor } from '@/lib/nudge';
-import { cancelHold, disableDailyReminder, enableDailyReminder, refreshReminderOffset, scheduleHold, scheduleNudge } from '@/lib/reminders';
+import { cancelHold, disableDailyReminder, enableDailyReminder, refreshReminderOffset, resyncHold, scheduleHold, scheduleNudge } from '@/lib/reminders';
 import { reminderReasonLine } from '@/lib/reminders-types';
 import { applySliceDelta, clearSlices, MAX_SLICES, MIN_SLICES, setSliceTotal } from '@/lib/slices';
 import { spreadDueDates } from '@/lib/spread';
@@ -776,8 +776,12 @@ export default function TodayScreen() {
         }
         void saveLastOpen(toISODate(today));
       });
-      // The web reminder follows a daylight-saving change (a no-op on the phones and when it is off).
-      void loadReminderHour().then((h) => refreshReminderOffset(h));
+      // The web reminder follows a daylight-saving change (a no-op on the phones). Only while the switch is ON:
+      // a first enable whose save failed leaves a live browser subscription behind with the switch Off, and
+      // re-sending it would turn the reminder on behind the switch's back.
+      void Promise.all([loadReminderOn(), loadReminderHour()]).then(([on, h]) => {
+        if (on) void refreshReminderOffset(h);
+      });
       return () => {
         active = false;
         todayFocused.current = false;
@@ -1433,6 +1437,10 @@ export default function TodayScreen() {
   const undoRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function offerUndoRemove(ids: string[]) {
     if (ids.length === 0) return;
+    // The held task's knocks stop at the Remove itself, not when the Undo window closes: that window is a JS timer,
+    // which a phone pauses in the background, so a Remove followed by the home button kept knocking the next
+    // morning (review, 2026-11-01). The contract waits out the window; Undo schedules the knocks again.
+    if (hold && ids.includes(hold.taskId)) void cancelHold();
     setUndoRemoved(ids);
     undoRemovedRef.current = ids;
     if (undoRemoveTimer.current) clearTimeout(undoRemoveTimer.current);
@@ -1454,6 +1462,7 @@ export default function TodayScreen() {
       }),
     );
     track('task.remove.undone', { count: undoRemoved.length });
+    if (hold && ids.has(hold.taskId)) void resyncHold(hold);
     setUndoRemoved(null);
     undoRemovedRef.current = null;
   }

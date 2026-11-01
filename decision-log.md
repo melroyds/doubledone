@@ -11163,3 +11163,42 @@ Melroy: "I want to fix all bug fixes (billing fix). Especially if it's on web."
 **Decided against:** charging at once and refunding the overlap (a charge this audience notices first), hiding
 the convert button during the month (people asked for a way to keep it), and `trial_period_days` (a rounded count
 of days drifts from the stored end).
+
+## 2026-11-01: the bug sweep, fixed in seven lanes, and what the review took back out
+
+Melroy: "I want to fix all bug fixes (billing fix). Especially if it's on web." A sweep (four finders, three verifiers,
+one judge, each find tied to a line of current code) confirmed 40 bugs beside R8 and the billing fix. Seven lanes
+fixed the 24 that needed no decision, one after another on main, each tested and committed (6b9f52d, d51961c,
+5942fc0, 71bcbc3, 51a8533, b4851c8, 54dba4d). Three reviewers then read the combined diff by correctness, by money and
+data, and by platform and the freeze.
+
+**Decided:**
+- **The cron runs every 15 minutes, and only the web reminder uses the extra ticks (#18).** A subscription is due in
+  the first quarter hour of its chosen local hour, so Adelaide, Darwin and India stop getting it 30 minutes late and
+  Nepal 45. The heartbeat, the sweep, the daily pulse and the purges run on the :00 tick only.
+- **The break_down cap is one D1 upsert that returns the count (#7)**, refusing above 20 and failing closed. KV has no
+  compare-and-swap, which is how parallel calls got past it. The cost, accepted: break_down stops while D1 is down.
+- **A repeat set on a done task reopens the series and keeps the finish (#23)**, pinned to the row still being done.
+  The finish lands on the day the agent names (`day`, the user's local date, a review find) or else on the UTC day it
+  was finished. The reads list a repeat whatever its done flag, which brings back the repeats agents ticked before
+  25 Sep. OpenAPI goes to 1.3.1.
+- **Hold me to it ends when its task leaves Today (#8)**: Remove after its Undo, Combine, Break it down, Move to, a
+  synced delete, a repeat's off day. Make it tiny keeps it. The knocks stop AT the Remove, and Undo schedules them
+  again, because the Undo window is a JS timer a phone pauses in the background (the platform review's find; the lane
+  had chosen to leave the knocks running through the window).
+- **Premium follows the account, not the session (#9)**, the Calendar's add writes through the one shared write path
+  and is held to it by a test of the screen's source (#2, a review find), and sign-in tells a dropped connection from
+  a wrong code (#10) and always has a way out (#20).
+- **The web reminder re-sends its offset only while it is switched on**, and forgets the offset after a refused save
+  (a review find): a first enable that failed left a live browser subscription behind the Off switch, and the
+  refresh would have turned it on.
+
+**Decided against, and taken back out:**
+- **Deleting the gift record in close-billing (#6, first half).** Two reviewers found that close-billing is not proof an
+  account is going: any signed-in user can call it with their own token, and the gift rows are the only memory of the
+  180-day spacing, so calling it would reset the spacing and allow a free month for every note. The deletion is
+  reverted. The privacy page's "two small records are kept" now undercounts by one (the gift record its own "A note to
+  us" section already names), which is Melroy's call: say three, or build a deletion that can prove the account is
+  gone.
+- **#24 (an agent naming its own day for list_today), #1 (the Stripe order guard) and the copy batch** wait for
+  Melroy, as do the share target, the "I also did that" count, the social kit's "read to you", and the contrast pass.

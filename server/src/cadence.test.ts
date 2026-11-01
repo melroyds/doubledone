@@ -208,6 +208,16 @@ describe('tickForDay (PR B: a repeat is ticked for a day, never closed)', () => 
 });
 
 describe('reopenForRepeat (#23: a repeat set on a done task)', () => {
+  it("keeps the finish on the day the caller names (the user's local date), not completed_at's UTC day", () => {
+    // Ticked at 08:30 on Mon 2 Nov in Melbourne (UTC+11) is Sun 1 Nov 21:30 UTC.
+    const row = { done: true, completed_at: '2026-11-01T21:30:00+00:00', completed_dates: null };
+    expect(reopenForRepeat(row)?.day).toBe('2026-11-01');
+    expect(reopenForRepeat(row, '2026-11-02')).toEqual({ day: '2026-11-02', dates: ['2026-11-02'] });
+    // A day that is not a real calendar day is ignored, never stored.
+    expect(reopenForRepeat(row, '2026-02-30')?.day).toBe('2026-11-01');
+    expect(reopenForRepeat(row, '2026-11-02T08:30')?.day).toBe('2026-11-01');
+  });
+
   it('is null for a task that is not done: nothing to reopen', () => {
     expect(reopenForRepeat({ done: false, completed_at: '2026-10-30T09:00:00+00:00' })).toBeNull();
     expect(reopenForRepeat({})).toBeNull();
