@@ -86,6 +86,7 @@ import { restedOffer } from '@/lib/offers';
 import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
 import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
 import { type DayContext, dropFromOrder, hasContext, moveInOrder } from '@/lib/plan-day';
+import { picked } from '@/lib/picked';
 import { hasWidgetPlaced, WIDGETS_SUPPORTED } from '@/widget/presence';
 import { authHeader, isSyncConfigured, supabase } from '@/lib/supabase';
 import { clearNudgeIfAny, writeTasks } from '@/lib/task-writes';
@@ -5088,7 +5089,7 @@ export default function TodayScreen() {
                     // way it was made and nobody is stuck with a fact they did not mean to state.
                     onPress={() => setDayContext((c) => ({ ...c, [field]: on ? undefined : value }))}
                     accessibilityRole="button"
-                    aria-selected={on}
+                    {...picked(on)}
                     accessibilityLabel={t(labelKey)}
                     style={({ pressed }) => [styles.planChip, on && styles.planChipOn, pressed && styles.pressed]}
                   >

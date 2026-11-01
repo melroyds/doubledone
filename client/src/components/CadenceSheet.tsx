@@ -5,6 +5,7 @@ import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { addDaysISO, friendlyDate, toISODate } from '@/lib/day';
 import { ordinalDay } from '@/lib/i18n-active';
 import { t } from '@/lib/locale';
+import { picked } from '@/lib/picked';
 import { describeRecurrence, scheduleFields, type CaptureSchedule, type Recurrence } from '@/lib/recurrence';
 import { startOf, whenChanges, whenFields, whenSummary, type WhenAnswer } from '@/lib/when';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -327,7 +328,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
               style={[styles.day, weekdays.includes(d) && styles.dayOn]}
               hitSlop={8}
               accessibilityRole="button"
-              aria-selected={weekdays.includes(d)}
+              {...picked(weekdays.includes(d))}
               accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
             >
               <Text style={[styles.dayText, weekdays.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
@@ -368,7 +369,7 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
                 style={[styles.monthDay, monthDay === d && styles.dayOn]}
                 hitSlop={4}
                 accessibilityRole="button"
-                aria-selected={monthDay === d}
+                {...picked(monthDay === d)}
                 accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
               >
                 <Text style={[styles.monthDayText, monthDay === d && styles.dayTextOn]}>{d}</Text>

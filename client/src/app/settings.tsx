@@ -18,6 +18,7 @@ import { spoken } from '@/lib/i18n';
 import { t } from '@/lib/locale';
 import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
 import { answerSaysYes } from '@/lib/offer-card';
+import { picked } from '@/lib/picked';
 import { periodLabel } from '@/lib/premium-ui';
 import { accountKeepsakeImages } from '@/lib/scrapbook-sync';
 import { SELLS_HERE } from '@/lib/storefront';
@@ -510,7 +511,7 @@ export default function SettingsScreen() {
                       }
                     }}
                     accessibilityRole="button"
-                    aria-selected={selected}
+                    {...picked(selected)}
                     accessibilityLabel={swatchA11y}
                     style={styles.swatchHit}
                     hitSlop={6}

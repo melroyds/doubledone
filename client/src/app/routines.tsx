@@ -11,6 +11,7 @@ import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
+import { picked } from '@/lib/picked';
 import { cancelRhythm, cancelRoutineNudge, exactAlarmDoorRelevant, getNudgeHealth, openExactAlarmSettings, rescheduleAllNudges, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
 import { clampHour, clampMinute, formatReminderTime, reminderReasonLine } from '@/lib/reminders-types';
 import {
@@ -649,7 +650,7 @@ export default function RoutinesScreen() {
                     key={w.value}
                     onPress={() => setWhen(w.value)}
                     accessibilityRole="button"
-                    aria-selected={active}
+                    {...picked(active)}
                     accessibilityLabel={t(w.labelKey)}
                     hitSlop={8}
                   >
@@ -681,7 +682,7 @@ export default function RoutinesScreen() {
                 <Pressable
                   onPress={() => setNudgeOn(false)}
                   accessibilityRole="button"
-                  aria-selected={!nudgeOn}
+                  {...picked(!nudgeOn)}
                   accessibilityLabel={t('common.off')}
                   hitSlop={8}
                 >
@@ -737,7 +738,7 @@ export default function RoutinesScreen() {
                       setNudgeOn(true);
                     }}
                     accessibilityRole="button"
-                    aria-selected={false}
+                    {...picked(false)}
                     accessibilityLabel={t('routines.nudgeAtA11y', { name: name.trim(), time: formatReminderTime(defaultNudgeHour(when), 0) })}
                     hitSlop={8}
                   >

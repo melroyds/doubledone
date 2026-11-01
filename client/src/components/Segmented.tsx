@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { border, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
+import { picked } from '@/lib/picked';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Option<T> = { value: T; label: string };
@@ -27,7 +28,7 @@ export function Segmented<T extends string>({ value, options, onChange, accessib
             key={o.value}
             onPress={() => onChange(o.value)}
             accessibilityRole="button"
-            aria-selected={active}
+            {...picked(active)}
             accessibilityLabel={o.label}
             style={({ pressed }) => [styles.seg, active && styles.segOn, pressed && styles.pressed]}
           >

@@ -229,10 +229,10 @@ export function checkoutRefusal(error: CheckoutRefusal): { line: string; reread:
  * What the trial panel's "Go Premium to keep it" says aloud (the web's convert button, primaryAction 'convert'), as
  * two catalogue sentences the screen joins with ". ", the shape Settings and the welcome already use. Its own words
  * come first, so voice control finds it by what it shows (WCAG 2.5.3, the 1 Nov bug sweep, #34). Then the plan it
- * will buy, which this button has named since 2026-08-01: the web does not announce which plan pill is picked yet,
- * so this is where a screen reader hears it. "After your free month" is true because checkout starts the
- * subscription as a Stripe trial that ends with the month (server/src/stripe.ts). Web only, so our own price is the
- * price Stripe charges.
+ * will buy, which this button has named since 2026-08-01. The web now says which plan pill is picked too
+ * (aria-pressed, #33), and the button still names its plan, so nobody has to go back to the pills to know what it
+ * buys. "After your free month" is true because checkout starts the subscription as a Stripe trial that ends with the
+ * month (server/src/stripe.ts). Web only, so our own price is the price Stripe charges.
  */
 export function convertSpokenKeys(plan: 'monthly' | 'annual'): readonly [button: string, plan: string] {
   return ['premium.goPremiumKeepItA11y', plan === 'annual' ? 'premium.planAnnualA11y' : 'premium.planMonthlyA11y'];

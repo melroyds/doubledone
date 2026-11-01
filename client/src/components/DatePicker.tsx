@@ -5,6 +5,7 @@ import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/
 import { addMonths, monthLabel, monthMatrix, WEEKDAY_LABELS } from '@/lib/calendar';
 import { fromISODate, toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
+import { picked } from '@/lib/picked';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -76,7 +77,7 @@ export function DatePicker({ value, onChange, today, minIso, maxIso }: Props) {
                 disabled={off}
                 style={[styles.cell, selected && styles.cellOn]}
                 accessibilityRole="button"
-                aria-selected={selected} aria-disabled={off}
+                {...picked(selected)} aria-disabled={off}
                 accessibilityLabel={fromISODate(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
               >
                 <Text style={[styles.day, off && styles.dayPast, selected && styles.dayOn]}>

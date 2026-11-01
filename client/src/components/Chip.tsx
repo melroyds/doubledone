@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
 
 import { border, radius, spacing, type Theme } from '@/constants/theme';
+import { picked } from '@/lib/picked';
 import { useThemedStyles } from '@/lib/theme-provider';
 
 type Props = {
@@ -25,7 +26,7 @@ export function Chip({ label, selected, onPress, variant = 'soft', accessibility
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      aria-selected={selected}
+      {...picked(selected)}
       accessibilityLabel={accessibilityLabel ?? label}
       hitSlop={{ top: 8, bottom: 8 }}
       style={[styles.chip, selected && fillOn]}

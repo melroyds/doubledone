@@ -19,6 +19,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { settleBreathIn, settleBreathOut } from '@/lib/haptics';
 import { t } from '@/lib/locale';
+import { picked } from '@/lib/picked';
 import {
   AFFIRMATION_FADE_IN_MS,
   AFFIRMATION_VISIBLE_MS,
@@ -327,7 +328,7 @@ export default function Settle() {
       <Pressable
         onPress={toggleGuide}
         accessibilityRole="button"
-        aria-selected={guideOn}
+        {...picked(guideOn)}
         accessibilityLabel={guideOn ? t('settle.guidePillOnA11y') : t('settle.guidePillOffA11y')}
         hitSlop={10}
         style={({ pressed }) => [styles.guidePill, pressed && styles.pressed]}

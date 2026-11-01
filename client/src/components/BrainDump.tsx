@@ -24,6 +24,7 @@ import { addDaysISO, fromISODate, toISODate } from '@/lib/day';
 import { ordinalDay } from '@/lib/i18n-active';
 import { appendPhrase } from '@/lib/dictation';
 import { t } from '@/lib/locale';
+import { picked } from '@/lib/picked';
 import { type CaptureSchedule } from '@/lib/recurrence';
 import { MAX_SLICES, MIN_SLICES } from '@/lib/slices';
 import { type Dictation, isDictationSupported, startDictation } from '@/lib/speech';
@@ -571,7 +572,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                       style={[styles.day, weekdaysEff.includes(d) && styles.dayOn]}
                       hitSlop={8}
                       accessibilityRole="button"
-                      aria-selected={weekdaysEff.includes(d)}
+                      {...picked(weekdaysEff.includes(d))}
                       accessibilityLabel={t('capture.repeatOnDayA11y', { day: t(key) })}
                     >
                       <Text style={[styles.dayText, weekdaysEff.includes(d) && styles.dayTextOn]}>{t(key)}</Text>
@@ -615,7 +616,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                         style={[styles.day, monthDayEff === d && styles.dayOn]}
                         hitSlop={4}
                         accessibilityRole="button"
-                        aria-selected={monthDayEff === d}
+                        {...picked(monthDayEff === d)}
                         accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
                       >
                         <Text style={[styles.dayText, monthDayEff === d && styles.dayTextOn]}>{d}</Text>
@@ -733,7 +734,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                 onPress={toggleDictation}
                 disabled={busy}
                 accessibilityRole="button"
-                aria-selected={listening}
+                {...picked(listening)}
                 accessibilityLabel={listening ? t('capture.speakListeningA11y') : t('capture.speakA11y')}
                 hitSlop={4}
                 style={({ pressed }) => [styles.tool, pressed && styles.pressed, busy && styles.dim]}

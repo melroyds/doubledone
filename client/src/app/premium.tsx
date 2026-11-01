@@ -12,6 +12,7 @@ import { weeklyAllowance } from '@/lib/entitlement';
 import { buyCheck, needsBillingFix, purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
 import { onPageRestored } from '@/lib/page-restore';
+import { picked } from '@/lib/picked';
 import { usePremium } from '@/lib/premium-provider';
 import { checkoutRefusal, convertSpokenKeys, manageRoute, periodLabel as formatPeriod, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openStoreSubscriptions, restore, STORE_SOURCE, type StoreOffer } from '@/lib/purchases';
@@ -478,7 +479,7 @@ export default function PremiumScreen() {
                   <Pressable
                     onPress={() => setPlan('monthly')}
                     accessibilityRole="button"
-                    aria-selected={plan === 'monthly'}
+                    {...picked(plan === 'monthly')}
                     accessibilityLabel={t('premium.planMonthlyA11y')}
                     style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                   >
@@ -487,7 +488,7 @@ export default function PremiumScreen() {
                   <Pressable
                     onPress={() => setPlan('annual')}
                     accessibilityRole="button"
-                    aria-selected={plan === 'annual'}
+                    {...picked(plan === 'annual')}
                     accessibilityLabel={t('premium.planAnnualA11y')}
                     style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                   >
@@ -627,7 +628,7 @@ export default function PremiumScreen() {
                 <Pressable
                   onPress={() => setPlan('monthly')}
                   accessibilityRole="button"
-                  aria-selected={plan === 'monthly'}
+                  {...picked(plan === 'monthly')}
                   accessibilityLabel={planA11y('monthly')}
                   style={[styles.planPill, plan === 'monthly' && styles.planPillOn]}
                 >
@@ -636,7 +637,7 @@ export default function PremiumScreen() {
                 <Pressable
                   onPress={() => setPlan('annual')}
                   accessibilityRole="button"
-                  aria-selected={plan === 'annual'}
+                  {...picked(plan === 'annual')}
                   accessibilityLabel={planA11y('annual')}
                   style={[styles.planPill, plan === 'annual' && styles.planPillOn]}
                 >
