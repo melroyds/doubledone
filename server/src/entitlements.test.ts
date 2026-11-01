@@ -231,3 +231,159 @@ describe('writeEntitlement: order and which-subscription guards', () => {
     expect(await writeEntitlement(db2, ent({ premium: false, status: 'expired', eventMs: 400 }), 't3')).toBe(false);
   });
 });
+
+// 2026-11-01 (sweep #1): the Stripe twin of the rc_txn rule, at the writer, in real SQLite. The webhook writes the
+// LIVE subscription (stripe.ts), so these writes are what Stripe says about a subscription NOW.
+type RealDb = Awaited<ReturnType<typeof sqliteD1>>;
+const stripeSubOf = (db: RealDb): string | null =>
+  (db.raw.prepare('SELECT stripe_sub FROM entitlements WHERE user_id = ?').get(UID) as { stripe_sub: string | null } | undefined)?.stripe_sub ?? null;
+const live = (over: Partial<Entitlement> = {}): Entitlement => on('stripe', { stripeSub: 'sub_new', ...over });
+
+describe('writeEntitlement: the Stripe which-subscription guard', () => {
+  it("an old subscription's ending never switches off a new paid one", async () => {
+    const db = await sqliteD1();
+    expect(await writeEntitlement(db, live(), NOW)).toBe(true);
+    for (const status of ['incomplete_expired', 'canceled', 'past_due', 'unpaid', 'incomplete']) {
+      expect(await writeEntitlement(db, live({ stripeSub: 'sub_old', premium: false, status }), NOW), status).toBe(false);
+    }
+    // nor the old one winding down with access left (set to cancel)
+    expect(await writeEntitlement(db, live({ stripeSub: 'sub_old', cancelAtPeriodEnd: true }), NOW)).toBe(false);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', cancelAtPeriodEnd: false });
+    expect(stripeSubOf(db)).toBe('sub_new');
+  });
+
+  it("the row's own subscription still ends it, and a fresh sale of another takes it over", async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live(), NOW);
+    expect(await writeEntitlement(db, live({ premium: false, status: 'past_due' }), NOW)).toBe(true);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'past_due' });
+
+    const db2 = await sqliteD1();
+    await writeEntitlement(db2, live({ stripeSub: 'sub_old' }), NOW);
+    expect(await writeEntitlement(db2, live({ status: 'trialing' }), NOW)).toBe(true); // the card-free month's checkout
+    expect(stripeSubOf(db2)).toBe('sub_new');
+    expect(await writeEntitlement(db2, live({ stripeSub: 'sub_old', premium: false, status: 'canceled' }), NOW)).toBe(false);
+    expect(await readEntitlement(db2, UID)).toMatchObject({ premium: true, status: 'trialing' });
+  });
+
+  it('a Stripe subscription in dunning is not erased by another one ending, so the checkout guard still sees it', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live({ premium: false, status: 'past_due' }), NOW);
+    expect(await writeEntitlement(db, live({ stripeSub: 'sub_old', premium: false, status: 'canceled' }), NOW)).toBe(false);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'past_due', customerId: 'cus_1' });
+    // a lapsed row (nothing alive) takes any write, as before
+    const db2 = await sqliteD1();
+    await writeEntitlement(db2, live({ premium: false, status: 'canceled' }), NOW);
+    expect(await writeEntitlement(db2, live({ stripeSub: 'sub_old', premium: false, status: 'incomplete_expired' }), NOW)).toBe(true);
+  });
+
+  it('stands aside for a row from before the column, and the write that lands records its subscription', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live({ stripeSub: null }), NOW);
+    expect(stripeSubOf(db)).toBeNull();
+    expect(await writeEntitlement(db, live({ stripeSub: 'sub_old', premium: false, status: 'canceled' }), NOW)).toBe(true);
+    expect(stripeSubOf(db)).toBe('sub_old');
+  });
+
+  it('keeps the pair true: a premium write that names none clears it, a lapse that names none leaves it', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live(), NOW);
+    await writeEntitlement(db, on('google'), NOW); // a Google sale takes the row: no Stripe id is left to judge by
+    expect(stripeSubOf(db)).toBeNull();
+    const db2 = await sqliteD1();
+    await writeEntitlement(db2, live({ premium: false, status: 'canceled' }), NOW);
+    expect(await writeEntitlement(db2, off('google'), NOW)).toBe(true);
+    expect(stripeSubOf(db2)).toBe('sub_new');
+  });
+
+  it('RevenueCat writes stand aside, and a live Apple or Google row still keeps a Stripe ending out', async () => {
+    for (const source of ['apple', 'google'] as const) {
+      const db = await sqliteD1();
+      await writeEntitlement(db, on(source), NOW);
+      expect(await writeEntitlement(db, live({ premium: false, status: 'canceled' }), NOW), source).toBe(false);
+      expect(await readEntitlement(db, UID), source).toMatchObject({ premium: true, source });
+      // ...and the store that sold it still ends it, with no Stripe id in the way
+      expect(await writeEntitlement(db, off(source), NOW), source).toBe(true);
+    }
+  });
+
+  it('the reconcile, attaching a store purchase over a lapsed Stripe row, clears the Stripe id', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live({ premium: false, status: 'canceled' }), NOW);
+    expect(await writeEntitlement(db, on('apple'), NOW, { attachOnly: true })).toBe(true);
+    expect(stripeSubOf(db)).toBeNull();
+  });
+});
+
+describe('the stripe_sub column is added at runtime where a database lacks it', () => {
+  async function withoutColumn(): Promise<RealDb> {
+    const db = await sqliteD1();
+    db.raw.exec('ALTER TABLE entitlements DROP COLUMN stripe_sub');
+    return db;
+  }
+  const columns = (db: RealDb) => (db.raw.prepare('PRAGMA table_info(entitlements)').all() as { name: string }[]).map((c) => c.name);
+
+  it('adds it on the first write, and that write lands with it', async () => {
+    const db = await withoutColumn();
+    expect(columns(db)).not.toContain('stripe_sub');
+    expect(await writeEntitlement(db, live(), NOW)).toBe(true);
+    expect(columns(db)).toContain('stripe_sub');
+    expect(stripeSubOf(db)).toBe('sub_new');
+  });
+
+  it('looks once per binding, not on every write', async () => {
+    const db = await sqliteD1();
+    let looks = 0;
+    const counted: D1LikeDatabase = {
+      prepare: (sql) => {
+        if (sql.startsWith('PRAGMA table_info')) looks += 1;
+        return db.prepare(sql);
+      },
+    };
+    await writeEntitlement(counted, live(), NOW);
+    await writeEntitlement(counted, live({ status: 'trialing' }), NOW);
+    expect(looks).toBe(1);
+  });
+
+  it('tolerates another isolate adding it between the look and the ALTER', async () => {
+    const db = await withoutColumn();
+    const racing: D1LikeDatabase = {
+      prepare: (sql) => {
+        // the other isolate wins: the column appears just before our ALTER runs, which then fails as a duplicate
+        if (sql.startsWith('ALTER TABLE entitlements ADD COLUMN stripe_sub')) db.raw.exec('ALTER TABLE entitlements ADD COLUMN stripe_sub text');
+        return db.prepare(sql);
+      },
+    };
+    expect(await writeEntitlement(racing, live(), NOW)).toBe(true);
+    expect(stripeSubOf(db)).toBe('sub_new');
+  });
+
+  it('a column it cannot add fails the write loudly, and is tried again on the next write', async () => {
+    const db = await withoutColumn();
+    let refuse = true;
+    const flaky: D1LikeDatabase = {
+      prepare: (sql) => {
+        if (refuse && sql.startsWith('ALTER TABLE')) throw new Error('d1 busy');
+        return db.prepare(sql);
+      },
+    };
+    await expect(writeEntitlement(flaky, live(), NOW)).rejects.toThrow();
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: null }); // nothing half-written
+    refuse = false;
+    expect(await writeEntitlement(flaky, live(), NOW)).toBe(true);
+    expect(columns(db)).toContain('stripe_sub');
+  });
+
+  it('alters nothing where the answer names no columns (a missing table, or a test double)', async () => {
+    const seen: string[] = [];
+    const double: D1LikeDatabase = {
+      prepare: (sql) => {
+        seen.push(sql.trim().split(/\s+/).slice(0, 2).join(' '));
+        const s = { bind: () => s, run: async () => undefined, first: async () => null, all: async () => ({ results: [] }) };
+        return s;
+      },
+    };
+    expect(await writeEntitlement(double, live(), NOW)).toBeNull();
+    expect(seen).toEqual(['PRAGMA table_info(entitlements)', 'INSERT INTO']);
+  });
+});

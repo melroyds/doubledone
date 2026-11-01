@@ -55,7 +55,8 @@ create table if not exists entitlements (
   source text,                          -- 'stripe' | 'apple' | 'google' | null; null = a pre-2026-07 row, always Stripe
   updated_at text not null default (datetime('now')),
   rc_event_ms integer,                  -- event_timestamp_ms of the last RevenueCat event applied (an older one never overwrites it)
-  rc_txn text                           -- original_transaction_id of the store subscription behind the live premium
+  rc_txn text,                          -- original_transaction_id of the store subscription behind the live premium
+  stripe_sub text                       -- sub_... of the Stripe subscription the row's state is about (another one's ending never overwrites it)
 );
 -- For a DB created before these columns existed, add them once (errors harmlessly if
 -- already present):
@@ -64,6 +65,8 @@ create table if not exists entitlements (
 --   ALTER TABLE entitlements ADD COLUMN source text;   -- null = stripe (every pre-2026-07 row)
 --   ALTER TABLE entitlements ADD COLUMN rc_event_ms integer;   -- 2026-10-04, the event-order guard
 --   ALTER TABLE entitlements ADD COLUMN rc_txn text;           -- 2026-10-04, which subscription a revoke is about
+--   ALTER TABLE entitlements ADD COLUMN stripe_sub text;       -- 2026-11-01, which Stripe subscription; the Worker
+--                                                              -- also adds it at runtime (entitlements.ts)
 
 -- Web Push subscriptions (Phase 2 of reminders): the browser's PushSubscription plus the
 -- user's preferred LOCAL nudge hour and tz offset, so a daily "your today is here" nudge

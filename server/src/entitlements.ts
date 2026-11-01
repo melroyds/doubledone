@@ -34,6 +34,10 @@ export type Entitlement = {
   // Stripe writes and on the reconcile, which then leave both columns as they were.
   eventMs?: number | null;
   txn?: string | null;
+  // Stripe writes only (2026-11-01): the id of the Stripe subscription (sub_...) whose LIVE state this write
+  // carries, read from Stripe by id at delivery time. Absent (null) on RevenueCat writes, the reconcile, and a
+  // checkout that names no subscription.
+  stripeSub?: string | null;
 };
 
 // The two RevenueCat rules (2026-10-04), appended to the guard below. Each stands aside when the incoming
@@ -50,6 +54,56 @@ const STORE_ORDER_GUARD = `AND (
            AND excluded.rc_txn IS NOT NULL AND entitlements.rc_txn IS NOT NULL AND excluded.rc_txn <> entitlements.rc_txn
            AND NOT (excluded.premium = 1 AND excluded.status IN ('active', 'trialing') AND excluded.cancel_at_period_end = 0)
          )`;
+
+// The Stripe twin of the rc_txn rule (2026-11-01), appended after it. While the row's subscription is alive, a
+// non-sale about a DIFFERENT Stripe subscription writes nothing. Alive means premium, or a Stripe row in dunning:
+// Stripe maps past_due and unpaid to premium off while the subscription retries the card, and the checkout guard
+// reads that state to refuse a second subscription, so an old subscription's ending must not erase it. Stands aside
+// when either side names no subscription (RevenueCat writes, the reconcile, rows from before the column).
+const STRIPE_SUBSCRIPTION_GUARD = `AND NOT (
+           excluded.stripe_sub IS NOT NULL AND entitlements.stripe_sub IS NOT NULL AND excluded.stripe_sub <> entitlements.stripe_sub
+           AND (entitlements.premium = 1
+                OR (COALESCE(entitlements.source, 'stripe') = 'stripe' AND COALESCE(entitlements.status, '') IN ('past_due', 'unpaid')))
+           AND NOT (excluded.premium = 1 AND excluded.status IN ('active', 'trialing') AND excluded.cancel_at_period_end = 0)
+         )`;
+
+// The D1 bindings `stripe_sub` is known to exist on (the breakdown_counts pattern), so it is looked for once per
+// binding, not on every write.
+const stripeSubReady = new WeakSet<object>();
+
+/** Whether entitlements has `stripe_sub`, or null when the answer names no columns at all (no such table, or a
+ *  test double that is not a database): then nothing is altered and the write itself has the last word. */
+async function hasStripeSubColumn(db: D1LikeDatabase): Promise<boolean | null> {
+  const { results } = await db.prepare('PRAGMA table_info(entitlements)').all<{ name?: unknown }>();
+  const names = (Array.isArray(results) ? results : []).map((c) => c?.name).filter((n): n is string => typeof n === 'string');
+  return names.length === 0 ? null : names.includes('stripe_sub');
+}
+
+/**
+ * Add entitlements.stripe_sub where it is missing, once per binding, so the Worker deploy that first writes it
+ * never waits on a schema apply (the scrapbook_log lesson, which is why the tables here are created at runtime too).
+ * PRAGMA first, and the ALTER only for a table that is there without it. Another isolate can add it between the
+ * two: the ALTER then fails as a duplicate column, and a second look settles it. Never throws. A column it cannot
+ * confirm is looked for again on the next write, and meanwhile the write fails loudly, so the webhook answers 500
+ * and the store retries.
+ */
+async function ensureEntitlementColumns(db: D1LikeDatabase): Promise<void> {
+  if (stripeSubReady.has(db)) return;
+  try {
+    const has = await hasStripeSubColumn(db);
+    if (has === null) return;
+    if (!has) {
+      try {
+        await db.prepare('ALTER TABLE entitlements ADD COLUMN stripe_sub text').run();
+      } catch {
+        if ((await hasStripeSubColumn(db)) !== true) return; // not a race lost to another isolate: leave it unmarked
+      }
+    }
+    stripeSubReady.add(db);
+  } catch {
+    // a store hiccup: unmarked, so the next write looks again
+  }
+}
 
 /**
  * Upsert an entitlement. `started_at` (tenure) is set once, on first premium grant, and preserved
@@ -84,6 +138,16 @@ const STORE_ORDER_GUARD = `AND (
  *   subscription's id in place and every cancel, expiry and refund of the real one was refused, which would
  *   have kept Premium on for ever.
  *
+ * THE STRIPE WHICH-SUBSCRIPTION GUARD (2026-11-01, sweep #1). The Stripe webhook now writes the LIVE
+ * subscription, read by id when the event arrives (stripe.ts), which settles the ORDER of one subscription's
+ * events: a retried past_due that lands after the card was fixed writes what Stripe says now, active. What a live
+ * read cannot settle is WHICH subscription the row is about. The row records it (`stripe_sub`), and while that
+ * subscription is alive (premium, or a Stripe row in dunning), a non-sale about a different one writes nothing,
+ * so an old subscription's incomplete_expired can no longer switch off a new paid one. The pair is kept true the
+ * RevenueCat way: a write that names a subscription records it, a premium write that names none clears it, and a
+ * non-premium write that names none leaves it. `stripe_sub` is added at runtime where missing
+ * (ensureEntitlementColumns), so no deploy waits on an ALTER.
+ *
  * `attachOnly` (the sign-in reconcile, revenuecat-api.ts): write ONLY where the account has no Premium row
  * yet, or a lapsed one. It never restates a live Premium row, because RevenueCat's subscriber view cannot
  * say "payment failing": a subscription in Google's grace period reads there as plainly active, and the
@@ -98,6 +162,7 @@ const STORE_ORDER_GUARD = `AND (
  * report a change count (the in-memory test doubles), which callers treat as written.
  */
 export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, nowISO: string, opts: { attachOnly?: boolean } = {}): Promise<boolean | null> {
+  await ensureEntitlementColumns(db);
   const guard = opts.attachOnly
     ? `WHERE entitlements.premium = 0`
     : `WHERE (
@@ -107,9 +172,9 @@ export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, now
          )`;
   const res = await db
     .prepare(
-      `INSERT INTO entitlements (user_id, premium, status, current_period_end, cancel_at_period_end, started_at, stripe_customer_id, source, updated_at, rc_event_ms, rc_txn)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-       -- ?12: 1 for the attach-only reconcile, which clears the RevenueCat pair
+      `INSERT INTO entitlements (user_id, premium, status, current_period_end, cancel_at_period_end, started_at, stripe_customer_id, source, updated_at, rc_event_ms, rc_txn, stripe_sub)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13)
+       -- ?12: 1 for the attach-only reconcile, which clears the RevenueCat pair. ?13: the Stripe subscription, or null
        ON CONFLICT(user_id) DO UPDATE SET
          premium = ?2,
          status = ?3,
@@ -120,11 +185,13 @@ export async function writeEntitlement(db: D1LikeDatabase, ent: Entitlement, now
          source = ?8,
          updated_at = ?9,
          rc_event_ms = CASE WHEN ?12 = 1 THEN NULL ELSE COALESCE(?10, entitlements.rc_event_ms) END,
-         rc_txn = CASE WHEN ?12 = 1 THEN NULL WHEN ?11 IS NOT NULL THEN ?11 WHEN ?2 = 1 THEN NULL ELSE entitlements.rc_txn END
+         rc_txn = CASE WHEN ?12 = 1 THEN NULL WHEN ?11 IS NOT NULL THEN ?11 WHEN ?2 = 1 THEN NULL ELSE entitlements.rc_txn END,
+         stripe_sub = CASE WHEN ?13 IS NOT NULL THEN ?13 WHEN ?2 = 1 THEN NULL ELSE entitlements.stripe_sub END
        ${guard}
-       ${STORE_ORDER_GUARD}`,
+       ${STORE_ORDER_GUARD}
+       ${STRIPE_SUBSCRIPTION_GUARD}`,
     )
-    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, ent.source, nowISO, opts.attachOnly ? null : (ent.eventMs ?? null), opts.attachOnly ? null : (ent.txn ?? null), opts.attachOnly ? 1 : 0)
+    .bind(ent.userId, ent.premium ? 1 : 0, ent.status, ent.currentPeriodEnd, ent.cancelAtPeriodEnd ? 1 : 0, ent.premium ? nowISO : null, ent.customerId, ent.source, nowISO, opts.attachOnly ? null : (ent.eventMs ?? null), opts.attachOnly ? null : (ent.txn ?? null), opts.attachOnly ? 1 : 0, opts.attachOnly ? null : (ent.stripeSub ?? null))
     .run();
   const changes = (res as { meta?: { changes?: unknown } } | null | undefined)?.meta?.changes;
   return typeof changes === 'number' ? changes > 0 : null;

@@ -259,8 +259,29 @@ function subscriptionPeriodEnd(obj: Record<string, unknown>): number | null {
   return typeof fromItem === 'number' ? fromItem : null;
 }
 
+/** A subscription object (an event's copy, or the live one read by id) as the entitlement it grants. One mapping
+ *  for both, so the two can never drift. The id rides along as `stripeSub` for the which-subscription guard. */
+function subscriptionEntitlement(userId: string, obj: Record<string, unknown>): Entitlement {
+  const status = typeof obj.status === 'string' ? obj.status : '';
+  const premium = status === 'active' || status === 'trialing';
+  return {
+    userId,
+    premium,
+    status,
+    currentPeriodEnd: subscriptionPeriodEnd(obj),
+    // dahlia (2026-04) represents a scheduled "cancel at period end" via cancel_at
+    // (a timestamp), leaving the old cancel_at_period_end boolean false. Accept either.
+    cancelAtPeriodEnd: obj.cancel_at_period_end === true || typeof obj.cancel_at === 'number',
+    customerId: typeof obj.customer === 'string' ? obj.customer : null,
+    source: 'stripe',
+    ...(typeof obj.id === 'string' && obj.id !== '' ? { stripeSub: obj.id } : {}),
+  };
+}
+
 /** Map a Stripe event to an entitlement change, or null if it is not one we act on.
- *  The user id rides in client_reference_id (checkout) or metadata.user_id (both). */
+ *  The user id rides in client_reference_id (checkout) or metadata.user_id (both).
+ *  This is the event's own copy, which the webhook uses to decide whether an event is ours; what it then WRITES
+ *  is the live subscription (entitlementFromSubscription), except for a checkout that names no subscription. */
 export function entitlementFromEvent(event: unknown): Entitlement | null {
   const e = event as { type?: unknown; data?: { object?: Record<string, unknown> } };
   const obj = e.data?.object ?? {};
@@ -282,22 +303,39 @@ export function entitlementFromEvent(event: unknown): Entitlement | null {
   if (type.startsWith('customer.subscription.')) {
     const userId = meta.user_id || '';
     if (!userId) return null;
-    const status = typeof obj.status === 'string' ? obj.status : '';
-    const premium = status === 'active' || status === 'trialing';
-    return {
-      userId,
-      premium,
-      status,
-      currentPeriodEnd: subscriptionPeriodEnd(obj),
-      // dahlia (2026-04) represents a scheduled "cancel at period end" via cancel_at
-      // (a timestamp), leaving the old cancel_at_period_end boolean false. Accept either.
-      cancelAtPeriodEnd: obj.cancel_at_period_end === true || typeof obj.cancel_at === 'number',
-      customerId,
-      source: 'stripe',
-    };
+    return subscriptionEntitlement(userId, obj);
   }
 
   return null;
+}
+
+/** The Stripe subscription an entitlement event is about: the subscription itself, or the one behind a completed
+ *  Checkout (an id, or an expanded object). Null for any other event, and for a session that names none. */
+export function subscriptionIdFromEvent(event: unknown): string | null {
+  const e = event as { type?: unknown; data?: { object?: Record<string, unknown> } };
+  const type = typeof e.type === 'string' ? e.type : '';
+  const obj = e.data?.object ?? {};
+  const ref = type === 'checkout.session.completed' ? obj.subscription : type.startsWith('customer.subscription.') ? obj.id : null;
+  if (typeof ref === 'string') return ref !== '' ? ref : null;
+  const nested = ref && typeof ref === 'object' ? (ref as { id?: unknown }).id : null;
+  return typeof nested === 'string' && nested !== '' ? nested : null;
+}
+
+/** The LIVE subscription as the entitlement it grants, for the user the event named. Null when the object is not
+ *  a subscription, which the webhook treats as a failed read (500, so Stripe retries). */
+export function entitlementFromSubscription(userId: string, sub: unknown): Entitlement | null {
+  const obj = sub as Record<string, unknown> | null;
+  if (!obj || typeof obj !== 'object' || typeof obj.id !== 'string' || obj.id === '' || typeof obj.status !== 'string') return null;
+  return subscriptionEntitlement(userId, obj);
+}
+
+/** GET /v1/subscriptions/{id}: the subscription as Stripe holds it NOW, or null when Stripe could not say (no key,
+ *  a non-2xx, a throw, bad JSON, or an object that is not the one asked for). */
+export async function fetchSubscription(env: StripeEnv, id: string): Promise<Record<string, unknown> | null> {
+  if (!env.STRIPE_SECRET_KEY) return null;
+  const body = (await stripeGet(env, `/subscriptions/${encodeURIComponent(id)}`)) as Record<string, unknown> | null;
+  if (!body || typeof body !== 'object' || body.id !== id || typeof body.status !== 'string') return null;
+  return body;
 }
 
 // --- money-trouble alerts (the control centre's Stripe arm) -----------------
@@ -540,8 +578,30 @@ export async function handleCloseBilling(
   return new Response(JSON.stringify({ cancelled }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 
+/** Which guard kept a refused Stripe write, read once after it, for the reply Stripe's dashboard shows beside the
+ *  delivery (the RevenueCat webhook's whichGuard). A Stripe write is only ever kept by the cross-store guard (the
+ *  row belongs to Apple or Google) or by the which-subscription guard (the row is Stripe's). A race can only
+ *  mislabel the reply, never the entitlement. Null when the row cannot be read. */
+async function keptBy(db: D1LikeDatabase, userId: string): Promise<'other-store' | 'other-subscription' | null> {
+  try {
+    const row = await db.prepare('SELECT source FROM entitlements WHERE user_id = ?1').bind(userId).first<{ source: string | null }>();
+    if (!row) return null;
+    return row.source != null && row.source !== 'stripe' ? 'other-store' : 'other-subscription';
+  } catch {
+    return null;
+  }
+}
+
 /** POST /stripe-webhook — Stripe calls this. Verifies the signature, then writes the
- *  entitlement. Not origin-gated, not user-authed: the signature is the auth. */
+ *  entitlement. Not origin-gated, not user-authed: the signature is the auth.
+ *
+ *  THE LIVE READ (2026-11-01, sweep #1). Stripe delivers at least once, out of order, and retries a failed
+ *  delivery for up to three days, so an event's own copy of a subscription can be days stale: a retried past_due
+ *  landing after the card was fixed switched a payer to "fix your card", and an old subscription's ending switched
+ *  off a new paid one, for up to a month. So every customer.subscription.* event, and the subscription behind a
+ *  completed Checkout, is written from the subscription as Stripe holds it NOW, read by id. A read that fails
+ *  answers 500 with nothing written or marked, and Stripe's retry reads again. The reply names the live status
+ *  (`live`), so a delivery in Stripe's dashboard shows this ran, and `kept` when a guard refused the write. */
 export async function handleWebhook(request: Request, env: FullEnv, nowISO: string, nowSec?: number): Promise<Response> {
   if (!env.STRIPE_WEBHOOK_SECRET || !env.DB) return new Response('not configured', { status: 503 });
   const raw = await request.text();
@@ -555,12 +615,14 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
   } catch {
     return new Response('bad json', { status: 400 });
   }
-  const ent = entitlementFromEvent(event);
-  if (ent) {
+  const snapshot = entitlementFromEvent(event);
+  const reply: { received: true; live?: string; kept?: true; by?: 'other-store' | 'other-subscription' } = { received: true };
+  if (snapshot) {
     // Idempotency: Stripe delivers at-least-once (automatic retries, occasional duplicates), so the same
-    // event id can arrive twice. Skip one we have already applied. Fail OPEN on any dedup-store error or a
-    // not-yet-created table: the entitlement write below is an idempotent upsert, so re-processing is
-    // harmless, and a real billing event must never be dropped because the dedup store hiccuped.
+    // event id can arrive twice. Skip one we have already applied, before spending a Stripe read on it. Fail
+    // OPEN on any dedup-store error or a not-yet-created table: the entitlement write below is an idempotent
+    // upsert, so re-processing is harmless, and a real billing event must never be dropped because the dedup
+    // store hiccuped.
     const eventId = typeof (event as { id?: unknown }).id === 'string' ? (event as { id: string }).id : '';
     if (eventId) {
       try {
@@ -570,10 +632,29 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
         // fail open: missing table or transient error, proceed to process
       }
     }
+    // The live subscription, for the user the event named (see the doc comment). Only a checkout that names no
+    // subscription still writes from its own copy, as before: every Checkout we open is mode=subscription, so
+    // for ours that path is never taken.
+    let ent: Entitlement = snapshot;
+    const subId = subscriptionIdFromEvent(event);
+    if (subId) {
+      const live = entitlementFromSubscription(snapshot.userId, await fetchSubscription(env, subId));
+      if (!live) return new Response('subscription read failed', { status: 500 });
+      ent = live;
+      reply.live = live.status;
+    }
+    let written: boolean | null;
     try {
-      await writeEntitlement(env.DB, ent, nowISO);
+      written = await writeEntitlement(env.DB, ent, nowISO);
     } catch {
       return new Response('store error', { status: 500 });
+    }
+    // A write a guard kept is handled, not failed (the row's own subscription or store still decides), so it
+    // is marked processed like any other: a retry would only be refused again.
+    if (written === false) {
+      reply.kept = true;
+      const by = await keptBy(env.DB, ent.userId);
+      if (by) reply.by = by;
     }
     if (eventId) {
       try {
@@ -615,7 +696,7 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
   } catch {
     // a notification must never fail the webhook
   }
-  return new Response(JSON.stringify({ received: true }), { headers: JSON_HEADERS });
+  return new Response(JSON.stringify(reply), { headers: JSON_HEADERS });
 }
 
 /** GET /entitlement — authed. The app asks "am I premium, and since when?". */
