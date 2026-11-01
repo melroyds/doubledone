@@ -11,8 +11,9 @@ import { useSession } from '@/lib/auth';
 import { weeklyAllowance } from '@/lib/entitlement';
 import { buyCheck, needsBillingFix, purchaseGate } from '@/lib/iap';
 import { t } from '@/lib/locale';
+import { onPageRestored } from '@/lib/page-restore';
 import { usePremium } from '@/lib/premium-provider';
-import { manageRoute, periodLabel as formatPeriod, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
+import { checkoutRefusal, convertSpokenKeys, manageRoute, periodLabel as formatPeriod, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot } from '@/lib/premium-ui';
 import { buy, IAP_AVAILABLE, loadOffers, openStoreSubscriptions, restore, STORE_SOURCE, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
 import { PLAY_COPY, SELLS_HERE, STRIPE_HERE } from '@/lib/storefront';
@@ -170,6 +171,18 @@ export default function PremiumScreen() {
     return () => clearInterval(timer);
   }, [payStatus, premium, refresh]);
 
+  // Back from Stripe's Checkout or portal can bring this page back from the browser's back-forward cache exactly as
+  // it was left: busy, so the button still reads "Opening checkout…" (or "Opening…") and does nothing, and the
+  // entitlement is the one read before they left. Nothing else runs on a restore (no mount, no focus), so settle the
+  // button and read again, in case they paid or changed something there first. Web only (lib/page-restore).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    return onPageRestored(window, () => {
+      setBusy(false);
+      refresh();
+    });
+  }, [refresh]);
+
   // What to say to someone whose existing subscription has a payment failing, by who bills it. Google Play
   // retries on its own and the fix lives in the Play Store. A Stripe one is fixed in the portal where Stripe
   // may appear, and by writing to us where it may not (Android).
@@ -274,15 +287,11 @@ export default function PremiumScreen() {
     track('premium.checkout_started', { plan });
     const res = await startCheckout(plan);
     if (!res.ok) {
-      setError(
-        res.error === 'sign_in'
-          ? t('premium.errorCheckoutSignIn')
-          : res.error === 'already'
-            ? t('premium.errorAlreadyPremium')
-            : res.error === 'billing_issue'
-              ? t('premium.errorBillingIssue') // dunning: the fix is the card, never a second subscription
-              : t('premium.errorCheckoutFailed'),
-      );
+      // A 409 (already Premium, or a card failing) also reads the entitlement again, so the screen becomes the one
+      // with the Manage button or the card box its line points to (lib/premium-ui checkoutRefusal).
+      const refusal = checkoutRefusal(res.error);
+      setError(t(refusal.line));
+      if (refusal.reread) refresh();
       setBusy(false);
       return;
     }
@@ -490,7 +499,9 @@ export default function PremiumScreen() {
                   label={busy ? t('premium.openingCheckout') : t('premium.goPremiumKeepIt')}
                   onPress={subscribe}
                   disabled={busy}
-                  accessibilityLabel={plan === 'annual' ? t('premium.subscribeAnnualA11y') : t('premium.subscribeMonthlyA11y')}
+                  accessibilityLabel={convertSpokenKeys(plan)
+                    .map((k) => t(k))
+                    .join('. ')}
                   style={styles.ctaSpace}
                 />
               </>

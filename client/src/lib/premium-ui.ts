@@ -6,6 +6,8 @@
 //
 // The rule this encodes: never render a control whose only outcome is an error.
 
+import type { CheckoutResult } from './stripe';
+
 export type PrimaryAction =
   | 'convert' // the trial's "Go Premium to keep it" (Stripe checkout; the server's guard allows a trial to convert)
   | 'manage' // "Manage subscription": the Stripe portal, Apple's sheet or the Play Store (manage() routes by source)
@@ -197,4 +199,41 @@ export type StoreCopy = ReturnType<typeof storeCopyKeys>;
  */
 export function welcomeFineKey(iapAvailable: boolean, stripeHere: boolean): 'welcome.premiumFine' | 'welcome.premiumFinePlain' {
   return stripeHere && !iapAvailable ? 'welcome.premiumFine' : 'welcome.premiumFinePlain';
+}
+
+/** Why the web's Stripe Checkout did not open (lib/stripe startCheckout). */
+export type CheckoutRefusal = Extract<CheckoutResult, { ok: false }>['error'];
+
+/**
+ * The line the web's Go Premium shows when Checkout is refused, and whether the screen must also read the
+ * entitlement again. Both 409s mean the server knows more than the screen does. The free screen is where a member lands
+ * when their own read failed and showed as free, and each 409 line points at something only the re-read screen
+ * has: "Manage it from the button above" means the Premium panel's Manage button, and a failing card means the box
+ * with its Update payment details link (the 1 Nov bug sweep, #15). The re-read is display only: lib/iap buyCheck
+ * still reads afresh before any charge, and no remembered entitlement ever stands in for one.
+ */
+export function checkoutRefusal(error: CheckoutRefusal): { line: string; reread: boolean } {
+  switch (error) {
+    case 'already':
+      return { line: 'premium.errorAlreadyPremium', reread: true };
+    case 'billing_issue':
+      return { line: 'premium.errorBillingIssue', reread: true }; // dunning: the fix is the card, never a second subscription
+    case 'sign_in':
+      return { line: 'premium.errorCheckoutSignIn', reread: false };
+    default:
+      return { line: 'premium.errorCheckoutFailed', reread: false };
+  }
+}
+
+/**
+ * What the trial panel's "Go Premium to keep it" says aloud (the web's convert button, primaryAction 'convert'), as
+ * two catalogue sentences the screen joins with ". ", the shape Settings and the welcome already use. Its own words
+ * come first, so voice control finds it by what it shows (WCAG 2.5.3, the 1 Nov bug sweep, #34). Then the plan it
+ * will buy, which this button has named since 2026-08-01: the web does not announce which plan pill is picked yet,
+ * so this is where a screen reader hears it. "After your free month" is true because checkout starts the
+ * subscription as a Stripe trial that ends with the month (server/src/stripe.ts). Web only, so our own price is the
+ * price Stripe charges.
+ */
+export function convertSpokenKeys(plan: 'monthly' | 'annual'): readonly [button: string, plan: string] {
+  return ['premium.goPremiumKeepItA11y', plan === 'annual' ? 'premium.planAnnualA11y' : 'premium.planMonthlyA11y'];
 }

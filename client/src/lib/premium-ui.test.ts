@@ -5,7 +5,7 @@ import { en } from './catalogs/en';
 import { es } from './catalogs/es';
 import { fr } from './catalogs/fr';
 import { it as itCat } from './catalogs/it';
-import { manageRoute, periodLabel, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot, welcomeFineKey } from './premium-ui';
+import { checkoutRefusal, convertSpokenKeys, manageRoute, periodLabel, premiumPrimaryAction, showsCancelReassurance, storeCopyKeys, trialSlot, welcomeFineKey } from './premium-ui';
 
 // The full state -> control table for the entitled panel. Each row here is a cell that either
 // shipped wrong (trial, comp) or must never drift (the live Stripe path). See premium-ui.ts for
@@ -287,4 +287,59 @@ describe('welcomeFineKey and storeCopyKeys: what an iPhone may say', () => {
       }
     });
   }
+});
+
+// The web's Go Premium, refused by the server (the 1 Nov bug sweep, #15). The free screen is where a member lands
+// when their read failed and showed as free, and both 409 lines point at something only the re-read screen has.
+describe('checkoutRefusal (what a refused web checkout says, and whether the screen reads again)', () => {
+  it('already on Premium: reads again, so the Manage button that "the button above" means is on screen', () => {
+    expect(checkoutRefusal('already')).toEqual({ line: 'premium.errorAlreadyPremium', reread: true });
+  });
+
+  it('a card failing on the existing subscription: reads again, so the box to update it appears above', () => {
+    expect(checkoutRefusal('billing_issue')).toEqual({ line: 'premium.errorBillingIssue', reread: true });
+  });
+
+  it('signed out, or a request that failed: the screen was right, so nothing to read again', () => {
+    expect(checkoutRefusal('sign_in')).toEqual({ line: 'premium.errorCheckoutSignIn', reread: false });
+    expect(checkoutRefusal('failed')).toEqual({ line: 'premium.errorCheckoutFailed', reread: false });
+    // portal-only, and never an answer from checkout: the calm failure line, as before
+    expect(checkoutRefusal('no_subscription')).toEqual({ line: 'premium.errorCheckoutFailed', reread: false });
+  });
+
+  it('every line exists in every catalogue', () => {
+    for (const error of ['already', 'billing_issue', 'sign_in', 'failed', 'no_subscription'] as const) {
+      const { line } = checkoutRefusal(error);
+      for (const [loc, cat] of Object.entries(CATALOGS)) expect(typeof lookup(cat, line), `${loc} ${line}`).toBe('string');
+    }
+  });
+});
+
+// The trial panel's "Go Premium to keep it" (the 1 Nov bug sweep, #34). Voice control finds a button by the words
+// on it, so its spoken name must start with them. It used to speak "Subscribe to Premium, five dollars a month".
+describe("convertSpokenKeys (what the trial panel's Go Premium says aloud)", () => {
+  it("starts with the button's own sentence, then names the plan it will buy", () => {
+    expect(convertSpokenKeys('monthly')).toEqual(['premium.goPremiumKeepItA11y', 'premium.planMonthlyA11y']);
+    expect(convertSpokenKeys('annual')).toEqual(['premium.goPremiumKeepItA11y', 'premium.planAnnualA11y']);
+  });
+
+  it('every sentence exists in every catalogue', () => {
+    for (const plan of ['monthly', 'annual'] as const) {
+      for (const key of convertSpokenKeys(plan)) {
+        for (const [loc, cat] of Object.entries(CATALOGS)) expect(typeof lookup(cat, key), `${loc} ${key}`).toBe('string');
+      }
+    }
+  });
+
+  for (const loc of ['en', 'es', 'fr', 'it'] as const) {
+    it(`begins with the words on the button, in ${loc}`, () => {
+      const cat = CATALOGS[loc];
+      const spoken = String(lookup(cat, convertSpokenKeys('monthly')[0]));
+      expect(spoken.startsWith(String(lookup(cat, 'premium.goPremiumKeepIt'))), `${loc}: ${spoken}`).toBe(true);
+    });
+  }
+
+  // German shows "Hol dir Premium und behalt es" but speaks "Hol dir Premium, um es nach deinem Gratismonat zu
+  // behalten". That is a line for the copy batch's native read, never a hand edit here.
+  it.todo('begins with the words on the button, in de, once the copy batch rewrites premium.goPremiumKeepItA11y');
 });

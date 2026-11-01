@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { useSessionState } from './auth';
 import { correctedNow } from './clock';
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
 import { stepMonthEnd } from './month-end';
-import { type DevPremium, gateEntitlement } from './premium-flag';
+import { type DevPremium, entitlementOwnerKey, gateEntitlement } from './premium-flag';
 import { localPremium } from './purchases';
 import { loadDevPremium, loadMonthEnd, saveDevPremium, saveMonthEnd } from './storage';
 import { loadEntitlementChecked } from './stripe';
@@ -51,8 +52,13 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [devOverride, setDevOverrideState] = useState<DevPremium>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Whose entitlement this is. The load below runs again when it changes, so signing in, signing out or switching
+  // accounts re-reads at once, from any screen; a token refresh keeps the same id and costs nothing. Null until the
+  // session is known, so the hydrating moment (a signed-in person reads as signed out) starts no read.
+  const { session, known } = useSessionState();
+  const owner = entitlementOwnerKey(known, session?.user?.id);
 
-  // Load (and reload on refresh) the server entitlement, merged with the DEVICE's store
+  // Load (and reload on refresh, and on a change of account) the server entitlement, merged with the DEVICE's store
   // entitlement. The local read matters most for an ANONYMOUS iOS purchaser (App Review 5.1.1
   // requires that path), who has no server row until they sign in and the RevenueCat alias
   // lands, and on Android it bridges the moments between a purchase and its webhook. The server
@@ -60,9 +66,10 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   // never removes it, and carries the store that SOLD it (RevenueCat's own `store`, never the
   // platform: an Apple subscription shows on Android too), so Manage and the delete note name the
   // right store. On the web localPremium is a compile-time null, so this is exactly the old load there.
-  // `loading` starts true and flips false after the first load; a refresh does not
+  // `loading` starts true and flips false after the first load; a refresh or a change of account does not
   // re-toggle it, so a re-fetch never blanks the UI. A failed read still DISPLAYS as free, as before.
   useEffect(() => {
+    if (owner === null) return; // the session is still being found out: read once it is known
     let active = true;
     void Promise.all([loadEntitlementChecked(), localPremium(), loadMonthEnd()]).then(([read, storeLocal, monthMem]) => {
       if (!active) return;
@@ -82,7 +89,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, owner]);
 
   // Load the persisted dev override once (it only takes effect where DEV_PREMIUM_ALLOWED).
   useEffect(() => {
