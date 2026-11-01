@@ -13,7 +13,7 @@
 import { isCompEmail } from './comp';
 import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitlement, writeEntitlement } from './entitlements';
 import { decodeJwtEmail } from './mcp';
-import { buildOwnerEmail } from './monitor';
+import { buildOwnerEmail, lastAlert, recordAlert, suppressed, THRESHOLDS } from './monitor';
 import { cancelPlayRenewals } from './play-cancel';
 import { giftState } from './gifts';
 import { activeTrial, readActiveTrialEnd } from './trials';
@@ -281,7 +281,8 @@ function subscriptionEntitlement(userId: string, obj: Record<string, unknown>): 
 /** Map a Stripe event to an entitlement change, or null if it is not one we act on.
  *  The user id rides in client_reference_id (checkout) or metadata.user_id (both).
  *  This is the event's own copy, which the webhook uses to decide whether an event is ours; what it then WRITES
- *  is the live subscription (entitlementFromSubscription), except for a checkout that names no subscription. */
+ *  is the live subscription (entitlementFromSubscription), except for a checkout that names no subscription and
+ *  for an ending (isTerminalCopy), which is written as the event carries it. */
 export function entitlementFromEvent(event: unknown): Entitlement | null {
   const e = event as { type?: unknown; data?: { object?: Record<string, unknown> } };
   const obj = e.data?.object ?? {};
@@ -329,13 +330,62 @@ export function entitlementFromSubscription(userId: string, sub: unknown): Entit
   return subscriptionEntitlement(userId, obj);
 }
 
-/** GET /v1/subscriptions/{id}: the subscription as Stripe holds it NOW, or null when Stripe could not say (no key,
- *  a non-2xx, a throw, bad JSON, or an object that is not the one asked for). */
-export async function fetchSubscription(env: StripeEnv, id: string): Promise<Record<string, unknown> | null> {
-  if (!env.STRIPE_SECRET_KEY) return null;
-  const body = (await stripeGet(env, `/subscriptions/${encodeURIComponent(id)}`)) as Record<string, unknown> | null;
-  if (!body || typeof body !== 'object' || body.id !== id || typeof body.status !== 'string') return null;
-  return body;
+/** The subscription statuses Stripe documents as terminal: a canceled subscription "can't be updated" (bar its
+ *  metadata), and incomplete_expired is "a terminal status". Nothing can follow either, so an event's own copy of
+ *  one is as true as a live read, and an ending never has to wait on Stripe's API. */
+export const TERMINAL_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set(['canceled', 'incomplete_expired']);
+
+/** What the which-subscription guard (entitlements.ts) counts as alive: premium, or a Stripe subscription in
+ *  dunning. A recorded subscription Stripe holds in any other state is one the guard protects for nothing. */
+const ALIVE_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due', 'unpaid']);
+
+/** Whether an event carries a subscription's own copy in a terminal state: written as it stands, with no read. */
+export function isTerminalCopy(event: unknown): boolean {
+  const e = event as { type?: unknown; data?: { object?: Record<string, unknown> } };
+  const type = typeof e.type === 'string' ? e.type : '';
+  const status = e.data?.object?.status;
+  return type.startsWith('customer.subscription.') && typeof status === 'string' && TERMINAL_SUBSCRIPTION_STATUSES.has(status);
+}
+
+/** What one read of a subscription by id found: the object as Stripe holds it now, or why there is none. `why` goes
+ *  into the owner alert, so it names Stripe's HTTP status and error code when there was one (a 401 points straight
+ *  at the key), and never Stripe's message, which can quote part of the key. */
+export type SubscriptionRead = { ok: true; sub: Record<string, unknown> } | { ok: false; why: string };
+
+/** How long one read may take. A hung read fails here, alerted and answered 500, instead of timing the whole delivery
+ *  out with nothing said. Stripe publishes no timeout for a delivery; developers report ten to twenty seconds. */
+export const SUBSCRIPTION_READ_TIMEOUT_MS = 8000;
+
+/** GET /v1/subscriptions/{id}: the subscription as Stripe holds it NOW, or why Stripe could not say (no key, a
+ *  non-2xx, a dropped or timed-out connection, bad JSON, or an object that is not the one asked for). A 404 is a
+ *  failure like any other and never means "it has ended": a test-mode key answers resource_missing for every live
+ *  id, so reading it as an ending would switch off paying members exactly when the key is wrong. */
+export async function readSubscription(env: StripeEnv, id: string): Promise<SubscriptionRead> {
+  if (!env.STRIPE_SECRET_KEY) return { ok: false, why: 'STRIPE_SECRET_KEY is not set' };
+  let res: Response;
+  try {
+    res = await fetch(`${STRIPE_API}/subscriptions/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+      signal: AbortSignal.timeout(SUBSCRIPTION_READ_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, why: `no answer (the connection failed, or took over ${SUBSCRIPTION_READ_TIMEOUT_MS / 1000} seconds)` };
+  }
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    const code = (body as { error?: { code?: unknown } } | null)?.error?.code;
+    return { ok: false, why: typeof code === 'string' && /^[a-z_]{1,64}$/.test(code) ? `HTTP ${res.status} (${code})` : `HTTP ${res.status}` };
+  }
+  const obj = body as Record<string, unknown> | null;
+  if (!obj || typeof obj !== 'object' || obj.id !== id || typeof obj.status !== 'string') {
+    return { ok: false, why: `HTTP ${res.status}, but not the subscription asked for` };
+  }
+  return { ok: true, sub: obj };
 }
 
 // --- money-trouble alerts (the control centre's Stripe arm) -----------------
@@ -373,6 +423,32 @@ export function moneyAlertFromEvent(event: unknown): MoneyAlert | null {
   return null;
 }
 
+/** The alerts_sent kind for "the webhook could not read a subscription", held to one email per dedup window. */
+export const READ_FAILED_ALERT_KIND = 'stripe-read-failed';
+
+/** The owner email when the webhook could not read a subscription from Stripe (readSubscription's `why`). Pure, so
+ *  the words are tested. Like the money alerts it carries the event's type and id and Stripe's answer, never a user
+ *  id, an email or a card. */
+export function readFailedAlert(event: { type: string; id: string }, why: string): { subject: string; body: string } {
+  return {
+    subject: '[DoubleDone] Stripe webhooks cannot read subscriptions',
+    body: [
+      'A Stripe webhook delivery could not read its subscription from Stripe, so it was answered 500 and nothing was written. Stripe retries a failed delivery for up to three days.',
+      '',
+      `The read: ${why}.`,
+      `The event: ${event.type} ${event.id}.`,
+      '',
+      'HTTP 401 or 403 means the STRIPE_SECRET_KEY Worker secret is wrong, revoked or blank: put the live secret key straight from the clipboard with Get-Clipboard -Raw | npx wrangler secret put STRIPE_SECRET_KEY, from server/ in PowerShell. HTTP 404 (resource_missing) on every delivery means a test-mode key. HTTP 429, a 5xx or no answer is Stripe struggling, and usually passes by itself.',
+      '',
+      'Endings (canceled, incomplete_expired) are written from the event itself and never wait on this read, and a paid checkout is granted from its own copy meanwhile. Everything else waits: renewals, failing cards, cancellations set for the period end.',
+      '',
+      'After three days Stripe stops retrying. Resend each failed delivery from Workbench (the webhook endpoint, Event deliveries, Resend: up to 15 days after the event), or with stripe events resend <evt_id> --webhook-endpoint=<we_id> (up to 30 days). docs/operations.md has the rest.',
+      '',
+      'At most one of these emails every six hours.',
+    ].join('\n'),
+  };
+}
+
 // --- D1 entitlement store ---------------------------------------------------
 // The store moved to entitlements.ts (2026-07-18) so Apple IAP can write the same rows without
 // coupling to Stripe. Re-exported here so existing importers of stripe.ts keep working.
@@ -404,6 +480,23 @@ async function sendOwnerAlert(env: FullEnv, subject: string, body: string): Prom
   const raw = buildOwnerEmail({ from, to: env.FEEDBACK_TO, subject, body, uuid: crypto.randomUUID(), date: new Date().toUTCString() });
   const { EmailMessage } = (await import('cloudflare:email')) as { EmailMessage: new (from: string, to: string, raw: string) => unknown };
   await env.SEND_EMAIL.send(new EmailMessage(from, env.FEEDBACK_TO, raw));
+}
+
+/** Tell the owner the webhook could not read a subscription, at most once per the monitor's dedup window (six
+ *  hours, through alerts_sent, as the RevenueCat bad-signature alert does). Only when an email can actually go out,
+ *  so the dedup never records one that was not sent. Until 2026-11-01 nothing said so: a wrong STRIPE_SECRET_KEY
+ *  answered every delivery 500 for the three days Stripe retries, and then the events were gone. Best effort: an
+ *  alert never changes what Stripe is told. */
+async function alertReadFailed(env: FullEnv, nowMs: number, event: { type: string; id: string }, why: string): Promise<void> {
+  try {
+    if (!env.DB || !env.SEND_EMAIL || !env.FEEDBACK_TO) return;
+    if (suppressed(await lastAlert(env.DB, READ_FAILED_ALERT_KIND), nowMs, THRESHOLDS.dedupHours)) return;
+    const { subject, body } = readFailedAlert(event, why);
+    await sendOwnerAlert(env, subject, body);
+    await recordAlert(env.DB, READ_FAILED_ALERT_KIND, nowMs);
+  } catch {
+    // best effort: the 500 the caller answers stands either way
+  }
 }
 
 export function bearer(request: Request): string {
@@ -578,17 +671,68 @@ export async function handleCloseBilling(
   return new Response(JSON.stringify({ cancelled }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 
-/** Which guard kept a refused Stripe write, read once after it, for the reply Stripe's dashboard shows beside the
- *  delivery (the RevenueCat webhook's whichGuard). A Stripe write is only ever kept by the cross-store guard (the
- *  row belongs to Apple or Google) or by the which-subscription guard (the row is Stripe's). A race can only
- *  mislabel the reply, never the entitlement. Null when the row cannot be read. */
-async function keptBy(db: D1LikeDatabase, userId: string): Promise<'other-store' | 'other-subscription' | null> {
+/** The row a Stripe write was refused by, read once after the refusal: its store, the Stripe subscription and the
+ *  customer it records. Null when it cannot be read. */
+type RefusingRow = { source: string | null; stripeSub: string | null; customerId: string | null };
+
+async function rowAfterRefusal(db: D1LikeDatabase, userId: string): Promise<RefusingRow | null> {
   try {
-    const row = await db.prepare('SELECT source FROM entitlements WHERE user_id = ?1').bind(userId).first<{ source: string | null }>();
-    if (!row) return null;
-    return row.source != null && row.source !== 'stripe' ? 'other-store' : 'other-subscription';
+    const row = await db
+      .prepare('SELECT source, stripe_sub, stripe_customer_id FROM entitlements WHERE user_id = ?1')
+      .bind(userId)
+      .first<{ source?: string | null; stripe_sub?: string | null; stripe_customer_id?: string | null }>();
+    return row ? { source: row.source ?? null, stripeSub: row.stripe_sub ?? null, customerId: row.stripe_customer_id ?? null } : null;
   } catch {
     return null;
+  }
+}
+
+/** Which guard kept a refused Stripe write, for the reply Stripe's dashboard shows beside the delivery (the
+ *  RevenueCat webhook's whichGuard). A Stripe write is only ever kept by the cross-store guard (the row belongs to
+ *  Apple or Google) or by the which-subscription guard (the row is Stripe's). A race can only mislabel the reply,
+ *  never the entitlement. */
+function keptBy(row: RefusingRow): 'other-store' | 'other-subscription' {
+  return row.source != null && row.source !== 'stripe' ? 'other-store' : 'other-subscription';
+}
+
+/**
+ * THE SELF-HEAL (2026-11-01, the review of sweep #1). The which-subscription guard trusts the subscription the row
+ * records, and a recorded id can go stale: a Worker from before the column (a rollback, a deploy from a branch
+ * without it, a D1 restore) writes a new subscription's state and leaves the old id behind, and that id then
+ * refuses the real subscription's past_due and ending for good, which keeps Premium on for a non-payer. So when the
+ * guard refuses a write on a Stripe row, the recorded subscription is read from Stripe, once:
+ *  - alive there (active, trialing, past_due, unpaid): the refusal was right, and it stands ('kept');
+ *  - in any other state (ended, or never started): the guard is protecting nothing, so the write is judged again
+ *    with that one id set aside, in the same statement (writeEntitlement `endedSub`). Only when the row is provably
+ *    about that dead subscription or about the one being written, which the row's customer shows, because every
+ *    Checkout makes its own Stripe customer: a row about a THIRD subscription keeps the refusal, so an old
+ *    subscription's late ending still cannot switch off a live one, and the third one's own news heals it;
+ *  - unreadable: 'unreadable', so the webhook answers 500 and Stripe retries, the owner told. A 404 is unreadable
+ *    too, never an ending: a test-mode key answers resource_missing for every live id.
+ * One read per refusal, and refusals are rare. A refusal by the cross-store guard is RevenueCat's to settle.
+ */
+async function healStaleSubscription(
+  env: FullEnv,
+  db: D1LikeDatabase,
+  ent: Entitlement,
+  row: RefusingRow | null,
+  nowISO: string,
+  nowMs: number,
+  event: { type: string; id: string },
+): Promise<'healed' | 'kept' | 'unreadable' | 'store-error'> {
+  if (!row || !ent.stripeSub || (row.source ?? 'stripe') !== 'stripe' || !row.stripeSub || row.stripeSub === ent.stripeSub) return 'kept';
+  const read = await readSubscription(env, row.stripeSub);
+  if (!read.ok) {
+    await alertReadFailed(env, nowMs, event, read.why);
+    return 'unreadable';
+  }
+  if (ALIVE_SUBSCRIPTION_STATUSES.has(String(read.sub.status))) return 'kept';
+  const recordedCustomer = typeof read.sub.customer === 'string' ? read.sub.customer : null;
+  if (row.customerId == null || (row.customerId !== recordedCustomer && row.customerId !== ent.customerId)) return 'kept';
+  try {
+    return (await writeEntitlement(db, ent, nowISO, { endedSub: row.stripeSub })) === false ? 'kept' : 'healed';
+  } catch {
+    return 'store-error';
   }
 }
 
@@ -601,7 +745,16 @@ async function keptBy(db: D1LikeDatabase, userId: string): Promise<'other-store'
  *  off a new paid one, for up to a month. So every customer.subscription.* event, and the subscription behind a
  *  completed Checkout, is written from the subscription as Stripe holds it NOW, read by id. A read that fails
  *  answers 500 with nothing written or marked, and Stripe's retry reads again. The reply names the live status
- *  (`live`), so a delivery in Stripe's dashboard shows this ran, and `kept` when a guard refused the write. */
+ *  (`live`), so a delivery in Stripe's dashboard shows this ran, and `kept` when a guard refused the write.
+ *
+ *  WHAT NEVER WAITS ON THE READ (the review the same day). The read made Stripe's API a dependency of every write,
+ *  and a key that stops working answers every delivery 500 until Stripe's three days of retries run out. Three
+ *  things keep that from costing anyone: an ENDING (a copy whose status is terminal, isTerminalCopy) is written as
+ *  the event carries it, with no read, because nothing can follow it and a lost ending is never sent again (the
+ *  reply says `final`); a PAID CHECKOUT whose read fails is granted from the session's own copy before the 500
+ *  (writeEntitlement `ifSubUnknown`), so the purchase shows and the checkout guard refuses a second one; and every
+ *  failed read emails the owner, held to one email per six hours. A refused write has its recorded subscription
+ *  checked against Stripe (healStaleSubscription), and the reply says `healed` when that let it land. */
 export async function handleWebhook(request: Request, env: FullEnv, nowISO: string, nowSec?: number): Promise<Response> {
   if (!env.STRIPE_WEBHOOK_SECRET || !env.DB) return new Response('not configured', { status: 503 });
   const raw = await request.text();
@@ -616,7 +769,7 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
     return new Response('bad json', { status: 400 });
   }
   const snapshot = entitlementFromEvent(event);
-  const reply: { received: true; live?: string; kept?: true; by?: 'other-store' | 'other-subscription' } = { received: true };
+  const reply: { received: true; live?: string; final?: string; healed?: true; kept?: true; by?: 'other-store' | 'other-subscription' } = { received: true };
   if (snapshot) {
     // Idempotency: Stripe delivers at-least-once (automatic retries, occasional duplicates), so the same
     // event id can arrive twice. Skip one we have already applied, before spending a Stripe read on it. Fail
@@ -632,14 +785,32 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
         // fail open: missing table or transient error, proceed to process
       }
     }
-    // The live subscription, for the user the event named (see the doc comment). Only a checkout that names no
-    // subscription still writes from its own copy, as before: every Checkout we open is mode=subscription, so
-    // for ours that path is never taken.
+    const nowMs = (nowSec ?? Math.floor(Date.now() / 1000)) * 1000;
+    const type = typeof (event as { type?: unknown }).type === 'string' ? (event as { type: string }).type : '';
+    const about = { type, id: eventId || '(no id)' };
+    // The live subscription, for the user the event named (see the doc comment). An ending is written as the
+    // event carries it. Only a checkout that names no subscription still writes from its own copy, as before:
+    // every Checkout we open is mode=subscription, so for ours that path is never taken.
     let ent: Entitlement = snapshot;
     const subId = subscriptionIdFromEvent(event);
-    if (subId) {
-      const live = entitlementFromSubscription(snapshot.userId, await fetchSubscription(env, subId));
-      if (!live) return new Response('subscription read failed', { status: 500 });
+    if (subId && isTerminalCopy(event)) {
+      reply.final = snapshot.status;
+    } else if (subId) {
+      const read = await readSubscription(env, subId);
+      const live = read.ok ? entitlementFromSubscription(snapshot.userId, read.sub) : null;
+      if (!live) {
+        await alertReadFailed(env, nowMs, about, read.ok ? 'an object that is not a subscription' : read.why);
+        // A paid purchase still shows while Stripe retries, so its owner is never sold a second subscription. Never
+        // over anything already recorded about that subscription, which is as new or newer (ifSubUnknown).
+        if (type === 'checkout.session.completed' && snapshot.premium) {
+          try {
+            await writeEntitlement(env.DB, { ...snapshot, stripeSub: subId }, nowISO, { ifSubUnknown: true });
+          } catch {
+            // the 500 below stands either way, and Stripe's retry runs the whole delivery again
+          }
+        }
+        return new Response('subscription read failed', { status: 500 });
+      }
       ent = live;
       reply.live = live.status;
     }
@@ -649,12 +820,20 @@ export async function handleWebhook(request: Request, env: FullEnv, nowISO: stri
     } catch {
       return new Response('store error', { status: 500 });
     }
-    // A write a guard kept is handled, not failed (the row's own subscription or store still decides), so it
-    // is marked processed like any other: a retry would only be refused again.
+    // A write a guard kept is handled, not failed (the row's own subscription or store still decides), so it is
+    // marked processed like any other: a retry would only be refused again. First, a recorded subscription that
+    // Stripe holds as ended stops guarding (healStaleSubscription); a read that fails there answers 500 instead.
     if (written === false) {
-      reply.kept = true;
-      const by = await keptBy(env.DB, ent.userId);
-      if (by) reply.by = by;
+      const row = await rowAfterRefusal(env.DB, ent.userId);
+      const heal = await healStaleSubscription(env, env.DB, ent, row, nowISO, nowMs, about);
+      if (heal === 'unreadable') return new Response('subscription read failed', { status: 500 });
+      if (heal === 'store-error') return new Response('store error', { status: 500 });
+      if (heal === 'healed') {
+        reply.healed = true;
+      } else {
+        reply.kept = true;
+        if (row) reply.by = keptBy(row);
+      }
     }
     if (eventId) {
       try {

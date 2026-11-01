@@ -7,16 +7,20 @@ import {
   type D1LikeDatabase,
   entitlementFromEvent,
   entitlementFromSubscription,
-  fetchSubscription,
   handleCheckout,
   handleEntitlement,
   handlePortal,
   handleWebhook,
+  isTerminalCopy,
   moneyAlertFromEvent,
   parseSigHeader,
+  READ_FAILED_ALERT_KIND,
   readEntitlement,
+  readFailedAlert,
+  readSubscription,
   signPayload,
   STRIPE_MIN_TRIAL_LEAD_SEC,
+  SUBSCRIPTION_READ_TIMEOUT_MS,
   subscriptionIdFromEvent,
   verifyWebhook,
   writeEntitlement,
@@ -690,14 +694,20 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
 
   type LiveSub = { status: string; customer?: string; id?: string };
   /** A Stripe holding `subs` as they stand NOW (mutable, so a test can move one on). It answers the subscription
-   *  read and records every call: 'fail' answers 500, and 'throw' drops the connection. */
-  function stripeNow(subs: Record<string, LiveSub | 'fail' | 'throw'>) {
+   *  read and records every call: 'fail' answers 500, 'throw' drops the connection, and { http, code } answers that
+   *  status with Stripe's error shape. A Checkout it is asked to open always opens. */
+  function stripeNow(subs: Record<string, LiveSub | 'fail' | 'throw' | { http: number; code?: string }>) {
     const calls: { url: string; method: string; auth: string | null }[] = [];
     vi.stubGlobal('fetch', async (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
       calls.push({ url, method: init?.method ?? 'GET', auth: init?.headers?.authorization ?? null });
+      if (url === 'https://api.stripe.com/v1/checkout/sessions') return new Response(JSON.stringify({ url: 'https://checkout.stripe.com/c/again' }), { status: 200 });
       const id = decodeURIComponent(/^https:\/\/api\.stripe\.com\/v1\/subscriptions\/([^/?]+)$/.exec(url)?.[1] ?? '');
       const sub = subs[id];
       if (sub === 'throw') throw new TypeError('fetch failed');
+      if (sub && typeof sub === 'object' && 'http' in sub) {
+        // Stripe's own error shape, with a message that quotes part of the key, as Stripe's 401 does
+        return new Response(JSON.stringify({ error: { type: 'invalid_request_error', code: sub.code, message: 'Invalid API Key provided: ****wxyz' } }), { status: sub.http });
+      }
       if (!sub || sub === 'fail') return new Response(JSON.stringify({ error: { message: 'boom' } }), { status: 500 });
       const body = {
         id,
@@ -715,17 +725,18 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
   }
 
   /** A customer.subscription.* event carrying its OWN copy of the subscription, which may be stale. */
-  const subEvent = (eventId: string, type: string, subId: string, status: string) => ({
+  const subEvent = (eventId: string, type: string, subId: string, status: string, customer = 'cus_1') => ({
     id: eventId,
     type,
-    data: { object: { id: subId, object: 'subscription', status, customer: 'cus_1', metadata: { user_id: UID } } },
+    data: { object: { id: subId, object: 'subscription', status, customer, metadata: { user_id: UID } } },
   });
 
-  async function deliver(db: D1LikeDatabase, event: unknown, extra: Partial<Parameters<typeof handleWebhook>[1]> = {}) {
+  /** Deliver a signed event as Stripe would, at `at` (unix seconds, the signature's time and the Worker's clock). */
+  async function deliver(db: D1LikeDatabase, event: unknown, extra: Partial<Parameters<typeof handleWebhook>[1]> = {}, at = NOW) {
     const body = JSON.stringify(event);
-    const sig = await signPayload(body, WH, NOW);
+    const sig = await signPayload(body, WH, at);
     const req = new Request('https://w/stripe-webhook', { method: 'POST', headers: { 'Stripe-Signature': sig }, body });
-    return handleWebhook(req, { STRIPE_WEBHOOK_SECRET: WH, STRIPE_SECRET_KEY: SK, DB: db, ...extra }, '2026-11-01T00:00:00Z', NOW);
+    return handleWebhook(req, { STRIPE_WEBHOOK_SECRET: WH, STRIPE_SECRET_KEY: SK, DB: db, ...extra }, '2026-11-01T00:00:00Z', at);
   }
   const processed = (db: RealDb, eventId: string) => !!db.raw.prepare('SELECT 1 FROM processed_events WHERE event_id = ?').get(eventId);
   const stripeSubOf = (db: RealDb) =>
@@ -772,12 +783,15 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
   it("an old subscription's incomplete_expired after a new paid one writes nothing", async () => {
     const db = await sqliteD1();
     const subs: Record<string, LiveSub> = { sub_new: { status: 'active' }, sub_old: { status: 'incomplete_expired' } };
-    stripeNow(subs);
+    const calls = stripeNow(subs);
     await deliver(db, subEvent('evt_new', 'customer.subscription.created', 'sub_new', 'active'));
     expect(stripeSubOf(db)).toBe('sub_new');
     const res = await deliver(db, subEvent('evt_old', 'customer.subscription.updated', 'sub_old', 'incomplete_expired'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ received: true, live: 'incomplete_expired', kept: true, by: 'other-subscription' });
+    // An ending is written as the event carries it (no read of sub_old), and the refusal checks the recorded
+    // sub_new against Stripe once: it is alive, so the refusal stands.
+    expect(await res.json()).toEqual({ received: true, final: 'incomplete_expired', kept: true, by: 'other-subscription' });
+    expect(calls.map((c) => c.url)).toEqual(['https://api.stripe.com/v1/subscriptions/sub_new', 'https://api.stripe.com/v1/subscriptions/sub_new']);
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
     expect(stripeSubOf(db)).toBe('sub_new');
     expect(processed(db, 'evt_old')).toBe(true); // handled, so Stripe does not keep retrying it
@@ -789,21 +803,26 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
   });
 
   it('a read that fails answers 500, writes and marks nothing, and the retry applies', async () => {
-    for (const failure of ['fail', 'throw', 'wrong-object', 'no-key'] as const) {
+    // A change that is not an ending (an ending never waits on the read: see the block below).
+    for (const failure of ['fail', 'throw', 'http', 'wrong-object', 'no-key'] as const) {
       const db = await sqliteD1();
       await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: 1, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe', stripeSub: 'sub_A' }, 'before');
-      stripeNow({ sub_A: failure === 'fail' || failure === 'throw' ? failure : { status: 'canceled', id: failure === 'wrong-object' ? 'sub_B' : 'sub_A' } });
-      const event = subEvent('evt_x', 'customer.subscription.deleted', 'sub_A', 'canceled');
+      stripeNow({
+        sub_A: failure === 'fail' || failure === 'throw' ? failure : failure === 'http' ? { http: 401 } : { status: 'unpaid', id: failure === 'wrong-object' ? 'sub_B' : 'sub_A' },
+      });
+      const event = subEvent('evt_x', 'customer.subscription.updated', 'sub_A', 'past_due');
       const res = await deliver(db, event, failure === 'no-key' ? { STRIPE_SECRET_KEY: undefined } : {});
       expect(res.status, failure).toBe(500);
       expect(await res.text(), failure).toBe('subscription read failed');
       expect(await readEntitlement(db, UID), failure).toMatchObject({ premium: true, status: 'active' });
       expect(processed(db, 'evt_x'), failure).toBe(false);
-      // Stripe retries; this time it answers, and the live state lands.
+      // Stripe retries; this time it answers, and the live state lands (not the event's past_due).
       vi.unstubAllGlobals();
-      stripeNow({ sub_A: { status: 'canceled' } });
-      expect((await deliver(db, event)).status, failure).toBe(200);
-      expect(await readEntitlement(db, UID), failure).toMatchObject({ premium: false, status: 'canceled' });
+      stripeNow({ sub_A: { status: 'unpaid' } });
+      const retry = await deliver(db, event);
+      expect(retry.status, failure).toBe(200);
+      expect(await retry.json(), failure).toEqual({ received: true, live: 'unpaid' });
+      expect(await readEntitlement(db, UID), failure).toMatchObject({ premium: false, status: 'unpaid' });
       vi.unstubAllGlobals();
     }
   });
@@ -845,14 +864,15 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('a live Apple or Google row is never switched off by a Stripe ending (the cross-store guard, through the live read)', async () => {
+  it('a live Apple or Google row is never switched off by a Stripe ending (the cross-store guard)', async () => {
     for (const source of ['apple', 'google'] as const) {
       const db = await sqliteD1();
       await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: NOW + 86400, cancelAtPeriodEnd: false, customerId: null, source }, 'before');
-      stripeNow({ sub_A: { status: 'canceled' } });
+      const calls = stripeNow({ sub_A: { status: 'canceled' } });
       const res = await deliver(db, subEvent('evt_end', 'customer.subscription.deleted', 'sub_A', 'canceled'));
-      expect(await res.json(), source).toEqual({ received: true, live: 'canceled', kept: true, by: 'other-store' });
+      expect(await res.json(), source).toEqual({ received: true, final: 'canceled', kept: true, by: 'other-store' });
       expect(await readEntitlement(db, UID), source).toMatchObject({ premium: true, status: 'active', source });
+      expect(calls, source).toHaveLength(0); // an ending needs no read, and another store's refusal is not Stripe's to check
       vi.unstubAllGlobals();
     }
   });
@@ -866,6 +886,234 @@ describe('the webhook writes the LIVE subscription, not the event copy', () => {
     const foreign = { id: 'evt_foreign', type: 'customer.subscription.updated', data: { object: { id: 'sub_Z', status: 'active', metadata: {} } } };
     expect(await (await deliver(db, foreign)).json()).toEqual({ received: true });
     expect(calls).toHaveLength(1);
+  });
+
+  // ---- The review of sweep #1 (2026-11-01): the live read made Stripe's API a dependency of every write, and the
+  // which-subscription guard trusted a recorded id that can go stale. What never waits on the read, and the heal.
+
+  /** The owner's inbox, for the alert tests. */
+  function inbox() {
+    const sent: { raw: string }[] = [];
+    const send = async (m: unknown) => {
+      sent.push(m as { raw: string });
+    };
+    return { sent, env: { SEND_EMAIL: { send }, FEEDBACK_TO: 'owner@example.test' } };
+  }
+  const subjectOf = (m: { raw: string }) => /^Subject: (.*)$/m.exec(m.raw)?.[1] ?? '';
+  const bodyOf = (m: { raw: string }) => {
+    const b64 = (m.raw.split('\r\n\r\n')[1] ?? '').replace(/\r\n/g, '');
+    return new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+  };
+  const alertsSent = (db: RealDb) => (db.raw.prepare('SELECT kind FROM alerts_sent ORDER BY created_at').all() as { kind: string }[]).map((a) => a.kind);
+  const SUB = (id: string) => `https://api.stripe.com/v1/subscriptions/${id}`;
+
+  /** The finding's row: sub_1 (cus_1) was recorded and then ended, and a Worker from before 2026-11-01 (a rollback,
+   *  a deploy from a branch without the column, a D1 restore) then wrote the re-bought subscription on `customer`,
+   *  the whole row but never stripe_sub, so sub_1 is still recorded. */
+  async function staleRow(customer: string): Promise<RealDb> {
+    const db = await sqliteD1();
+    await writeEntitlement(db, { userId: UID, premium: false, status: 'canceled', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe', stripeSub: 'sub_1' }, 'before');
+    db.raw
+      .prepare("UPDATE entitlements SET premium = 1, status = 'active', cancel_at_period_end = 0, current_period_end = ?, stripe_customer_id = ?, source = 'stripe' WHERE user_id = ?")
+      .run(PERIOD_END, customer, UID);
+    expect(stripeSubOf(db)).toBe('sub_1');
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', customerId: customer });
+    return db;
+  }
+
+  describe('an ending never waits on the read', () => {
+    it('a deletion lands as the event carries it, with no key, no answer, or a 401 from Stripe', async () => {
+      for (const outage of ['no-key', 'throw', 'http-401'] as const) {
+        const db = await sqliteD1();
+        await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe', stripeSub: 'sub_A' }, 'before');
+        const calls = stripeNow({ sub_A: outage === 'throw' ? 'throw' : { http: 401 } });
+        const res = await deliver(db, subEvent('evt_end', 'customer.subscription.deleted', 'sub_A', 'canceled'), outage === 'no-key' ? { STRIPE_SECRET_KEY: undefined } : {});
+        expect(res.status, outage).toBe(200);
+        expect(await res.json(), outage).toEqual({ received: true, final: 'canceled' });
+        expect(await readEntitlement(db, UID), outage).toMatchObject({ premium: false, status: 'canceled' });
+        expect(processed(db, 'evt_end'), outage).toBe(true);
+        expect(calls, outage).toHaveLength(0);
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('an abandoned checkout that expires lands the same way', async () => {
+      const db = await sqliteD1();
+      await writeEntitlement(db, { userId: UID, premium: false, status: 'incomplete', currentPeriodEnd: null, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe', stripeSub: 'sub_A' }, 'before');
+      const calls = stripeNow({ sub_A: 'fail' });
+      const res = await deliver(db, subEvent('evt_exp', 'customer.subscription.updated', 'sub_A', 'incomplete_expired'));
+      expect(await res.json()).toEqual({ received: true, final: 'incomplete_expired' });
+      expect((await readEntitlement(db, UID)).status).toBe('incomplete_expired');
+      expect(calls).toHaveLength(0);
+    });
+
+    it('a failing card that ends while Stripe cannot be read frees the web checkout again', async () => {
+      // Before, that ending answered 500 for the three days Stripe retries and was then gone, so the row kept
+      // answering 409 billing_issue and the person could never buy on the web again.
+      const db = await sqliteD1();
+      await writeEntitlement(db, { userId: UID, premium: false, status: 'past_due', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe', stripeSub: 'sub_A' }, 'before');
+      stripeNow({ sub_A: { http: 401 } });
+      expect(await (await checkout(db)).json()).toEqual({ error: 'billing_issue' });
+      expect((await deliver(db, subEvent('evt_end', 'customer.subscription.deleted', 'sub_A', 'canceled'))).status).toBe(200);
+      const res = await checkout(db);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ url: 'https://checkout.stripe.com/c/again' });
+    });
+  });
+
+  describe('a read that fails: the owner hears, and a paid purchase still shows', () => {
+    const at = (hours: number) => NOW + Math.round(hours * 3600);
+    const paidSession = (eventId: string, paymentStatus = 'paid') => ({
+      id: eventId,
+      type: 'checkout.session.completed',
+      data: { object: { object: 'checkout.session', client_reference_id: UID, subscription: 'sub_C', customer: 'cus_C', payment_status: paymentStatus, status: 'complete' } },
+    });
+
+    it('emails the owner once per six hours, naming what Stripe answered and the event, never the person', async () => {
+      const db = await sqliteD1();
+      const { sent, env: mail } = inbox();
+      stripeNow({ sub_A: { http: 401, code: 'api_key_expired' } });
+      const res = await deliver(db, subEvent('evt_1', 'customer.subscription.updated', 'sub_A', 'active'), mail, at(0));
+      expect(res.status).toBe(500);
+      expect(sent).toHaveLength(1);
+      expect(subjectOf(sent[0])).toBe('[DoubleDone] Stripe webhooks cannot read subscriptions');
+      const body = bodyOf(sent[0]);
+      expect(body).toContain('The read: HTTP 401 (api_key_expired).');
+      expect(body).toContain('The event: customer.subscription.updated evt_1.');
+      expect(body).toContain('stripe events resend <evt_id> --webhook-endpoint=<we_id>');
+      expect(body).not.toContain(UID);
+      expect(body).not.toContain('wxyz'); // Stripe's message quotes part of the key, and never rides along
+      // the next failures inside six hours are quiet, and the first one after them emails again
+      await deliver(db, subEvent('evt_2', 'customer.subscription.updated', 'sub_A', 'active'), mail, at(1));
+      await deliver(db, subEvent('evt_3', 'customer.subscription.updated', 'sub_A', 'active'), mail, at(5.9));
+      expect(sent).toHaveLength(1);
+      await deliver(db, subEvent('evt_4', 'customer.subscription.updated', 'sub_A', 'active'), mail, at(6.1));
+      expect(sent).toHaveLength(2);
+      expect(alertsSent(db)).toEqual([READ_FAILED_ALERT_KIND, READ_FAILED_ALERT_KIND]);
+    });
+
+    it('records no alert where none can be sent', async () => {
+      const db = await sqliteD1();
+      stripeNow({ sub_A: 'throw' });
+      expect((await deliver(db, subEvent('evt_1', 'customer.subscription.updated', 'sub_A', 'active'))).status).toBe(500);
+      expect(alertsSent(db)).toEqual([]);
+    });
+
+    it('a paid checkout whose read fails is granted from its own copy, so a second Go Premium is refused, and the retry writes the live state', async () => {
+      const db = await sqliteD1();
+      stripeNow({ sub_C: { http: 503 } });
+      const res = await deliver(db, paidSession('evt_cs'));
+      expect(res.status).toBe(500);
+      expect(await res.text()).toBe('subscription read failed');
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', customerId: 'cus_C', source: 'stripe' });
+      expect(stripeSubOf(db)).toBe('sub_C');
+      expect(processed(db, 'evt_cs')).toBe(false); // so Stripe retries, for the live state
+      expect(await (await checkout(db)).json()).toEqual({ error: 'already_subscribed' });
+      vi.unstubAllGlobals();
+      stripeNow({ sub_C: { status: 'trialing', customer: 'cus_C' } });
+      expect(await (await deliver(db, paidSession('evt_cs'))).json()).toEqual({ received: true, live: 'trialing' });
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'trialing', customerId: 'cus_C' });
+      expect(processed(db, 'evt_cs')).toBe(true);
+    });
+
+    it('an unpaid checkout whose read fails writes nothing', async () => {
+      const db = await sqliteD1();
+      stripeNow({ sub_C: 'throw' });
+      expect((await deliver(db, paidSession('evt_cs', 'unpaid'))).status).toBe(500);
+      expect(db.raw.prepare('SELECT COUNT(*) AS n FROM entitlements').get()).toMatchObject({ n: 0 });
+    });
+
+    it('a checkout retried after its subscription ended never grants it again', async () => {
+      const db = await sqliteD1();
+      await writeEntitlement(db, { userId: UID, premium: false, status: 'canceled', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_C', source: 'stripe', stripeSub: 'sub_C' }, 'before');
+      stripeNow({ sub_C: 'throw' });
+      expect((await deliver(db, paidSession('evt_cs'))).status).toBe(500);
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'canceled' });
+    });
+  });
+
+  describe('a recorded subscription that has ended stops guarding (the self-heal)', () => {
+    it("an older Worker's stale id no longer keeps Premium on: the real subscription's failing card lands", async () => {
+      const db = await staleRow('cus_2');
+      const calls = stripeNow({ sub_1: { status: 'canceled', customer: 'cus_1' }, sub_2: { status: 'past_due', customer: 'cus_2' } });
+      const res = await deliver(db, subEvent('evt_pd', 'customer.subscription.updated', 'sub_2', 'past_due', 'cus_2'));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ received: true, live: 'past_due', healed: true });
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'past_due', customerId: 'cus_2' });
+      expect(stripeSubOf(db)).toBe('sub_2');
+      expect(processed(db, 'evt_pd')).toBe(true);
+      expect(calls.map((c) => c.url)).toEqual([SUB('sub_2'), SUB('sub_1')]); // the live read, then the one check
+      // the guard is about sub_2 from here, so an old subscription's ending is refused again
+      const old = await deliver(db, subEvent('evt_old', 'customer.subscription.deleted', 'sub_1', 'canceled', 'cus_1'));
+      expect(await old.json()).toEqual({ received: true, final: 'canceled', kept: true, by: 'other-subscription' });
+      expect((await readEntitlement(db, UID)).status).toBe('past_due');
+    });
+
+    it("an older Worker's stale id no longer keeps Premium on: the real subscription's ending lands, with no read of its own", async () => {
+      const db = await staleRow('cus_2');
+      const calls = stripeNow({ sub_1: { status: 'canceled', customer: 'cus_1' } });
+      const res = await deliver(db, subEvent('evt_end', 'customer.subscription.deleted', 'sub_2', 'canceled', 'cus_2'));
+      expect(await res.json()).toEqual({ received: true, final: 'canceled', healed: true });
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'canceled', customerId: 'cus_2' });
+      expect(stripeSubOf(db)).toBe('sub_2');
+      expect(calls.map((c) => c.url)).toEqual([SUB('sub_1')]);
+    });
+
+    it('a recorded subscription that is alive keeps the refusal, and a card failing on it counts as alive', async () => {
+      const db = await sqliteD1();
+      await writeEntitlement(db, { userId: UID, premium: false, status: 'past_due', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_A', source: 'stripe', stripeSub: 'sub_A' }, 'before');
+      stripeNow({ sub_A: { status: 'past_due', customer: 'cus_A' } });
+      // on the same customer, so only "alive" can be what keeps it
+      const res = await deliver(db, subEvent('evt_old', 'customer.subscription.deleted', 'sub_old', 'canceled', 'cus_A'));
+      expect(await res.json()).toEqual({ received: true, final: 'canceled', kept: true, by: 'other-subscription' });
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'past_due' });
+      expect(await (await checkout(db)).json()).toEqual({ error: 'billing_issue' });
+    });
+
+    it('an ended recorded subscription on a row about a THIRD one keeps the refusal, and the third heals it with its own news', async () => {
+      // sub_1 was recorded and ended, an older Worker wrote sub_3 (cus_3), and sub_2, an abandoned checkout from the
+      // same window (cus_2), expires late. The row is not about sub_2, so its ending must not switch sub_3 off.
+      const db = await staleRow('cus_3');
+      const subs: Record<string, LiveSub> = { sub_1: { status: 'canceled', customer: 'cus_1' }, sub_3: { status: 'active', customer: 'cus_3' } };
+      stripeNow(subs);
+      const res = await deliver(db, subEvent('evt_exp', 'customer.subscription.updated', 'sub_2', 'incomplete_expired', 'cus_2'));
+      expect(await res.json()).toEqual({ received: true, final: 'incomplete_expired', kept: true, by: 'other-subscription' });
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active', customerId: 'cus_3' });
+      expect(stripeSubOf(db)).toBe('sub_1');
+      subs.sub_3 = { status: 'past_due', customer: 'cus_3' };
+      const own = await deliver(db, subEvent('evt_3', 'customer.subscription.updated', 'sub_3', 'past_due', 'cus_3'));
+      expect(await own.json()).toEqual({ received: true, live: 'past_due', healed: true });
+      expect(stripeSubOf(db)).toBe('sub_3');
+    });
+
+    it('a recorded subscription that cannot be read answers 500, writes and marks nothing, tells the owner, and the retry heals', async () => {
+      const db = await staleRow('cus_2');
+      const { sent, env: mail } = inbox();
+      stripeNow({ sub_1: { http: 503 }, sub_2: { status: 'past_due', customer: 'cus_2' } });
+      const event = subEvent('evt_pd', 'customer.subscription.updated', 'sub_2', 'past_due', 'cus_2');
+      const res = await deliver(db, event, mail);
+      expect(res.status).toBe(500);
+      expect(await res.text()).toBe('subscription read failed');
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
+      expect(stripeSubOf(db)).toBe('sub_1');
+      expect(processed(db, 'evt_pd')).toBe(false);
+      expect(sent).toHaveLength(1);
+      expect(bodyOf(sent[0])).toContain('The read: HTTP 503.');
+      vi.unstubAllGlobals();
+      stripeNow({ sub_1: { status: 'canceled', customer: 'cus_1' }, sub_2: { status: 'past_due', customer: 'cus_2' } });
+      expect(await (await deliver(db, event, mail)).json()).toEqual({ received: true, live: 'past_due', healed: true });
+    });
+
+    it('a 404 for the recorded subscription is never read as an ending (a test-mode key answers that for every live id)', async () => {
+      const db = await sqliteD1();
+      await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: PERIOD_END, cancelAtPeriodEnd: false, customerId: 'cus_A', source: 'stripe', stripeSub: 'sub_A' }, 'before');
+      stripeNow({ sub_A: { http: 404, code: 'resource_missing' } });
+      // an old ending on the same customer, which "missing means ended" would have let switch a paying member off
+      const res = await deliver(db, subEvent('evt_old', 'customer.subscription.deleted', 'sub_old', 'canceled', 'cus_A'));
+      expect(res.status).toBe(500);
+      expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, status: 'active' });
+      expect(processed(db, 'evt_old')).toBe(false);
+    });
   });
 });
 
@@ -897,14 +1145,65 @@ describe('reading the subscription an event is about', () => {
     }
   });
 
-  it('fetchSubscription reads by id with the secret key, and says nothing without one', async () => {
+  it('readSubscription reads by id with the secret key and a timeout', async () => {
     let asked = '';
-    vi.stubGlobal('fetch', async (url: string) => {
+    let auth = '';
+    let signal: unknown = null;
+    vi.stubGlobal('fetch', async (url: string, init?: { headers?: Record<string, string>; signal?: unknown }) => {
       asked = url;
+      auth = init?.headers?.authorization ?? '';
+      signal = init?.signal ?? null;
       return new Response(JSON.stringify({ id: 'sub_a/b', status: 'active' }), { status: 200 });
     });
-    expect(await fetchSubscription({ STRIPE_SECRET_KEY: SK }, 'sub_a/b')).toMatchObject({ id: 'sub_a/b', status: 'active' });
+    expect(await readSubscription({ STRIPE_SECRET_KEY: SK }, 'sub_a/b')).toEqual({ ok: true, sub: { id: 'sub_a/b', status: 'active' } });
     expect(asked).toBe('https://api.stripe.com/v1/subscriptions/sub_a%2Fb');
-    expect(await fetchSubscription({}, 'sub_1')).toBeNull();
+    expect(auth).toBe(`Bearer ${SK}`);
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(SUBSCRIPTION_READ_TIMEOUT_MS).toBe(8000);
+  });
+
+  it("readSubscription says why it could not read, with Stripe's status and code but never its message", async () => {
+    const why = async (answer: () => Response, env: { STRIPE_SECRET_KEY?: string } = { STRIPE_SECRET_KEY: SK }) => {
+      vi.stubGlobal('fetch', async () => answer());
+      const r = await readSubscription(env, 'sub_1');
+      return r.ok ? 'ok' : r.why;
+    };
+    const stripeError = (status: number, code: string) => () => new Response(JSON.stringify({ error: { code, message: 'Expired API Key provided: ****wxyz' } }), { status });
+    expect(await why(() => new Response('{}'), {})).toBe('STRIPE_SECRET_KEY is not set');
+    expect(await why(stripeError(401, 'api_key_expired'))).toBe('HTTP 401 (api_key_expired)');
+    expect(await why(stripeError(404, 'resource_missing'))).toBe('HTTP 404 (resource_missing)');
+    expect(await why(stripeError(400, 'Not a code!'))).toBe('HTTP 400');
+    expect(await why(() => new Response('<html>bad gateway</html>', { status: 502 }))).toBe('HTTP 502');
+    expect(
+      await why(() => {
+        throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+      }),
+    ).toBe('no answer (the connection failed, or took over 8 seconds)');
+    expect(await why(() => new Response(JSON.stringify({ id: 'sub_2', status: 'active' })))).toBe('HTTP 200, but not the subscription asked for');
+    expect(await why(() => new Response('not json'))).toBe('HTTP 200, but not the subscription asked for');
+  });
+
+  it('knows an ending by its copy: canceled or incomplete_expired, on a subscription event only', () => {
+    expect(isTerminalCopy({ type: 'customer.subscription.deleted', data: { object: { status: 'canceled' } } })).toBe(true);
+    expect(isTerminalCopy({ type: 'customer.subscription.updated', data: { object: { status: 'incomplete_expired' } } })).toBe(true);
+    // a canceled subscription's metadata can still change, and that update is as final as the deletion
+    expect(isTerminalCopy({ type: 'customer.subscription.updated', data: { object: { status: 'canceled' } } })).toBe(true);
+    for (const status of ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused', '']) {
+      expect(isTerminalCopy({ type: 'customer.subscription.updated', data: { object: { status } } }), status).toBe(false);
+    }
+    expect(isTerminalCopy({ type: 'checkout.session.completed', data: { object: { status: 'canceled' } } })).toBe(false);
+    expect(isTerminalCopy({})).toBe(false);
+  });
+
+  it('the read-failed email says what to do, in plain words', () => {
+    const { subject, body } = readFailedAlert({ type: 'customer.subscription.updated', id: 'evt_9' }, 'HTTP 401');
+    expect(subject).toBe('[DoubleDone] Stripe webhooks cannot read subscriptions');
+    expect(body).toContain('The read: HTTP 401.');
+    expect(body).toContain('The event: customer.subscription.updated evt_9.');
+    expect(body).toContain('Get-Clipboard -Raw | npx wrangler secret put STRIPE_SECRET_KEY');
+    expect(body).toContain('up to 15 days');
+    expect(body).toContain('up to 30 days');
+    const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`); // en and em dashes, never in what the owner reads
+    expect(`${subject}\n${body}`).not.toMatch(dashes);
   });
 });

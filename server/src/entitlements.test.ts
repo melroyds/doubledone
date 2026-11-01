@@ -315,6 +315,50 @@ describe('writeEntitlement: the Stripe which-subscription guard', () => {
   });
 });
 
+// The review of sweep #1 (2026-11-01): the two things the webhook can tell the guard that the row cannot know.
+describe('writeEntitlement: endedSub (the self-heal) and ifSubUnknown (the provisional purchase grant)', () => {
+  const pastDue = (sub: string) => live({ stripeSub: sub, premium: false, status: 'past_due' });
+
+  it('endedSub sets aside exactly the recorded subscription the caller showed has ended, in the same statement', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, live({ stripeSub: 'sub_dead' }), NOW); // the row says sub_dead is live
+    expect(await writeEntitlement(db, pastDue('sub_now'), NOW)).toBe(false);
+    expect(await writeEntitlement(db, pastDue('sub_now'), NOW, { endedSub: 'sub_other' })).toBe(false); // the row records another
+    expect(await writeEntitlement(db, pastDue('sub_now'), NOW, { endedSub: 'sub_dead' })).toBe(true);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: false, status: 'past_due' });
+    expect(stripeSubOf(db)).toBe('sub_now');
+    // and from here sub_now is guarded like any recorded subscription
+    expect(await writeEntitlement(db, live({ stripeSub: 'sub_dead', premium: false, status: 'canceled' }), NOW)).toBe(false);
+  });
+
+  it('endedSub never opens the cross-store guard', async () => {
+    const db = await sqliteD1();
+    await writeEntitlement(db, on('apple'), NOW);
+    expect(await writeEntitlement(db, live({ premium: false, status: 'canceled' }), NOW, { endedSub: 'sub_new' })).toBe(false);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true, source: 'apple' });
+  });
+
+  it('ifSubUnknown lands only where the row does not already name that subscription', async () => {
+    const grant = live({ stripeSub: 'sub_C', currentPeriodEnd: null });
+    // no row: the session is the first news there is
+    const fresh = await sqliteD1();
+    expect(await writeEntitlement(fresh, grant, NOW, { ifSubUnknown: true })).toBe(true);
+    expect(stripeSubOf(fresh)).toBe('sub_C');
+    // a row that already names it, here its ending: untouched, so a retried session never undoes an ending
+    const ended = await sqliteD1();
+    await writeEntitlement(ended, live({ stripeSub: 'sub_C', premium: false, status: 'canceled' }), NOW);
+    expect(await writeEntitlement(ended, grant, NOW, { ifSubUnknown: true })).toBe(false);
+    expect(await readEntitlement(ended, UID)).toMatchObject({ premium: false, status: 'canceled' });
+    // a row about another subscription, or from before the column: a sale, so it lands and records sub_C
+    for (const before of [live({ stripeSub: 'sub_old', premium: false, status: 'canceled' }), live({ stripeSub: null, premium: false, status: 'canceled' })]) {
+      const db = await sqliteD1();
+      await writeEntitlement(db, before, NOW);
+      expect(await writeEntitlement(db, grant, NOW, { ifSubUnknown: true }), String(before.stripeSub)).toBe(true);
+      expect(stripeSubOf(db), String(before.stripeSub)).toBe('sub_C');
+    }
+  });
+});
+
 describe('the stripe_sub column is added at runtime where a database lacks it', () => {
   async function withoutColumn(): Promise<RealDb> {
     const db = await sqliteD1();
