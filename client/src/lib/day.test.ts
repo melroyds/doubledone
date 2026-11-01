@@ -6,6 +6,7 @@ import {
   formatTodayLabel,
   friendlyDate,
   fromISODate,
+  isMorningClose,
   isReentry,
   isSameDay,
   presetDate,
@@ -24,6 +25,19 @@ describe('presetDate', () => {
     expect(fromISODate(presetDate(wed, 'thisWeek')).getDay()).toBe(5); // Friday
     expect(fromISODate(presetDate(wed, 'thisWeekend')).getDay()).toBe(6); // Saturday
     expect(fromISODate(presetDate(wed, 'nextWeek')).getDay()).toBe(1); // Monday
+  });
+});
+
+describe('isMorningClose', () => {
+  it('is true from 05:00 to 11:59 local, and false either side', () => {
+    expect(isMorningClose(new Date(2026, 10, 1, 5, 0))).toBe(true);
+    expect(isMorningClose(new Date(2026, 10, 1, 9, 30))).toBe(true);
+    expect(isMorningClose(new Date(2026, 10, 1, 11, 59))).toBe(true);
+    expect(isMorningClose(new Date(2026, 10, 1, 12, 0))).toBe(false);
+    expect(isMorningClose(new Date(2026, 10, 1, 21, 0))).toBe(false);
+    // A close after midnight is a late night, not a morning.
+    expect(isMorningClose(new Date(2026, 10, 1, 0, 30))).toBe(false);
+    expect(isMorningClose(new Date(2026, 10, 1, 4, 59))).toBe(false);
   });
 });
 

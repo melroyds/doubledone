@@ -66,6 +66,15 @@ describe('parseAppEvent (the closed allowlist)', () => {
   });
 });
 
+// The rest-day gate (2026-11-01): two bare names, and the wrap-opening day.closed stays unstored.
+describe('the rest-day gate', () => {
+  it('passes day.closed.morning and reentry.shown through bare, props dropped', () => {
+    expect(parseAppEvent({ name: 'day.closed.morning' })).toBe('day.closed.morning');
+    expect(parseAppEvent({ name: 'reentry.shown', props: { gap: 9 } })).toBe('reentry.shown');
+    expect(parseAppEvent({ name: 'day.closed', props: { finished: 3 } })).toBeNull();
+  });
+});
+
 // The Menu's two ways into Settings (2026-10-04): rooms.opened is folded to the door, and only
 // for Settings. Every other room, and any door we did not build, is dropped unwritten.
 describe('rooms.opened folding', () => {

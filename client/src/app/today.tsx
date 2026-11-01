@@ -54,7 +54,7 @@ import { combineTasks, eligibleForCombine } from '@/lib/combine';
 import { aiErrorLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
-import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isReentry, presetDate, toISODate } from '@/lib/day';
+import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isMorningClose, isReentry, presetDate, toISODate } from '@/lib/day';
 import { type DayEnergy, type DayTool, dayTools, occupantTool, planEnergyFromDay, toolGate } from '@/lib/day-tools';
 import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, dragLifted, stepsLanded, taskDone } from '@/lib/haptics';
@@ -4897,6 +4897,9 @@ export default function TodayScreen() {
                   setClosedDate(toISODate(today));
                   void saveClosedDate(toISODate(today));
                   dayClosed(reduced); // the gentle close: a warm, soft confirmation
+                  // The "Set today aside" gate (decision-log 2026-11-01): a bare count of days closed
+                  // before noon. Here and not in openClose, which fires when the wrap merely opens.
+                  if (isMorningClose(new Date())) track('day.closed.morning');
                   // Counted, then maybe the store's own card ~1.2s after the rested screen (lib/review).
                   void maybeAskForReview(todayDone.length + (note ? 1 : 0), toISODate(today));
                 };

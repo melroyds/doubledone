@@ -11069,3 +11069,30 @@ doubledone.app said `website`. Melroy: "fix the website first. I'd rather get th
 **Decided against:** free-text labels (`ref` passed straight through), storing the label in the browser so it
 survives a click to another page, and per-post labels (a store hides a campaign under five first-time installs, so
 finer labels would only show empty rows).
+
+## 2026-11-01: "Set today aside" is gated on two counters, and the privacy pages name the web reminder's store
+
+A competitor (Rolby) made "rest days" look like the next thing to build. Melroy asked for an adversarial review of
+a "Rest days and Away" plan, and it failed as written (BUILD-PLAN Backlog has the findings and the reshaped design).
+Melroy: "Gate." The review also found that neither privacy copy said what the web reminder stores.
+
+**Decided:**
+- **Measure before building, with two bare counters.** `day.closed.morning` fires from the Goodnight tap when the
+  local hour is 05:00 to 11:59 (`isMorningClose` in `lib/day.ts`), and `reentry.shown` (already a local event) now
+  leaves the device. Both are bare names on both allowlists, so the server keeps a count per day per name and
+  nothing finer. The gate reads distinct days, which that table gives directly. Build only on 3+ distinct days of
+  morning closes in 21 days, or 3 independent asks.
+- **Counted from Goodnight, not from `day.closed`.** `day.closed` fires when the wrap OPENS (`openClose`), so a
+  morning peek at the wrap would count as a close. Goodnight is the actual close. `day.closed` stays on the device.
+- **The privacy pages gain "The daily reminder on the website"**, naming what `push_subs` holds (the push address,
+  its two keys, the hour, the offset from UTC as it was when the reminder was turned on or its hour last changed),
+  that nothing else is kept, that the push carries no words, how it is deleted (turning it off asks us to; a blocked
+  or cleared browser is pruned the next time it is due), and the 30-day backups. The feature-usage list names the two
+  new counts. Melroy's OK, the same message ("let's fix the push gap").
+- **The frozen offset is parked, not fixed here** (Backlog, with the fix and a trigger), so this change stays a
+  measurement and a disclosure.
+
+**Decided against:** building "Set today aside" now (no user has asked, and it fails three ways as first drawn);
+counting rest-shaped behaviour with anything richer than a name (a time, a task count, a reason); counting from
+`day.closed`; and fixing the offset by re-sending the subscription on every open, which would tell the server when
+each browser opens the app.

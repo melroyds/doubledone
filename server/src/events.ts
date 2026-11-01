@@ -63,6 +63,10 @@ export const APP_EVENTS = new Set([
   // ASKS, never a shown card and never a rating: neither store reports either.
   'review.asked.ios',
   'review.asked.android',
+  // The gate for "Set today aside" and Away (2026-11-01): a Goodnight before noon, and the
+  // welcome-back note after four or more days away. Bare names, read as distinct days.
+  'day.closed.morning',
+  'reentry.shown',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.

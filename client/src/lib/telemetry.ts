@@ -56,6 +56,11 @@ export const BEACON_EVENTS = new Set([
   // ignored", so this count is the only proof it ever fires. review.unavailable and review.failed stay
   // on the device.
   'review.asked',
+  // The gate for "Set today aside" and Away (decision-log 2026-11-01): bare names, read as how many
+  // distinct days carry them. day.closed.morning is a Goodnight before noon, reentry.shown the
+  // welcome-back note after four or more days away. Neither door is built until the count says so.
+  'day.closed.morning',
+  'reentry.shown',
 ]);
 
 // What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the

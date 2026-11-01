@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 25 October 2026.</Text>
+        <Text style={styles.updated}>Last updated 1 November 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -103,6 +103,19 @@ export default function PrivacyScreen() {
           apps there is no Speak button; dictating with your keyboard&apos;s own microphone gives DoubleDone only the text.
         </Section>
 
+        <Section styles={styles} heading="The daily reminder on the website">
+          In the phone apps, reminders are scheduled on your phone and nothing about them leaves it. On the website,
+          the daily reminder travels through your browser&apos;s own push service, run by the company that makes your
+          browser (Google, for Chrome). If you turn it on, our server keeps the push address your browser gives it,
+          the two keys that let us reach that address, the hour you picked, and your time zone&apos;s offset from UTC as
+          it was when you turned the reminder on or last changed its hour. Nothing else: no account, no email, and no
+          task. The reminder itself carries no words (the message already sits in your browser), so the push service
+          only learns that a reminder was sent. Turn it off and your browser drops the address and asks us to delete
+          our copy. If you block notifications or clear the site&apos;s data instead, the push service tells us the
+          address is gone the next time the reminder is due, and we delete it then. Our hosting provider&apos;s
+          short-lived backups (up to 30 days) can hold a deleted address for that long.
+        </Section>
+
         <Section styles={styles} heading="Feature-usage counts">
           When you use certain features, the app tells our server the feature’s name so we can count how often it
           helps. Right now those features are the Settle breathing room (and whether you switched its breathing guide on
@@ -110,7 +123,9 @@ export default function PrivacyScreen() {
           keep only as one of three rough stages), holding a task to open its card, which task tools get used (on the
           card, in the capture box, or when several tasks are selected, by the button’s name only, never the task),
           that a task was moved by dragging its grip, which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
-          line (on the card or in Focus, never the words), “I also did that”, and, in the phone apps, that the app
+          line (on the card or in Focus, never the words), “I also did that”, that a day was closed in the morning
+          (only that it was, never what was on it), that the welcome-back note appeared after a few days away, and,
+          in the phone apps, that the app
           asked your app store to show its own rating card, and which store (the store decides whether the card
           appears, and the app is never told whether you rated). A review you choose to write is posted on the store,
           where we can read it and reply like any public review, but nothing links it to that count. We count “I

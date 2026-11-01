@@ -78,6 +78,12 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('review.failed')).toBeNull();
   });
 
+  it('sends the rest-day gate bare, and keeps the wrap-opening day.closed on the device', () => {
+    expect(beaconRequest('day.closed.morning')?.init.body).toBe('{"name":"day.closed.morning"}');
+    expect(beaconRequest('reentry.shown', { gap: 9 })?.init.body).toBe('{"name":"reentry.shown"}');
+    expect(beaconRequest('day.closed', { finished: 3 })).toBeNull();
+  });
+
   it('keeps the Goodnight note and the retired names on the device', () => {
     expect(beaconRequest('closeday.noted')).toBeNull();
     expect(beaconRequest('hold.opened')).toBeNull();
@@ -88,15 +94,16 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty-two (growing it is a deliberate act)', () => {
+  it('the allowlist is exactly these twenty-four (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
-    // review's three (2026-10-04), review.asked (2026-10-19) and task.dragged (2026-10-25): each addition pairs with the Worker
+    // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25) and the rest-day gate's two (2026-11-01): each addition pairs with the Worker
     // allowlist AND the privacy policy in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
       'breakdown.started',
       'bulk.big',
       'card.more',
       'card.opened',
+      'day.closed.morning',
       'hold.completed',
       'hold.released',
       'hold.started',
@@ -105,6 +112,7 @@ describe('the beacon (the few events that leave the device)', () => {
       'leftoff.saved.focus',
       'nudge.set',
       'offplan.logged',
+      'reentry.shown',
       'review.asked',
       'rooms.opened',
       'settle.guide',

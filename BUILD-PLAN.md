@@ -42,6 +42,19 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**The rest-day gate is BUILT on main 2026-11-01, waiting on ONE Worker deploy (Melroy).** Two bare counters,
+`day.closed.morning` (a Goodnight between 05:00 and 11:59 local) and `reentry.shown` (the welcome-back note after 4+
+days away), are on both allowlists, and both privacy copies name them, alongside the web reminder's push store that no
+section had named. The web pushes them on main; the phones send them from the next store build, and until the Worker
+is deployed it drops both names unstored. Deploy from `server/` on main: `npx wrangler deployments list` first (the
+rollback target), check `git diff --stat main premium -- server` is empty, then `npx wrangler deploy`. Smoke check:
+a status proves nothing (`/event` answers 200 to unknown names too, and a test POST would put a fake row in the gate),
+so read D1 a day or two later: `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command
+"SELECT day, event, n FROM app_event_counts WHERE event IN ('day.closed.morning','reentry.shown')"`.
+**Read the gate 21 days after the deploy** (about 23 Nov, beside the ranks rerun): build "Set today aside" only if
+`day.closed.morning` has rows on 3 or more distinct days, or 3 people have asked for a rest day. The Backlog entry has
+the design.
+
 **iOS 1.10.1 (build 49) SUBMITTED for App Review 2026-11-01 (Melroy), pasted from `docs/release-notes/1.10.1.md`.** Next: bump `version.json` ios to 1.10.1 once Apple releases it. Melroy, 2026-11-01, after TestFlight: "Looks good to me for release." The friend's iOS 27 phone is still the decisive CAP-20 check once 1.10.1 is live. iOS 1.10.1 build 49 QUEUED
 2026-11-01 on Melroy's "set up an iOS build" (EAS `865365f0`, from main `4758f8e`, with `--auto-submit`, so it goes to
 TestFlight by itself; submission `7c88c5d5`). Android not built: the fix is iOS-only behaviour.
@@ -282,6 +295,28 @@ the ladder is fixed and readable, never randomised.
 - **Never (Tier 4):** streaks, money stakes, social accountability. Off-spine.
 
 ## Backlog (deferred, with triggers)
+
+- **"Set today aside", GATED (stress-tested 2026-11-01, Melroy: "Gate").** A calm door beside Close the day for a
+  sick or flat morning: closing at 9am today runs the evening wrap ("Anything else you did?", "Goodnight"), which reads
+  as an audit. Six reviewers rejected the first shape (a "Rest day" mode that went quiet, plus an "Away" mode): a
+  repeat exists only on its due day, so "everything can wait" hides a monthly bill or a shared pickup; phone reminders
+  are daily triggers re-armed on every open, so quiet breaks on one peek, and cancelling them kills the nudge that
+  brings a drifting person back (and Rhythm medication reminders); and no DoubleDone user has asked. **The reshaped
+  version, if the gate opens:** one door ("Set today aside", name to confirm) with a card that says the list is safe
+  exactly as it is and the reminder still comes; anything dated today is named so nothing hides; notifications do not
+  change at all; peeking does not end it; every ask stands down for the day (offers, the rating card, What's New);
+  never counted, free forever, invisible to an Ours partner. About 5 to 7 dev days plus Melroy's design and two store
+  builds. **Trigger:** `day.closed.morning` on 3+ distinct days in the 21 days after the Worker deploy, or 3
+  independent asks. If neither, close it as answered. **Away** (a holiday mode) is Tier 3 and needs three real asks
+  of its own, read beside `reentry.shown`. **Never:** a weekly rest pattern, a fourth Energy pill, a reason picker, or
+  any count of rest days.
+- **The web reminder keeps the time zone offset it was given at subscribe (found 2026-11-01).** `reminders.web.ts`
+  sends `getTimezoneOffset()` only when the reminder is turned on or its hour changes, so after a daylight-saving
+  change or a move it arrives an hour (or more) off; Melbourne moved on 5 Oct 2026, so anyone who turned it on before
+  then is an hour out today. Known since Phase 2 (decision-log), never parked with a trigger. **The fix, small:** keep
+  the last-sent offset on the device and re-send the subscription only when the current offset differs (on Today's
+  focus, with permission already granted and a live subscription), so the server learns nothing per open. **Trigger:**
+  the next web-side change touching reminders, or one report of a reminder at the wrong hour.
 
 - **App copy the screenshot QA turned up (parked 2026-10-25).** Ten native reviewers read every store slide in five
   languages; these are UI strings, not slide faults, so each needs its own native read before it ships. Grouped,

@@ -83,6 +83,17 @@ export function isReentry(lastOpenISO: string | null, today: Date, gapDays: numb
   return daysBetween(fromISODate(lastOpenISO), today) >= gapDays;
 }
 
+/**
+ * Whether a Goodnight at this local time closes the day in the MORNING (05:00 to 11:59).
+ * It is the gate for "Set today aside" (decision-log 2026-11-01): a day closed before
+ * noon is someone setting today down, not finishing it, and the counter that reads
+ * this is the only evidence that the door is wanted.
+ */
+export function isMorningClose(at: Date): boolean {
+  const h = at.getHours();
+  return h >= 5 && h < 12;
+}
+
 /** The next occurrence of a weekday (0=Sun .. 6=Sat), today or later. */
 export function nextWeekday(today: Date, dow: number): string {
   return addDaysISO(today, (dow - today.getDay() + 7) % 7);
