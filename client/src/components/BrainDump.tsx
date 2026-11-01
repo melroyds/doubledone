@@ -492,8 +492,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
   /**
    * The egress disclosure, naming the affordances THIS surface actually has (Sort / Break it down,
    * Scan, both, or none). A false statement about where your data goes is a worse bug than a missing
-   * one: it teaches you the disclosure is decorative. (While Tidy is offered it takes this seat, so the note
-   * is off screen: bug sweep #4, parked for Melroy's look at a stacked seat, which overflowed the panel.)
+   * one: it teaches you the disclosure is decorative. While Tidy is offered it takes this seat and the note
+   * steps aside, so Tidy names its AI on its own face: "Tidy this into tasks with AI" is the words on the button
+   * and its spoken name, one key in every language. Bug sweep #4, decided by Melroy 2026-11-02: the seat stays
+   * one line. A note stacked under Tidy overflowed the panel.
    */
   const scanAI = aiEnabled && Boolean(onCamera);
   const aiNoteKey = hasShapers && scanAI ? 'capture.aiNoteBoth' : hasShapers ? 'capture.aiNote' : scanAI ? 'capture.aiNoteScan' : null;
@@ -711,7 +713,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
             {error ? (
               <Text style={styles.error}>{error}</Text>
             ) : showTidy ? (
-              <Pressable onPress={splitDump} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('capture.tidyA11y')} style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}>
+              <Pressable onPress={splitDump} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('capture.tidy')} style={({ pressed }) => [pressed && styles.pressed, busy && styles.dim]}>
                 {busyKind === 'split' ? (
                   <View style={styles.busyRow}>
                     <ActivityIndicator size="small" color={theme.colors.accent} />
