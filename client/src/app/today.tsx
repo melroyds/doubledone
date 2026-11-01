@@ -67,7 +67,7 @@ import Constants from 'expo-constants';
 import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { rememberOursName } from '@/lib/ours-name';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
-import { runningVersion, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
+import { freshestStatus, runningVersion, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
 import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
 import { changedSinceLooked, isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
@@ -961,6 +961,12 @@ export default function TodayScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') return;
+      // Ask again whether a newer DoubleDone is out. The focus effect asks once per visit and a warm resume does not
+      // re-fire it, so a tab left resting on Today never heard about a deploy (#30). Silent like the first ask, and a
+      // check that could not tell keeps what this screen already knew.
+      void checkForUpdate(runningVersion(Application.nativeApplicationVersion, Constants.expoConfig?.version)).then((status) =>
+        setUpdateStatusNow((prev) => freshestStatus(prev, status)),
+      );
       // Re-READ rather than trusting the screen's snapshot. This sweep used to write `tasksRef` back
       // over storage, so anything saved while Today sat in the background got erased: a copy brought
       // over in the room, a task added by the widget, an agent's write over MCP. The sweep is only

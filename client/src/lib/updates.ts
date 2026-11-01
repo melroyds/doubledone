@@ -77,6 +77,16 @@ export function updateStatus(current: string, latest: string | null | undefined,
 }
 
 /**
+ * Which answer to keep when a screen asks again, as Today does on every return to the foreground (#30, 2026-11-01:
+ * it asked once per visit, a warm resume is not a re-focus, so a tab left resting on Today never heard about a
+ * deploy). A null is "we could not tell", which is no news, so it never erases an answer the screen already had:
+ * going offline does not make a build current. A real answer always replaces the old one.
+ */
+export function freshestStatus(prev: UpdateStatus | null, next: UpdateStatus | null): UpdateStatus | null {
+  return next ?? prev;
+}
+
+/**
  * Whether to mention it OUTSIDE Settings, where it is always simply true.
  *
  * Three conditions, all required, and they exist to make this rare. Being one patch behind is not

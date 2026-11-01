@@ -134,7 +134,23 @@ describe('landingBoot: who sees the static page, decided before first paint', ()
     const { w, classes, attrs } = fakeWindow({ stored: 'yes', languages: ['de'] });
     landingBoot(w);
     expect([...classes]).toEqual(['dd-app']);
-    expect(attrs.lang).toBeUndefined();
+    // The app shows them German, so the page says German. Until 2026-11-01 only the landing set it, and a returning
+    // visitor kept the export's lang="en": a screen reader read the German app in an English voice.
+    expect(attrs.lang).toBe('de');
+  });
+
+  it('names the language the app will show on every route, and English when the browser asks for none of ours', () => {
+    for (const path of ['/today', '/settings', '/welcome']) {
+      const { w, attrs } = fakeWindow({ path, languages: ['fr-CA', 'en-GB'] });
+      landingBoot(w);
+      expect(attrs.lang).toBe('fr');
+    }
+    const blocked = fakeWindow({ throws: true, languages: ['it-IT'] });
+    landingBoot(blocked.w);
+    expect(blocked.attrs.lang).toBe('it');
+    const other = fakeWindow({ stored: 'yes', languages: ['pt-BR', 'es-ES'] });
+    landingBoot(other.w);
+    expect(other.attrs.lang).toBe('en');
   });
 
   it('hides it on every app route, which the SPA fallback serves this same HTML for', () => {

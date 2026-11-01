@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareVersions, FALLBACK_VERSION, MENTION_GAP_MS, runningVersion, shouldMention, STORE_URLS, updateStatus, updateUrl } from './updates';
+import { compareVersions, FALLBACK_VERSION, freshestStatus, MENTION_GAP_MS, runningVersion, shouldMention, STORE_URLS, updateStatus, updateUrl } from './updates';
 
 describe('compareVersions', () => {
   it('orders ordinary versions', () => {
@@ -126,5 +126,29 @@ describe('runningVersion', () => {
   it('never tells the web it is behind the version it was stamped with', () => {
     const stamped = '1.8.0'; // scripts/stamp-version.mjs writes app.json's version into version.json's web
     expect(updateStatus(runningVersion(null, stamped), stamped, 'web').behind).toBe(false);
+  });
+});
+
+// 2026-11-01 (#30): Today asked once per visit, and a warm resume is not a re-focus, so a tab left resting on Today
+// never heard about a deploy. It now asks again on every return to the foreground, and this decides what it keeps.
+describe('freshestStatus, when Today asks again on a return to the foreground', () => {
+  const behind = updateStatus('1.10.1', '1.10.2', 'web');
+  const current = updateStatus('1.10.2', '1.10.2', 'web');
+
+  it('takes a real answer over the one it had, or over none', () => {
+    expect(freshestStatus(current, behind)).toBe(behind);
+    expect(freshestStatus(behind, current)).toBe(current); // a rolled-back version.json is still an answer
+    expect(freshestStatus(null, current)).toBe(current);
+  });
+
+  it('keeps what it knew when the check could not tell: going offline does not make a build current', () => {
+    expect(freshestStatus(behind, null)).toBe(behind);
+    expect(freshestStatus(null, null)).toBeNull();
+  });
+
+  it('a patch behind, like 1.10.1 against 1.10.2, is offered in Settings but never mentioned on Today', () => {
+    const kept = freshestStatus(current, behind);
+    expect(kept).toMatchObject({ behind: true, majorBehind: false, route: 'reload' });
+    expect(shouldMention(kept!, null, Date.UTC(2026, 10, 1))).toBe(false);
   });
 });

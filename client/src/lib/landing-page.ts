@@ -12,7 +12,8 @@
 //   - landingBoot() runs inline in <head>, before first paint. A fresh visitor at "/" gets html.dd-landing (the
 //     static page shows, the app's #root is hidden). Anyone else, a returning visitor or any app route the SPA
 //     fallback serves this same index.html for, gets html.dd-app (the static page is hidden, the app shows).
-//     A returning visitor therefore never sees a flash of the marketing page.
+//     A returning visitor therefore never sees a flash of the marketing page. Both get <html lang> in the
+//     visitor's language, which is the one the app shows too, so a screen reader picks the right voice.
 //   - The same boot stamps data-platform (ios / android / desktop) so CSS shows ONE primary action: the phone's
 //     own store badge with "Or start in your browser" under it, or Begin on a laptop or tablet. All three are in
 //     the HTML (crawlable); a browser it cannot place gets the laptop version. Without JavaScript the laptop
@@ -62,7 +63,10 @@ export function pickPlatform(userAgent: string | null | undefined): 'ios' | 'and
 }
 
 /** Runs inline in <head> before first paint (see the header). Mirrors pickLocale, pickPlatform and loadOnboarded
- *  exactly, including loadOnboarded's choice to treat unreadable storage as "already onboarded" (straight to the app). */
+ *  exactly, including loadOnboarded's choice to treat unreadable storage as "already onboarded" (straight to the app).
+ *  It sets <html lang> for EVERY visitor, because the app shows the same language the page would: until 2026-11-01
+ *  only the landing set it, so a returning visitor kept the export's lang="en" and a screen reader read the German
+ *  app in an English voice. */
 export function landingBoot(w: any): void {
   const h = w.document.documentElement;
   let onboarded = false;
@@ -81,10 +85,10 @@ export function landingBoot(w: any): void {
   if (/iPhone|iPod/.test(ua)) platform = 'ios';
   else if (/Android/.test(ua) && /Mobile/.test(ua)) platform = 'android';
   h.setAttribute('data-platform', platform);
+  h.setAttribute('lang', lang);
   const path = w.location.pathname;
   if ((path === '/' || path === '/index.html') && !onboarded) {
     h.classList.add('dd-landing');
-    h.setAttribute('lang', lang);
   } else {
     h.classList.add('dd-app');
   }
