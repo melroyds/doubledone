@@ -11,6 +11,7 @@
 
 import { isSharedDoneOn, type SharedTask } from './ours-merge';
 import { type Task } from './tasks';
+import { isDoneOn } from './today';
 
 const SEP = '/';
 
@@ -144,13 +145,7 @@ export function sharedRestNotes(
   const byId = new Map(shared.map((s) => [s.id, s]));
   const out: { id: string; title: string }[] = [];
   for (const task of tasks) {
-    if (task.done || task.deletedAt) continue;
-    // A RECURRING copy is never retired here, and this is a data-loss guard rather than a nicety.
-    // A brought copy is created as a one-off, but nothing stops somebody giving theirs a rhythm
-    // afterwards. `task.done` is always false on a repeat, so it would sail through every test
-    // below and then be tombstoned with `deletedAt` — which on a repeat deletes the WHOLE SERIES,
-    // not today's instance, because their partner ticked the shared row once.
-    if (task.recurrence !== undefined && task.recurrence.kind !== 'none') continue;
+    if (!openToSettle(task)) continue;
     const ref = parseSharedRef(task.sharedRef);
     if (ref?.pairId !== pairId) continue;
     const origin = byId.get(ref.sharedId);
@@ -158,4 +153,54 @@ export function sharedRestNotes(
     if (isSharedDoneOn(origin, date)) out.push({ id: task.id, title: task.title });
   }
   return out;
+}
+
+/**
+ * Whether a finish on the shared list may settle this task of yours: it is open, a one-off, and on your day as
+ * itself. Its link and its origin are the caller's to check.
+ *
+ * ONE rule, read by `sharedRestNotes` and by Today's settle diagnostic (`originDone`), so the diagnostic counts
+ * exactly the population the rule considers. It was a hand copy until 2026-11-01, which is how a new skip could
+ * have made every broken-down copy read as a matching failure in the debug panel.
+ */
+export function openToSettle(task: Task): boolean {
+  if (task.done || task.deletedAt) return false;
+  // A RECURRING copy is never settled here, and this is a data-loss guard rather than a nicety. A brought copy
+  // is created as a one-off, but nothing stops somebody giving theirs a rhythm afterwards, and `task.done` is
+  // always false on a repeat, so it would pass every other test. Until the 2026-08-11 reversal the settle
+  // retired copies with `deletedAt`, which on a repeat deleted the WHOLE SERIES, not today's instance, because
+  // their partner ticked the shared row once.
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return false;
+  // A copy you BROKE DOWN, or made tiny, is a silent parent: hidden from your day while its own steps are on it,
+  // and finished, with the bloom, by the last of them (settleCompletions). Settled from the shared row, it was
+  // marked done while its steps stayed open on your day, so the big task sat in your Lookback on the other
+  // person's day, and your own last step then found it already done: no walk, no bloom, and nothing to repair
+  // it (#22, 2026-11-01). Its own steps settle it now, and Today's finish closes the shared row when they do
+  // (`closedByOwnSteps`). It is never stuck open by this: remove every step and the repair brings it back to
+  // your day as itself, where the shared row's tick settles it like any other copy.
+  return !task.silentParent;
+}
+
+/**
+ * The shared rows a finish closes through a copy's OWN steps: each copy among `wholes` (settleCompletions' big
+ * tasks just finished by their last step) that is now done on `date`, as its link, once each.
+ *
+ * A tick on a copy closes both (Today's finishTasks), and until 2026-11-01 that was the only way across. A copy
+ * you broke down is never ticked itself: its last step finishes it, so the shared row stayed open on the other
+ * phone until a later visit to Today ran the settle's carry, and your person could redo work you had already
+ * finished. Now the finish closes it at once, and the carry stays the backstop for a close that does not land.
+ *
+ * A copy is always a top-level task (Break it down and Make it tiny build their steps fresh, so a step never
+ * carries the link), which makes a copy finished this way the top of its walk, and that is what `wholes` holds.
+ *
+ * Done ON THE DAY, the same test a tick's own crossing applies: a repeat finishes per day, and `done` alone on
+ * one is not today's tick, so a shared repeat is never ticked on a guess. A removed copy closes nothing.
+ */
+export function closedByOwnSteps(wholes: readonly { task: Task }[], date: Date): string[] {
+  const out = new Set<string>();
+  for (const { task } of wholes) {
+    if (task.deletedAt || !task.sharedRef || !isDoneOn(task, date)) continue;
+    out.add(task.sharedRef);
+  }
+  return [...out];
 }

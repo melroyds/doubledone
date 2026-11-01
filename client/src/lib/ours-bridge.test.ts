@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeSharedRef, parseSharedRef, pulledFrom, removedOrigins, sharedRestNotes } from './ours-bridge';
+import { fromISODate } from './day';
+import { closedByOwnSteps, makeSharedRef, openToSettle, parseSharedRef, pulledFrom, removedOrigins, sharedRestNotes } from './ours-bridge';
 import { type SharedTask } from './ours-merge';
 import { type Task } from './tasks';
+import { healStuckParents, settleCompletions, UNDO_REMOVE_MS } from './today';
 
 function task(over: Partial<Task> & { id: string }): Task {
   return { title: 'x', done: false, createdAt: 1000, updatedAt: 1000, ...over };
@@ -147,5 +149,90 @@ describe('a copy whose shared row was REMOVED', () => {
   it('returns ids and nothing that could name a person', () => {
     const withWho = shared({ id: 'milk', deletedAt: 9000, doneAt: 5000 });
     expect([...removedOrigins([mine], [withWho], PAIR)]).toEqual(['mine']);
+  });
+});
+
+// #22, the 1 Nov sweep. A copy you broke down is a SILENT PARENT: hidden from your day while its own steps are on
+// it, and finished, with the bloom, by the last of them. A tick on the shared row used to mark it done anyway. Its
+// steps stayed open on your day, the big task sat in the Lookback on the other person's day, and finishing the
+// steps yourself then found it already done, so the walk stopped and the bloom never came. Nothing repaired it,
+// because the repair only looks at parents that are still open.
+describe('a copy broken down into steps', () => {
+  const ON = fromISODate(DAY);
+  const ref = makeSharedRef(PAIR, 'garage');
+  const copy = task({ id: 'garage', title: 'clear the garage', sharedRef: ref, silentParent: true, openParent: false });
+  const step = (id: string, over: Partial<Task> = {}) => task({ id, title: id, parentId: 'garage', parentTitle: 'clear the garage', ...over });
+  const doneOnOurs = shared({ id: 'garage', done: true, completions: { on: { [DAY]: 9000 } } });
+
+  it('is left to its own steps when the shared row is ticked', () => {
+    expect(sharedRestNotes([copy, step('shelves'), step('boxes')], [doneOnOurs], PAIR, DAY)).toEqual([]);
+  });
+
+  // Make it tiny hides the real task behind one pebble in the same way, and finishing the pebble brings it back.
+  it('is left alone behind a tiny step too', () => {
+    expect(sharedRestNotes([{ ...copy, openParent: true }, step('pebble')], [doneOnOurs], PAIR, DAY)).toEqual([]);
+  });
+
+  // The story end to end: the other side ticks, the settle leaves the copy alone, and your own last step
+  // finishes it with the bloom and names the shared row to close.
+  it('finishes through its own steps, with the bloom, and closes the shared row', () => {
+    const open = [copy, step('shelves', { done: true, completedAt: 5000 }), step('boxes')];
+    expect(sharedRestNotes(open, [doneOnOurs], PAIR, DAY)).toEqual([]);
+    const ticked = open.map((t) => (t.id === 'boxes' ? { ...t, done: true, completedAt: 6000 } : t));
+    const settled = settleCompletions(ticked, ['boxes'], ON, 7000);
+    expect(settled.whole?.id).toBe('garage'); // the bloom names it
+    expect(settled.tasks.find((t) => t.id === 'garage')).toMatchObject({ done: true, completedAt: 6000, silentParent: false, sharedRef: ref });
+    expect(closedByOwnSteps(settled.wholes, ON)).toEqual([ref]);
+  });
+
+  // Never stuck open because of the skip: remove every step and the repair brings it back to the day as itself,
+  // where the shared row's tick settles it like any other copy.
+  it('is settled by the shared row once it is back on the day as itself', () => {
+    const removed = [copy, step('shelves', { deletedAt: 2000 }), step('boxes', { deletedAt: 2000 })];
+    const back = healStuckParents(removed, 2000 + UNDO_REMOVE_MS);
+    expect(back.find((t) => t.id === 'garage')).toMatchObject({ silentParent: false, done: false });
+    expect(sharedRestNotes(back, [doneOnOurs], PAIR, DAY)).toEqual([{ id: 'garage', title: 'clear the garage' }]);
+  });
+});
+
+describe('the shared rows a finish closes through the steps of a copy', () => {
+  const ON = fromISODate(DAY);
+  const ref = makeSharedRef(PAIR, 'garage');
+
+  it('names nothing for a big task of your own', () => {
+    expect(closedByOwnSteps([{ task: task({ id: 'big', done: true }) }], ON)).toEqual([]);
+  });
+
+  // The same row brought over on two devices makes two copies with one link. One close is enough.
+  it('names each shared row once', () => {
+    const wholes = [{ task: task({ id: 'a', sharedRef: ref, done: true }) }, { task: task({ id: 'b', sharedRef: ref, done: true }) }];
+    expect(closedByOwnSteps(wholes, ON)).toEqual([ref]);
+  });
+
+  // A repeat is finished per day, so `done` alone on one is not today's tick, and a shared repeat is never
+  // ticked on a guess. Exactly the test a tick's own crossing applies.
+  it('names nothing for a repeat that is not done on the day, and names one that is', () => {
+    const repeat = task({ id: 'r', sharedRef: ref, recurrence: { kind: 'daily' }, done: true });
+    expect(closedByOwnSteps([{ task: repeat }], ON)).toEqual([]);
+    expect(closedByOwnSteps([{ task: { ...repeat, completedDates: [DAY] } }], ON)).toEqual([ref]);
+  });
+
+  it('names nothing for a copy you removed, or one not finished', () => {
+    expect(closedByOwnSteps([{ task: task({ id: 'x', sharedRef: ref, done: true, deletedAt: 5 }) }], ON)).toEqual([]);
+    expect(closedByOwnSteps([{ task: task({ id: 'y', sharedRef: ref }) }], ON)).toEqual([]);
+  });
+});
+
+// ONE rule for which of your tasks a finish on the shared list may settle, read by the settle and by its
+// diagnostic alike, so the diagnostic's count can never drift from the rule it explains.
+describe('which of my tasks a finish on the shared list may settle', () => {
+  it('an open one-off on my day', () => {
+    expect(openToSettle(task({ id: 'a' }))).toBe(true);
+    expect(openToSettle(task({ id: 'a', recurrence: { kind: 'none' } }))).toBe(true);
+  });
+
+  it('not one done, removed, repeating, or waiting on its own steps', () => {
+    const cases: Partial<Task>[] = [{ done: true }, { deletedAt: 5 }, { recurrence: { kind: 'daily' } }, { silentParent: true }, { silentParent: true, openParent: true }];
+    for (const over of cases) expect(openToSettle(task({ id: 'a', ...over }))).toBe(false);
   });
 });

@@ -68,7 +68,7 @@ import { isOursOpen, loadMyPairs, syncClock } from '@/lib/ours-api';
 import { rememberOursName } from '@/lib/ours-name';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { freshestStatus, runningVersion, shouldMention, type UpdateStatus, updateUrl } from '@/lib/updates';
-import { makeSharedRef, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
+import { closedByOwnSteps, makeSharedRef, openToSettle, parseSharedRef, removedOrigins, sharedRestNotes } from '@/lib/ours-bridge';
 import { changedSinceLooked, isSharedDoneOn, setSharedDone, type SharedTask } from '@/lib/ours-merge';
 import { isUnreadableRepeat, cadenceLine, sharedDueOn, syncPairOnce, willTrim } from '@/lib/ours-sync';
 import { type SupabaseClient } from '@supabase/supabase-js';
@@ -233,10 +233,10 @@ async function settleSharedCopies(
       // origin the cache already believes is finished. It used to count across every task including
       // ones already ticked, so `originDone=1 notes=0` read like a failed match when it was a copy
       // correctly skipped for being your own finish. Apples to apples now: any gap between this and
-      // `notes` is a real matching failure.
+      // `notes` is a real matching failure. Read through the rule's own `openToSettle`, so a copy
+      // waiting on its own steps (a silent parent, #22) is out of both rather than a false gap.
       originDone: mineNow.filter((task) => {
-        if (task.done || task.deletedAt) return false;
-        if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return false;
+        if (!openToSettle(task)) return false;
         const link = task.sharedRef ? parseSharedRef(task.sharedRef) : null;
         const origin = link ? shared.find((row) => row.id === link.sharedId) : null;
         return Boolean(origin && !origin.deletedAt && isSharedDoneOn(origin, date));
@@ -2697,6 +2697,9 @@ export default function TodayScreen() {
     const settled = settleCompletions(next, ids, today, now);
     for (let i = 0; i < settled.backs.length; i += 1) track('tiny.stepDone');
     for (const w of settled.wholes) track('parent.completed', { depth: w.depth });
+    // A copy you broke down is never ticked itself: its last step finishes it here, and that closes the shared row
+    // too, as a tick would (#22). The settle's carry stays the backstop for a close that does not land.
+    for (const ref of closedByOwnSteps(settled.wholes, today)) void mirrorTickToShared(ref, true);
     let bloom: BloomData | null = null;
     if (settled.whole) {
       const whole = settled.whole; // the topmost finished task of the last chain: the whole thing
