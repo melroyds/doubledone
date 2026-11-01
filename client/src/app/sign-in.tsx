@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { aiErrorLine } from '@/lib/connection';
 import { fmt, t } from '@/lib/locale';
+import { isRateLimit, leaveSignIn, verifyFailure, verifyFailureKey } from '@/lib/sign-in';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -14,13 +15,6 @@ import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 type Phase = 'email' | 'code' | 'done';
 
 const RESEND_COOLDOWN = 30; // seconds before the code can be re-sent, so taps don't trip the provider's rate limit
-
-// A send failure that is really "you just asked" (a 429, or a "wait N seconds" message), told apart so a user
-// whose correct address was fine is never told to doubt it.
-function isRateLimit(e: unknown): boolean {
-  const err = e as { status?: number; message?: string } | null;
-  return err?.status === 429 || /rate|too many|seconds|security purposes/i.test(err?.message ?? '');
-}
 
 // Optional cloud sync sign-in. Passwordless: we email a 6-digit code and verify
 // it. Calm and skippable, the app works fully without ever coming here. The live
@@ -31,7 +25,8 @@ export default function SignInScreen() {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   // Where the success line says it is taking you. Only the note uses it so far ("A month on us", 2026-10-25):
-  // router.back() already returns to whichever screen pushed this one, so the param changes the words only.
+  // router.back() already returns to whichever screen pushed this one, so the param changes the words, plus
+  // where leaving goes when there is nothing to go back to (a reload on this screen, see leaveSignIn).
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const toNote = returnTo === '/note';
   const [phase, setPhase] = useState<Phase>('email');
@@ -41,9 +36,9 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0); // seconds left before "Resend code" re-enables
 
-  function goBack() {
-    router.back();
-  }
+  // Stable (router is expo-router's static object), so the timed return below is not restarted by the
+  // resend cooldown re-rendering this screen every second.
+  const goBack = useCallback(() => leaveSignIn(router, toNote), [router, toNote]);
 
   // Tick the resend cooldown down to zero.
   useEffect(() => {
@@ -52,13 +47,13 @@ export default function SignInScreen() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  // After a successful sign-in, hold the "Signed in" beat briefly, then return to
-  // Today on its own. The button is there for anyone who would rather not wait.
+  // After a successful sign-in, hold the "Signed in" beat briefly, then leave on its
+  // own, the same way the button does. The button is there for anyone who would rather not wait.
   useEffect(() => {
     if (phase !== 'done') return;
-    const timer = setTimeout(() => router.back(), 1600);
+    const timer = setTimeout(goBack, 1600);
     return () => clearTimeout(timer);
-  }, [phase, router]);
+  }, [phase, goBack]);
 
   async function sendCode() {
     const addr = email.trim();
@@ -103,8 +98,10 @@ export default function SignInScreen() {
       if (err) throw err;
       track('auth.signed_in');
       setPhase('done');
-    } catch {
-      setError(t('signIn.codeInvalid'));
+    } catch (e) {
+      // Only the server refusing the code says the code did not work. A dropped connection says so, and a rate
+      // limit says to wait, so a good code is never doubted and swapped for a new one (see verifyFailure).
+      setError(t(verifyFailureKey(verifyFailure(e))));
     } finally {
       setBusy(false);
     }
