@@ -46,16 +46,20 @@ export function deleteSubStatement(endpoint: string): { sql: string; params: unk
   return { sql: 'DELETE FROM push_subs WHERE endpoint = ?', params: [endpoint] };
 }
 
-/** Store (or refresh) a subscription. Best effort; skips cleanly with no D1 binding. */
-export async function saveSub(env: PushEnv, sub: PushSub): Promise<void> {
-  if (!env.DB) return;
+/** Store (or refresh) a subscription, and say whether it was stored. /push/subscribe awaits this and answers 503
+ *  on false, so the browser keeps its offset unsent and tries again on its next open (#17: it used to answer ok
+ *  before the write ran, so a failed save was never retried). False with no D1 binding too: nothing was saved.
+ *  Never throws. */
+export async function saveSub(env: PushEnv, sub: PushSub): Promise<boolean> {
+  if (!env.DB) return false;
   try {
     const { sql, params } = upsertSubStatement(sub);
     await env.DB.prepare(sql)
       .bind(...params)
       .run();
+    return true;
   } catch {
-    // best effort
+    return false;
   }
 }
 
@@ -78,16 +82,38 @@ export function localHour(utcNowMs: number, tzOffsetMin: number): number {
   return new Date(utcNowMs - tzOffsetMin * 60_000).getUTCHours();
 }
 
-/** Whether a sub is due to be nudged at the cron's current UTC time (its local hour
- *  matches its preferred hour). The daily cron runs hourly and fires the due subs. */
+/** The local minute of the day (0-1439) for a sub at a given UTC instant, by the same offset rule as localHour. */
+export function localMinuteOfDay(utcNowMs: number, tzOffsetMin: number): number {
+  const local = new Date(utcNowMs - tzOffsetMin * 60_000);
+  return local.getUTCHours() * 60 + local.getUTCMinutes();
+}
+
+/** Minutes between cron ticks: wrangler.jsonc runs the cron every 15 minutes. Every time zone in use is a whole
+ *  number of quarter hours from UTC, so one tick lands exactly on each local hour. */
+export const NUDGE_TICK_MIN = 15;
+
+/** Whether a cron tick is the first of its UTC hour (the :00 tick). The hourly work rides only this one (the
+ *  control centre's sweep and heartbeat, and the purges), so moving the nudge to quarter hours changed nothing
+ *  else's cadence. Read as "the first quarter hour" rather than minute === 0, so a tick stamped a little off the
+ *  minute (a manual trigger) still counts once an hour. Pure. */
+export function isHourTick(tickMs: number): boolean {
+  return new Date(tickMs).getUTCMinutes() < NUDGE_TICK_MIN;
+}
+
+/** Whether a sub is due at a cron tick: its local time falls in the first quarter hour of its preferred hour. The
+ *  window is one tick wide, so exactly one tick a day matches, on the hour itself. Until 2026-11-01 the cron ran
+ *  hourly on UTC's hour and this compared hours only, so Adelaide, Darwin and India got the nudge 30 minutes late
+ *  and Nepal 45 (#18). Pure. */
 export function subDueAt(sub: { hour: number; tzOffset: number }, utcNowMs: number): boolean {
-  return localHour(utcNowMs, sub.tzOffset) === sub.hour;
+  const minute = localMinuteOfDay(utcNowMs, sub.tzOffset);
+  const start = sub.hour * 60;
+  return minute >= start && minute < start + NUDGE_TICK_MIN;
 }
 
 export type CronEnv = { DB?: D1LikeDatabase; VAPID_PRIVATE_KEY?: string; VAPID_SUBJECT?: string };
 
-/** The daily-nudge cron body: read every subscription, send a payloadless push to each
- *  whose local hour matches now, and prune subscriptions the push service reports gone
+/** The daily-nudge cron body, on every 15-minute tick: read every subscription, send a payloadless
+ *  push to each that is due now (subDueAt), and prune subscriptions the push service reports gone
  *  (404 / 410). Best effort; skips cleanly when D1 or the VAPID key is unconfigured. */
 export async function sendDailyNudges(env: CronEnv, nowMs: number): Promise<void> {
   if (!env.DB || !env.VAPID_PRIVATE_KEY) return;

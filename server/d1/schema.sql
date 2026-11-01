@@ -162,6 +162,19 @@ create table if not exists alerts_sent (
 );
 create index if not exists alerts_sent_kind on alerts_sent (kind, created_at);
 
+-- The MCP break_down cap (2026-11-01; server/src/mcp.ts overBreakdownCap): how many times this hour each
+-- account asked an agent to break a task down, so an agent loop cannot drain the Anthropic budget. One atomic
+-- upsert adds one and returns the count (it was a KV read and a write, which parallel calls got past). A user id,
+-- an hour and a count, nothing else: no task text, no IP. The cron's :00 tick deletes the hours already over, so
+-- a count lives about an hour. The Worker also creates it if missing (CREATE TABLE IF NOT EXISTS), so a deploy
+-- never depends on this file being applied first.
+create table if not exists breakdown_counts (
+  user_id text not null,                -- the verified Supabase auth uid (JWT sub)
+  hour integer not null,                -- hours since the epoch, UTC (the window)
+  n integer not null,                   -- calls counted in that hour, the refused ones included
+  primary key (user_id, hour)
+) without rowid;
+
 -- MCP OAuth grant custody: the bridge between a workers-oauth-provider grant and the
 -- user's own Supabase session. Holds the ROTATING Supabase refresh token AES-GCM-
 -- encrypted with the MCP_GRANT_KEY Worker secret (never plaintext, never in KV), plus a

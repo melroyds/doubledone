@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { asRecurrence, buildRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday, tickForDay, type RepeatSpec } from './cadence';
+import { asRecurrence, buildRecurrence, dayOfWeek, daysBetween, isDueOn, recurringDueToday, reopenForRepeat, tickForDay, type RepeatSpec } from './cadence';
 
 describe('date helpers (UTC calendar days)', () => {
   it('daysBetween counts whole days, signed, NaN on junk', () => {
@@ -129,6 +129,19 @@ describe('buildRecurrence (the MCP repeat -> internal Recurrence gate)', () => {
     expect(buildRecurrence({}, today)).toBeNull();
   });
 
+  // #29 (2026-11-01): the start used to be checked on its first ten characters only, so a datetime passed and
+  // the app, which splits a start on '-', read it as no date and never showed the repeat. A real day or nothing.
+  it('refuses a start that is a datetime, or not a real calendar day, for every kind', () => {
+    for (const start of ['2026-11-01T10:00:00Z', '2026-11-01T00:00', '2026-11-01 ', '2026-02-30', '2026-13-01', '2026-1-05']) {
+      expect(buildRecurrence({ kind: 'daily', start }, today), start).toBeNull();
+      expect(buildRecurrence({ kind: 'weekly', weekdays: [1], start }, today), start).toBeNull();
+      expect(buildRecurrence({ kind: 'every_n_days', days: 2, start }, today), start).toBeNull();
+      expect(buildRecurrence({ kind: 'monthly', start } as RepeatSpec, today), start).toBeNull();
+    }
+    // A plain real day still works, leap day included.
+    expect(buildRecurrence({ kind: 'daily', start: '2028-02-29' }, today)).toEqual({ kind: 'daily', start: '2028-02-29' });
+  });
+
   it('the built recurrence round-trips through asRecurrence + isDueOn (shape parity with the app)', () => {
     const r = buildRecurrence({ kind: 'weekly', weekdays: [6] }, today); // today is a Saturday
     expect(r).not.toBeNull();
@@ -191,5 +204,32 @@ describe('tickForDay (PR B: a repeat is ticked for a day, never closed)', () => 
   it('treats junk (null, non-array, non-string entries) as empty rather than throwing', () => {
     expect(tickForDay(null, '2026-09-25', true)).toEqual({ dates: ['2026-09-25'], already: false });
     expect(tickForDay([1, null, '2026-09-25'], '2026-09-25', true)).toEqual({ dates: ['2026-09-25'], already: true });
+  });
+});
+
+describe('reopenForRepeat (#23: a repeat set on a done task)', () => {
+  it('is null for a task that is not done: nothing to reopen', () => {
+    expect(reopenForRepeat({ done: false, completed_at: '2026-10-30T09:00:00+00:00' })).toBeNull();
+    expect(reopenForRepeat({})).toBeNull();
+    expect(reopenForRepeat({ done: 'true' })).toBeNull();
+  });
+
+  it("keeps the finish as a tick on completed_at's UTC day", () => {
+    expect(reopenForRepeat({ done: true, completed_at: '2026-10-30T21:15:00+00:00', completed_dates: null })).toEqual({
+      day: '2026-10-30',
+      dates: ['2026-10-30'],
+    });
+    // An offset timestamp is read as the instant it names, so the day is UTC's.
+    expect(reopenForRepeat({ done: true, completed_at: '2026-10-31T07:30:00+11:00' })?.day).toBe('2026-10-30');
+  });
+
+  it("adds to ticks the row already carries, once, never dropping one (the app's merge keeps them all anyway)", () => {
+    expect(reopenForRepeat({ done: true, completed_at: '2026-10-30T09:00:00Z', completed_dates: ['2026-10-01'] })?.dates).toEqual(['2026-10-01', '2026-10-30']);
+    expect(reopenForRepeat({ done: true, completed_at: '2026-10-30T09:00:00Z', completed_dates: ['2026-10-30'] })?.dates).toEqual(['2026-10-30']);
+  });
+
+  it("falls back to updated_at's day, as the app's Lookback does, and invents no tick when neither reads", () => {
+    expect(reopenForRepeat({ done: true, completed_at: null, updated_at: '2026-09-02T03:00:00+00:00' })).toEqual({ day: '2026-09-02', dates: ['2026-09-02'] });
+    expect(reopenForRepeat({ done: true, completed_at: 'garbled', updated_at: 'also garbled' })).toEqual({ day: null, dates: null });
   });
 });

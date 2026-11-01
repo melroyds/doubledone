@@ -11,9 +11,11 @@ import {
   parseCreate,
   parseStepsBody,
   parseUpdate,
+  searchRequest,
   searchTasks,
   toApiTask,
   updateRequest,
+  upcomingRequest,
   upcomingTasks,
   upcomingWindow,
 } from './api';
@@ -252,6 +254,11 @@ describe('upcomingWindow', () => {
     expect(upcomingWindow('0', '2026-07-07').count).toBe(1);
     expect(upcomingWindow('99', '2026-07-07').count).toBe(30);
     expect(upcomingWindow('3', '2026-07-07')).toEqual({ count: 3, endIso: '2026-07-10' });
+  });
+
+  // #29 (2026-11-01): Number('') is 0, so a bare ?upcoming looked one day ahead instead of the documented seven.
+  it('a blank value (a bare ?upcoming) is unparseable, so it takes the 7-day default', () => {
+    for (const blank of ['', ' ', '\t']) expect(upcomingWindow(blank, '2026-07-07')).toEqual({ count: 7, endIso: '2026-07-14' });
   });
 });
 
@@ -1400,5 +1407,124 @@ describe('the OpenAPI spec and the error messages say what the routes do (the dr
     const update = await handleApi(req('PATCH', '/api/v1/tasks/t1', { token, body: { repeat: { kind: 'weekly' } } }), env, trust);
     expect(update.status).toBe(400);
     expect(await errorOf(update)).toBe("couldn't read that repeat: use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31), or null to stop it");
+  });
+});
+
+// #23 and #29 (2026-11-01): a repeat set on a done task left done=true on the series, so ?upcoming, ?q and every MCP
+// read dropped it while the app showed it; and a bare ?upcoming looked one day ahead.
+describe('#23 and #29 over REST: a repeat on a done task, the reads, and a bare ?upcoming', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const NOW = '2026-11-01T03:00:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const token = fakeJwt('u1');
+  const patch = (body: unknown) => handleApi(req('PATCH', '/api/v1/tasks/t1', { token, body }), env, trust);
+  /** The guard filters of a recorded PATCH, without the select the REST write adds. */
+  const guardOf = (c: Call) => {
+    const q = paramsOf(c);
+    delete q.select;
+    return q;
+  };
+  /** A done one-off as getRequest's SELECT returns it. */
+  const doneOneOff = (extra: object = {}) => ({
+    id: 't1',
+    title: 'Water the plants',
+    done: true,
+    due: null,
+    recurrence: null,
+    completed_dates: null,
+    skipped_dates: null,
+    slices: null,
+    silent_parent: null,
+    parent_id: null,
+    created_at: '2026-10-01T00:00:00+00:00',
+    completed_at: '2026-10-30T21:15:00+00:00',
+    updated_at: '2026-10-30T21:15:00+00:00',
+    ...extra,
+  });
+
+  it('?upcoming and ?q keep a repeat whatever its done flag, and the one-off branch still needs an open task', () => {
+    const upcoming = new URL(upcomingRequest(env, 'tok', '2026-11-01', '2026-11-08').url).searchParams;
+    expect(upcoming.get('or')).toBe('(and(recurrence.is.null,done.is.false,due.gt.2026-11-01,due.lte.2026-11-08),recurrence.not.is.null)');
+    const search = new URL(searchRequest(env, 'tok').url).searchParams;
+    expect(search.get('or')).toBe('(done.is.false,recurrence.not.is.null)');
+    expect(search.has('done')).toBe(false);
+  });
+
+  it('searchTasks keeps a repeat left done and drops a done row that does not really repeat', () => {
+    const rows = [
+      { id: 'r', title: 'Meds', done: true, recurrence: { kind: 'daily' } },
+      { id: 'n', title: 'Meds box', done: true, recurrence: { kind: 'none' } },
+      { id: 'o', title: 'Meds order', done: false, recurrence: null },
+    ];
+    expect(searchTasks(rows, 'meds').map((t) => t.id)).toEqual(['r', 'o']);
+  });
+
+  it('a bare ?upcoming reads seven days ahead, not one', async () => {
+    freeze();
+    const calls = sequence([]);
+    const res = await handleApi(req('GET', '/api/v1/tasks?upcoming', { token }), env, trust);
+    expect(res.status).toBe(200);
+    expect(paramsOf(calls[0]).or).toContain('due.lte.2026-11-08');
+  });
+
+  it('PATCH repeat on a DONE task reopens it, keeps its finish as a tick, pinned to the row still done', async () => {
+    freeze();
+    const calls = sequence([doneOneOff()], [doneOneOff({ done: false, completed_at: null, recurrence: { kind: 'daily', start: '2026-11-01' }, completed_dates: ['2026-10-30'] })]);
+    const res = await patch({ repeat: { kind: 'daily' } });
+    expect(res.status).toBe(200);
+    const { task } = (await res.json()) as { task: { done: boolean; repeats: string | null; completedAt: string | null } };
+    expect(task).toMatchObject({ done: false, repeats: 'every day', completedAt: null });
+    expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['completed_at', 'updated_at']));
+    expect(bodyOf(calls[1])).toEqual({
+      updated_at: NOW,
+      done: false,
+      completed_at: null,
+      completed_dates: ['2026-10-30'],
+      due: null,
+      recurrence: { kind: 'daily', start: '2026-11-01' },
+    });
+    expect(guardOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.true' });
+  });
+
+  it('a task reopened elsewhere in between is a 409, never overwritten', async () => {
+    freeze();
+    sequence([doneOneOff()], []);
+    const res = await patch({ repeat: { kind: 'daily' } });
+    expect(res.status).toBe(409);
+  });
+
+  it('a done riding with the repeat ticks on top of the kept finish', async () => {
+    freeze();
+    const calls = sequence([doneOneOff()], [doneOneOff({ done: false })]);
+    expect((await patch({ repeat: { kind: 'daily' }, done: true, day: '2026-11-01' })).status).toBe(200);
+    expect(bodyOf(calls[1])).toMatchObject({ done: false, completed_at: null, completed_dates: ['2026-10-30', '2026-11-01'] });
+  });
+
+  it('parity: MCP update_task and REST PATCH write the same columns under the same guard', async () => {
+    freeze();
+    const mcpTool = (name: string, args: object) =>
+      handleMcp(
+        new Request('https://doubledone-ai.example/mcp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+        }),
+        env,
+        { kind: 'header' },
+        trust,
+      );
+    const viaMcp = sequence([doneOneOff()], [{ id: 't1' }]);
+    await mcpTool('update_task', { id: 't1', repeat: { kind: 'weekly', weekdays: [1, 4] } });
+    vi.unstubAllGlobals();
+    const viaRest = sequence([doneOneOff()], [doneOneOff()]);
+    await patch({ repeat: { kind: 'weekly', weekdays: [1, 4] } });
+    expect(bodyOf(viaRest[1])).toEqual(bodyOf(viaMcp[1]));
+    expect(guardOf(viaRest[1])).toEqual(guardOf(viaMcp[1]));
   });
 });

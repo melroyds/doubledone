@@ -15,7 +15,7 @@ import { type D1LikeDatabase, type Entitlement, type EntitlementView, readEntitl
 import { decodeJwtEmail } from './mcp';
 import { buildOwnerEmail } from './monitor';
 import { cancelPlayRenewals } from './play-cancel';
-import { giftState } from './gifts';
+import { forgetGifts, giftState } from './gifts';
 import { activeTrial, readActiveTrialEnd } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
@@ -489,7 +489,8 @@ async function readMaybePlay(request: Request): Promise<boolean> {
  * nothing. The Stripe customer and its invoices stay. Google Play renewals are turned off too, through
  * RevenueCat (play-cancel.ts), only for someone who ever bought on Play; access runs to the period end
  * and nothing is refunded. Apple billing is out of reach: the app tells an Apple subscriber to cancel
- * in their iPhone's Settings before they confirm.
+ * in their iPhone's Settings before they confirm. On the 200, and only then, the account's gift record
+ * ("A month on us") is deleted too, best effort (gifts.ts forgetGifts).
  */
 export async function handleCloseBilling(
   request: Request,
@@ -537,6 +538,11 @@ export async function handleCloseBilling(
   if (play === null) failed = true;
   else cancelled += play;
   if (failed) return new Response(JSON.stringify({ error: 'close_billing_failed' }), { status: 502, headers: { ...JSON_HEADERS, ...cors } });
+  // Billing is closed and the app deletes the account next, so the gift record goes now (#6): the privacy policy
+  // keeps only the billing record and the trial note. Only on this success, because a 502 deletes nothing and the
+  // 180-day spacing must stand. Best effort, so a D1 hiccup never blocks the deletion. If the deletion then fails,
+  // the account keeps going with its spacing reset, a cost accepted for keeping the promise.
+  if (env.DB) await forgetGifts(env.DB, sub);
   return new Response(JSON.stringify({ cancelled }), { headers: { ...JSON_HEADERS, ...cors } });
 }
 

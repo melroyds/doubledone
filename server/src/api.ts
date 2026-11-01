@@ -27,6 +27,8 @@ import {
   isDueOn,
   isValidIsoDay,
   type Recurrence,
+  reopenForRepeat,
+  REOPEN_GUARD,
   type RepeatSpec,
   tickForDay,
 } from './cadence';
@@ -86,9 +88,10 @@ type Row = Record<string, unknown>;
 // The Supabase columns the API selects (snake_case, from PostgREST). recurrence and slices feed
 // the output shape, and so do parent_id, parent_title and silent_parent (as parentId, parentTitle
 // and hidden); completed_dates / skipped_dates are read only to compute ?upcoming (a repeat
-// already done/skipped for a day shows the next one), and are never surfaced. left_off is never
-// selected at all.
-const SELECT = 'id,title,done,due,created_at,completed_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id,parent_title';
+// already done/skipped for a day shows the next one), and are never surfaced. updated_at is read
+// only to date the finish a repeat set on a done task keeps (cadence.ts reopenForRepeat), and is
+// never surfaced either. left_off is never selected at all.
+const SELECT = 'id,title,done,due,created_at,completed_at,updated_at,recurrence,completed_dates,skipped_dates,slices,silent_parent,parent_id,parent_title';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // The repeat kinds and the help line, written once for every message that names them. Each message used to list
@@ -195,28 +198,30 @@ export function listRequest(
 /** The candidate set for ?q substring search: open, non-deleted, non-silent-parent tasks. We
  *  match in the Worker (case-insensitive, over title), which is injection-safe and mirrors the
  *  MCP `search` tool exactly (searchTasksRequest in mcp.ts), rather than escaping user text into
- *  a PostgREST ilike. Order stable by created_at. */
+ *  a PostgREST ilike. Order stable by created_at. A repeat is open whatever its `done` says (the
+ *  app ignores the flag on a series, and an agent tick before 2026-09-25 set it), so it comes back
+ *  either way (#23); searchTasks then drops a done row that does not really repeat. */
 export function searchRequest(env: ApiEnv, token: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
     select: SELECT,
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
-    done: 'is.false',
+    or: '(done.is.false,recurrence.not.is.null)',
     order: 'created_at.asc',
   });
   return { url: `${tasksUrl(env)}?${q.toString()}`, init: { method: 'GET', headers: headers(env, token, false) } };
 }
 
 /** The rows ?upcoming reasons over: open, non-deleted, non-silent-parent, and either a future
- *  one-off due within the window (today, endIso] OR any open recurring task (its next occurrence
- *  is computed in the Worker). Same window shape and guards as the MCP list_upcoming tool
- *  (listUpcomingRequest in mcp.ts). */
+ *  one-off due within the window (today, endIso] OR any recurring task, done flag or not (its next
+ *  occurrence is computed in the Worker, and a series is never closed by `done`, #23). Same window
+ *  shape and guards as the MCP list_upcoming tool (listUpcomingRequest in mcp.ts). */
 export function upcomingRequest(env: ApiEnv, token: string, todayIso: string, endIso: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
     select: SELECT,
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
-    or: `(and(recurrence.is.null,done.is.false,due.gt.${todayIso},due.lte.${endIso}),and(recurrence.not.is.null,done.is.false))`,
+    or: `(and(recurrence.is.null,done.is.false,due.gt.${todayIso},due.lte.${endIso}),recurrence.not.is.null)`,
     order: 'due.asc',
   });
   return { url: `${tasksUrl(env)}?${q.toString()}`, init: { method: 'GET', headers: headers(env, token, false) } };
@@ -270,7 +275,8 @@ export function updateRequest(
   const body: Row = { updated_at: now };
   if (typeof patch.title === 'string') body.title = patch.title;
   // A repeat's tick: the handler resolves `done` into completed_dates for a recurring row (read-first,
-  // see the PATCH route), so `done` itself is only ever sent for a one-off.
+  // see the PATCH route), so `done` itself is only ever sent for a one-off, or as false when a new repeat
+  // reopens a done task (planPatch, #23).
   if (patch.completedDates !== undefined) body.completed_dates = patch.completedDates;
   if (typeof patch.done === 'boolean') {
     body.done = patch.done;
@@ -392,6 +398,9 @@ export function searchTasks(rows: unknown, query: string, cap = 50): ApiTask[] {
     if (out.length >= cap) break;
     if (r == null || typeof r !== 'object') continue;
     const row = r as Row;
+    // Open means not done, unless it repeats: the query lets every row with a recurrence column through, and
+    // only the shared classifier knows a real repeat from a { kind: 'none' } or a malformed one.
+    if (row.done === true && asRecurrence(row.recurrence) == null) continue;
     const title = typeof row.title === 'string' ? row.title : '';
     if (needle === '' || title.toLowerCase().includes(needle)) out.push(toApiTask(row));
   }
@@ -400,9 +409,11 @@ export function searchTasks(rows: unknown, query: string, cap = 50): ApiTask[] {
 
 /** The window bounds for ?upcoming: strictly AFTER today, up to and including today+days. Clamps
  *  `days` to 1..30 (default 7) so a bad or huge arg can't fan out unbounded. Mirrors MCP
- *  upcomingWindow exactly. `days` is the already-parsed query value (a string or null). */
+ *  upcomingWindow exactly. `days` is the already-parsed query value (a string or null). A blank
+ *  value (a bare `?upcoming`) is unparseable, so it takes the default: Number('') is 0, which used
+ *  to clamp to a one-day window (#29). */
 export function upcomingWindow(days: unknown, todayIso: string): { count: number; endIso: string } {
-  const parsed = typeof days === 'string' ? Number(days) : typeof days === 'number' ? days : NaN;
+  const parsed = typeof days === 'string' ? (days.trim() === '' ? NaN : Number(days)) : typeof days === 'number' ? days : NaN;
   const n = Number.isFinite(parsed) ? Math.floor(parsed) : 7;
   const count = Math.max(1, Math.min(30, n));
   return { count, endIso: addDaysIso(todayIso, count) };
@@ -624,6 +635,9 @@ export type PatchPlan = { patch: UpdatePatch; guard: Record<string, string> } | 
  *  409 is a clash with the task as it stands; a body that is wrong whatever the task looks like was already a 400
  *  in parseUpdate. The order mirrors MCP's (mcp.ts planDone / planParts):
  *  - A new repeat is refused on a task in parts, a task waiting on its steps (`silent_parent`), and a step.
+ *    On a task that is DONE it reopens the row as a series, its finish kept as a tick on the day it was
+ *    finished (cadence.ts reopenForRepeat), pinned to the row still being done (#23). A `done` riding with it
+ *    ticks on top of that.
  *  - `done` is refused on a task waiting on its steps. A REPEAT is ticked for one day. A task in parts: done:true
  *    FILLS every part, as Done in the app's Focus does, and done:false is refused, because parts only go forward
  *    (the sync merge keeps the highest count, so a lowered one springs back). A one-off closes with
@@ -652,11 +666,17 @@ export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIs
     if (parts) return { status: 409, error: 'a task tracked in parts cannot repeat: send partsTotal: null first' };
     if (hidden) return { status: 409, error: 'that task is waiting on its steps, so it cannot repeat' };
     if (isStep) return { status: 409, error: 'that task is a step toward a bigger task, so it cannot repeat' };
+    const reopen = reopenForRepeat(row);
+    if (reopen) {
+      patch.done = false; // updateRequest sends completed_at: null with it
+      if (reopen.dates) patch.completedDates = reopen.dates;
+      guard = { ...REOPEN_GUARD };
+    }
   }
 
   if (body.done !== undefined) {
     if (hidden) return { status: 409, error: 'that task is waiting on its steps: tick its steps instead' };
-    if (repeatsAfter) patch.completedDates = tickForDay(row.completed_dates, body.day ?? todayIso, body.done).dates;
+    if (repeatsAfter) patch.completedDates = tickForDay(patch.completedDates ?? row.completed_dates, body.day ?? todayIso, body.done).dates;
     else if (parts) {
       if (!body.done) return { status: 409, error: 'parts only go forward: every device keeps the highest count it has seen, so a lower one would spring straight back' };
       if (row.done !== true) applyParts(advanceParts(parts, parts.total));
@@ -1018,7 +1038,8 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       // READ-FIRST whenever the answer depends on the task as it stands: a done-write (a repeating task is
       // ticked for today in completed_dates, the same field the app writes, and its series stays open; setting
       // done=true on a series row made the repeat vanish from every agent read, audit PR B), any parts change,
-      // and a new repeat (refused on a shape that cannot repeat). Then ONE guarded PATCH, or none.
+      // and a new repeat (refused on a shape that cannot repeat, and reopening a done task, #23). Then ONE
+      // guarded PATCH, or none.
       let guard: Record<string, string> = {};
       let srow: Row | null = null;
       if (b.done !== undefined || b.partsTotal !== undefined || b.partsDone !== undefined || b.repeat != null) {

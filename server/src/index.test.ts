@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import worker, { type Env } from './index';
+import type { D1LikeDatabase } from './telemetry';
 
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
 
@@ -362,6 +363,119 @@ describe('scrapbook purge (R2 delete on account deletion)', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, deleted: 0, refused: 0 });
+  });
+});
+
+/** A D1 double that records every statement it is asked to prepare, answers `all` with `rows`, and can fail its writes. */
+function recordingDb(opts: { rows?: unknown[]; failWrites?: boolean } = {}): D1LikeDatabase & { sql: string[] } {
+  const sql: string[] = [];
+  return {
+    sql,
+    prepare(q: string) {
+      sql.push(q);
+      const stmt = {
+        bind: () => stmt,
+        run: async () => {
+          if (opts.failWrites) throw new Error('d1 down');
+          return {};
+        },
+        first: async () => null,
+        all: async () => ({ results: (q.includes('FROM push_subs') ? (opts.rows ?? []) : []) as never[] }),
+      };
+      return stmt;
+    },
+  };
+}
+
+// #17 (2026-11-01): the route answered ok before the write ran (ctx.waitUntil), so a failed save looked like a
+// success and the browser never sent it again. Now ok means stored.
+describe('web push subscribe: ok means stored (#17)', () => {
+  const body = { subscription: { endpoint: 'https://push.example/abc', keys: { p256dh: 'KEY', auth: 'AUTH' } }, hour: 8, tzOffset: -630 };
+
+  it('answers ok once the subscription is stored', async () => {
+    const DB = recordingDb();
+    const res = await worker.fetch(req('POST', '/push/subscribe', { origin: 'https://doubledone.app', body }), makeEnv({ DB }), ctx);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(DB.sql.some((q) => q.startsWith('INSERT INTO push_subs'))).toBe(true);
+  });
+
+  it('answers 503 with CORS when the save fails, so the browser tries again on its next open', async () => {
+    const res = await worker.fetch(req('POST', '/push/subscribe', { origin: 'https://doubledone.app', body }), makeEnv({ DB: recordingDb({ failWrites: true }) }), ctx);
+    expect(res.status).toBe(503);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+  });
+
+  it('answers 503 when no store is bound: nothing was saved', async () => {
+    const res = await worker.fetch(req('POST', '/push/subscribe', { origin: 'https://doubledone.app', body }), makeEnv(), ctx);
+    expect(res.status).toBe(503);
+  });
+});
+
+// #18 (2026-11-01): the cron runs every 15 minutes so a half-hour zone gets its nudge on the hour, and everything
+// else that rode the hourly tick still runs once an hour, on the :00 tick.
+describe('the cron: nudges every quarter hour, the hourly work on the :00 tick only (#18)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const tick = (iso: string) => ({ scheduledTime: Date.parse(iso), cron: '*/15 * * * *', noRetry() {} }) as unknown as ScheduledController;
+  function collecting(): { ctx: ExecutionContext; settle: () => Promise<unknown> } {
+    const pending: Promise<unknown>[] = [];
+    return {
+      ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext,
+      settle: () => Promise.all(pending),
+    };
+  }
+  async function vapidKey(): Promise<string> {
+    const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])) as CryptoKeyPair;
+    return JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
+  }
+  const SUBS = [
+    { endpoint: 'https://push.example/adelaide', hour: 8, tz_offset: -630 },
+    { endpoint: 'https://push.example/nepal', hour: 8, tz_offset: -345 },
+    { endpoint: 'https://push.example/newfoundland', hour: 8, tz_offset: 210 },
+    { endpoint: 'https://push.example/melbourne', hour: 9, tz_offset: -660 },
+  ];
+
+  /** Run one tick and report which endpoints were pushed, whether the heartbeat was pinged, and what D1 was asked. */
+  async function run(iso: string) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        calls.push(String(input));
+        return new Response(null, { status: 201 });
+      }),
+    );
+    const DB = recordingDb({ rows: SUBS });
+    const { ctx: c, settle } = collecting();
+    await worker.scheduled(tick(iso), makeEnv({ DB, VAPID_PRIVATE_KEY: await vapidKey(), HEARTBEAT_URL: 'https://hc.example/ping' }), c);
+    await settle();
+    return { pushed: calls.filter((u) => u.startsWith('https://push.example/')), heartbeat: calls.includes('https://hc.example/ping'), sql: DB.sql };
+  }
+
+  it('each half-hour and 45-minute zone is nudged on its own quarter hour, on the hour locally', async () => {
+    expect((await run('2026-11-01T21:30:00Z')).pushed).toEqual(['https://push.example/adelaide']); // 08:00 ACDT
+    expect((await run('2026-11-01T02:15:00Z')).pushed).toEqual(['https://push.example/nepal']); // 08:00 NPT
+    expect((await run('2026-11-01T11:30:00Z')).pushed).toEqual(['https://push.example/newfoundland']); // 08:00 at UTC-3:30
+    expect((await run('2026-11-01T22:00:00Z')).pushed).toEqual(['https://push.example/melbourne']); // 09:00 AEDT
+  });
+
+  it('a :15, :30 or :45 tick sends the nudges and nothing hourly: no heartbeat, no sweep, no purge', async () => {
+    for (const iso of ['2026-11-01T21:15:00Z', '2026-11-01T21:30:00Z', '2026-11-01T21:45:00Z']) {
+      const r = await run(iso);
+      expect(r.sql.some((q) => q.includes('FROM push_subs')), iso).toBe(true);
+      expect(r.heartbeat, iso).toBe(false);
+      expect(r.sql.some((q) => q.includes('scrapbook_log') || q.includes('breakdown_counts')), iso).toBe(false);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('the :00 tick also pings the heartbeat and runs both purges, once an hour as before', async () => {
+    const r = await run('2026-11-01T21:00:00Z');
+    expect(r.sql.some((q) => q.includes('FROM push_subs'))).toBe(true);
+    expect(r.heartbeat).toBe(true);
+    expect(r.sql.some((q) => q.startsWith('DELETE FROM scrapbook_log'))).toBe(true);
+    expect(r.sql.some((q) => q.startsWith('DELETE FROM breakdown_counts'))).toBe(true);
   });
 });
 

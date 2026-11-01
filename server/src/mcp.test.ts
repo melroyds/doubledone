@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bodyOf, type Call, failWith, GARBLED, paramsOf, REJECTS, sequence } from './fetch-sequence.test-helper';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 import {
   addDaysIso,
   addTaskRequest,
   BREAKDOWN_HOURLY_CAP,
-  breakdownRateKey,
+  breakdownHour,
   decodeJwtEmail,
   decodeJwtSub,
   deleteTaskRequest,
@@ -20,7 +21,9 @@ import {
   listUpcomingFromRows,
   listUpcomingRequest,
   type McpEnv,
+  overBreakdownCap,
   patchRowRequest,
+  purgeBreakdownCounts,
   searchResultsFrom,
   searchTasksRequest,
   TOKEN_EXPIRED,
@@ -99,9 +102,9 @@ describe('supabase request builders', () => {
     // the cadence fields come back so listTodayFromRows can decide
     expect(dec).toContain('completed_dates');
     expect(dec).toContain('skipped_dates');
-    // one-off branch (open, undated or due<=today) OR any open recurring
-    expect(dec).toContain('and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.2026-06-20))');
-    expect(dec).toContain('and(recurrence.not.is.null,done.is.false)');
+    // one-off branch (open, undated or due<=today) OR any recurring task, whatever its done flag says (#23):
+    // the app ignores `done` on a series, so a repeat left done was on the person's Today and missing here.
+    expect(new URL(url).searchParams.get('or')).toBe('(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.2026-06-20)),recurrence.not.is.null)');
   });
 
   it('listTodayFromRows keeps open one-offs, and recurring only when due-and-not-done-today', () => {
@@ -306,13 +309,12 @@ describe('list_upcoming windowing + mapping', () => {
     expect(addDaysIso('2026-12-31', 1)).toBe('2027-01-01');
   });
 
-  it('listUpcomingRequest scopes to future one-offs in-window OR any open recurring', () => {
+  it('listUpcomingRequest scopes to future open one-offs in-window OR any recurring task, done flag or not', () => {
     const { url } = listUpcomingRequest(env, 'tok', '2026-06-20', '2026-06-27');
     const dec = decodeURIComponent(url);
     expect(dec).toContain('deleted_at=is.null');
     expect(dec).toContain('silent_parent=not.is.true');
-    expect(dec).toContain('and(recurrence.is.null,done.is.false,due.gt.2026-06-20,due.lte.2026-06-27)');
-    expect(dec).toContain('and(recurrence.not.is.null,done.is.false)');
+    expect(new URL(url).searchParams.get('or')).toBe('(and(recurrence.is.null,done.is.false,due.gt.2026-06-20,due.lte.2026-06-27),recurrence.not.is.null)');
   });
 
   it('maps future one-offs by their due day and each recurring task to its NEXT occurrence, in date order', () => {
@@ -352,11 +354,24 @@ describe('list_upcoming windowing + mapping', () => {
 });
 
 describe('OpenAI deep-research shapes (search / fetch)', () => {
-  it('searchTasksRequest fetches open, non-deleted, non-silent-parent tasks', () => {
-    const dec = decodeURIComponent(searchTasksRequest(env, 'tok').url);
-    expect(dec).toContain('deleted_at=is.null');
-    expect(dec).toContain('silent_parent=not.is.true');
-    expect(dec).toContain('done=is.false');
+  it('searchTasksRequest fetches open, non-deleted, non-silent-parent tasks, a repeat open whatever its done flag', () => {
+    const { url } = searchTasksRequest(env, 'tok');
+    const q = new URL(url).searchParams;
+    expect(q.get('deleted_at')).toBe('is.null');
+    expect(q.get('silent_parent')).toBe('not.is.true');
+    expect(q.get('or')).toBe('(done.is.false,recurrence.not.is.null)');
+    expect(q.has('done')).toBe(false);
+    expect(q.get('select')?.split(',')).toEqual(expect.arrayContaining(['done', 'recurrence']));
+  });
+
+  it('searchResultsFrom keeps a repeat left done and drops a done row that does not really repeat', () => {
+    const rows = [
+      { id: 'r', title: 'Meds', done: true, recurrence: { kind: 'daily' } }, // an agent tick before 2026-09-25 set done
+      { id: 'n', title: 'Meds box', done: true, recurrence: { kind: 'none' } }, // a one-off, done
+      { id: 'j', title: 'Meds junk', done: true, recurrence: { kind: 'weird' } }, // malformed: not a repeat
+      { id: 'o', title: 'Meds order', done: false, recurrence: null },
+    ];
+    expect(searchResultsFrom(rows, 'meds').map((r) => r.id)).toEqual(['r', 'o']);
   });
 
   it('searchResultsFrom returns the { id, title, url } shape, case-insensitively, capped', () => {
@@ -446,14 +461,63 @@ describe('break_down formatting + rate key', () => {
     expect(out).toContain("Nothing's been added yet");
   });
 
-  it('breakdownRateKey buckets per user per UTC hour', () => {
+  it('breakdownHour buckets by UTC hour', () => {
     const t0 = Date.UTC(2026, 5, 20, 9, 0, 0); // 09:00
-    const t1 = Date.UTC(2026, 5, 20, 9, 59, 0); // same hour
+    const t1 = Date.UTC(2026, 5, 20, 9, 59, 59); // same hour
     const t2 = Date.UTC(2026, 5, 20, 10, 0, 0); // next hour
-    expect(breakdownRateKey('u1', t0)).toBe(breakdownRateKey('u1', t1)); // same bucket
-    expect(breakdownRateKey('u1', t0)).not.toBe(breakdownRateKey('u1', t2)); // rolls at the hour
-    expect(breakdownRateKey('u1', t0)).not.toBe(breakdownRateKey('u2', t0)); // per user
-    expect(breakdownRateKey('u1', t0)).toContain('mcp:bd:');
+    expect(breakdownHour(t0)).toBe(breakdownHour(t1));
+    expect(breakdownHour(t2)).toBe(breakdownHour(t0) + 1);
+  });
+});
+
+// #7 (2026-11-01): the cap was a KV read and then a write, so calls made in parallel all read the same count and all
+// got past it. Now one D1 upsert adds one and returns the count. These run on a real SQLite with the real schema.
+describe('the break_down cap: one atomic count in D1 (#7)', () => {
+  const NOW = Date.UTC(2026, 10, 1, 9, 30);
+  const countOf = async (db: Awaited<ReturnType<typeof sqliteD1>>, sub: string, nowMs = NOW) =>
+    (await db.prepare('SELECT n FROM breakdown_counts WHERE user_id = ?1 AND hour = ?2').bind(sub, breakdownHour(nowMs)).first<{ n: number }>())?.n ?? 0;
+
+  it('allows 20 an hour and refuses the 21st, per user, and starts again next hour', async () => {
+    const DB = await sqliteD1();
+    const e = { ...env, DB };
+    for (let i = 0; i < BREAKDOWN_HOURLY_CAP; i += 1) expect(await overBreakdownCap(e, 'u1', NOW)).toBe(false);
+    expect(await overBreakdownCap(e, 'u1', NOW)).toBe(true);
+    expect(await overBreakdownCap(e, 'u2', NOW)).toBe(false); // another person has their own count
+    expect(await overBreakdownCap(e, 'u1', NOW + 3_600_000)).toBe(false); // a new hour
+  });
+
+  it('parallel calls cannot get past it: 25 at once, exactly 20 through', async () => {
+    const DB = await sqliteD1();
+    const answers = await Promise.all(Array.from({ length: 25 }, () => overBreakdownCap({ ...env, DB }, 'u1', NOW)));
+    expect(answers.filter((over) => !over)).toHaveLength(BREAKDOWN_HOURLY_CAP);
+    expect(await countOf(DB, 'u1')).toBe(25);
+  });
+
+  it('creates its table when it is missing, so a deploy never waits on a schema apply', async () => {
+    const DB = await sqliteD1();
+    DB.raw.exec('DROP TABLE breakdown_counts');
+    expect(await overBreakdownCap({ ...env, DB }, 'u1', NOW)).toBe(false);
+    expect(await countOf(DB, 'u1')).toBe(1);
+  });
+
+  it('fails CLOSED when the store throws, or when no count comes back; unbound D1 (local dev) allows', async () => {
+    const failing = { prepare: () => ({ bind() { return this; }, run: async () => { throw new Error('d1 down'); }, first: async () => null, all: async () => { throw new Error('d1 down'); } }) };
+    expect(await overBreakdownCap({ ...env, DB: failing as never }, 'u1', NOW)).toBe(true);
+    const silent = { prepare: () => ({ bind() { return this; }, run: async () => ({}), first: async () => null, all: async () => ({ results: [] }) }) };
+    expect(await overBreakdownCap({ ...env, DB: silent as never }, 'u1', NOW)).toBe(true);
+    expect(await overBreakdownCap(env, 'u1', NOW)).toBe(false);
+  });
+
+  it('purgeBreakdownCounts deletes the hours already over and keeps this one, and never throws', async () => {
+    const DB = await sqliteD1();
+    await overBreakdownCap({ ...env, DB }, 'u1', NOW - 3_600_000); // last hour
+    await overBreakdownCap({ ...env, DB }, 'u1', NOW); // this hour
+    await purgeBreakdownCounts(DB, NOW);
+    expect(await countOf(DB, 'u1', NOW - 3_600_000)).toBe(0);
+    expect(await countOf(DB, 'u1')).toBe(1);
+    DB.raw.exec('DROP TABLE breakdown_counts');
+    await expect(purgeBreakdownCounts(DB, NOW)).resolves.toBeUndefined(); // no table yet: nothing to do, no throw
+    await expect(purgeBreakdownCounts(undefined, NOW)).resolves.toBeUndefined();
   });
 });
 
@@ -597,31 +661,34 @@ describe('tool dispatch through handleMcp (fetch mocked)', () => {
     expect(text).toContain("Nothing's been added yet");
   });
 
-  it('break_down enforces the per-user hourly cap via OAUTH_KV BEFORE any spend', async () => {
-    const spy = vi.fn();
-    vi.stubGlobal('fetch', spy);
-    // KV already at the cap for this user's current bucket.
-    const kv = {
-      get: vi.fn(async () => String(BREAKDOWN_HOURLY_CAP)),
-      put: vi.fn(async () => undefined),
-    };
-    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
-    expect(r.result.content[0].text).toMatch(/pause breaking things down/i);
-    expect(spy).not.toHaveBeenCalled(); // no Anthropic call = no spend
-    expect(kv.put).not.toHaveBeenCalled(); // and we didn't even bump the counter
+  it('break_down enforces the per-user hourly cap in D1 BEFORE any spend', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-01T09:30:00.000Z'));
+    try {
+      const spy = vi.fn();
+      vi.stubGlobal('fetch', spy);
+      // This user's count for the hour is already at the cap.
+      const DB = await sqliteD1();
+      await DB.prepare('INSERT INTO breakdown_counts (user_id, hour, n) VALUES (?1, ?2, ?3)').bind('user-9', breakdownHour(Date.now()), BREAKDOWN_HOURLY_CAP).run();
+      const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', DB });
+      expect(r.result.content[0].text).toMatch(/pause breaking things down/i);
+      expect(spy).not.toHaveBeenCalled(); // no Anthropic call = no spend
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('break_down under the cap bumps the KV counter and calls Anthropic', async () => {
+  it('break_down under the cap counts the call in D1 and calls Anthropic', async () => {
     const anthropic = {
       content: [{ type: 'tool_use', name: 'record_steps', input: { steps: [{ title: 'Step one', minutes: 3 }] } }],
       usage: { input_tokens: 5, output_tokens: 5 },
     };
     const fetchSpy = vi.fn(async () => jsonRes(anthropic));
     vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch);
-    const kv = { get: vi.fn(async () => '3'), put: vi.fn(async () => undefined) };
-    const r = await callTool('break_down', { task: 'Tidy desk' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
+    const DB = await sqliteD1();
+    const r = await callTool('break_down', { task: 'Tidy desk' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', DB });
     expect(r.result.content[0].text).toContain('• Step one (3 min)');
-    expect(kv.put).toHaveBeenCalledTimes(1);
+    expect(await DB.prepare('SELECT SUM(n) AS n FROM breakdown_counts WHERE user_id = ?1').bind('user-9').first<{ n: number }>()).toEqual({ n: 1 });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -689,16 +756,17 @@ describe('PR A: the bearer is verified before any tool runs', () => {
 
   it('the hourly cap refusal is an error, so an agent loop stops instead of reading it as success', async () => {
     vi.stubGlobal('fetch', vi.fn());
-    const kv = { get: vi.fn(async () => String(BREAKDOWN_HOURLY_CAP)), put: vi.fn(async () => undefined) };
-    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
+    // The count comes back one over the cap.
+    const DB = { prepare: () => ({ bind() { return this; }, run: async () => ({}), first: async () => null, all: async () => ({ results: [{ n: BREAKDOWN_HOURLY_CAP + 1 }] }) }) };
+    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', DB: DB as never });
     expect(r.result.isError).toBe(true);
   });
 
   it('break_down fails CLOSED when the cap store throws: no spend without a working cap', async () => {
     const spy = vi.fn();
     vi.stubGlobal('fetch', spy);
-    const kv = { get: vi.fn(async () => { throw new Error('kv down'); }), put: vi.fn(async () => undefined) };
-    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', OAUTH_KV: kv });
+    const DB = { prepare: () => ({ bind() { return this; }, run: async () => { throw new Error('d1 down'); }, first: async () => null, all: async () => { throw new Error('d1 down'); } }) };
+    const r = await callTool('break_down', { task: 'x' }, USER_JWT, { ...env, ANTHROPIC_API_KEY: 'sk-test', DB: DB as never });
     expect(r.result.isError).toBe(true);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -845,6 +913,92 @@ describe('PR B review: the ticked day is named, and an agent can choose it', () 
     const r = await callTool('complete_task', { id: 't1' });
     expect(r.result.content[0].text).toBe('Marked it done. Nice.');
     expect(JSON.parse(calls[1].init.body as string).done).toBe(true);
+  });
+});
+
+// #23 (2026-11-01): a repeat set on a DONE task left done=true on the series row, so it vanished from every agent read
+// and the Calendar while the app showed it on Today. Now the write reopens it and keeps its finish as a tick.
+describe('#23: a repeat set on a done task reopens it, and reads list a repeat whatever its done flag', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const NOW = '2026-11-01T03:00:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const text = (r: Awaited<ReturnType<typeof callTool>>) => r.result.content[0].text;
+  /** A done one-off as the read-first select returns it. */
+  const doneOneOff = (extra: object = {}) => ({
+    id: 't1',
+    title: 'Water the plants',
+    done: true,
+    completed_at: '2026-10-30T21:15:00+00:00',
+    updated_at: '2026-10-30T21:15:00+00:00',
+    recurrence: null,
+    completed_dates: null,
+    slices: null,
+    silent_parent: null,
+    parent_id: null,
+    ...extra,
+  });
+
+  it('reads first, then ONE PATCH: the repeat, done:false, completed_at:null, the finish as a tick, pinned to done', async () => {
+    freeze();
+    const calls = sequence([doneOneOff()], [{ id: 't1' }]);
+    const r = await callTool('update_task', { id: 't1', repeat: { kind: 'daily' } });
+    expect(r.result.isError).toBeUndefined();
+    expect(text(r)).toBe('Updated. It was done, so it repeats now, with 2026-10-30 ticked as the day it was finished.');
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'PATCH']);
+    expect(paramsOf(calls[0]).select.split(',')).toEqual(expect.arrayContaining(['done', 'completed_at', 'updated_at', 'completed_dates']));
+    expect(bodyOf(calls[1])).toEqual({
+      recurrence: { kind: 'daily', start: '2026-11-01' },
+      due: null,
+      done: false,
+      completed_at: null,
+      completed_dates: ['2026-10-30'],
+      updated_at: NOW,
+    });
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null', done: 'is.true' });
+  });
+
+  it('a task reopened on a phone in between is not overwritten: the guard misses, and it says it changed', async () => {
+    freeze();
+    const calls = sequence([doneOneOff()], []);
+    const r = await callTool('update_task', { id: 't1', repeat: { kind: 'weekly', weekdays: [1] } });
+    expect(r.result.isError).toBe(true);
+    expect(text(r)).toBe('It changed just now. Try again.');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a done riding with the repeat ticks on top of the kept finish, in the same write', async () => {
+    freeze();
+    const calls = sequence([doneOneOff()], [{ id: 't1' }]);
+    const r = await callTool('update_task', { id: 't1', repeat: { kind: 'daily' }, done: true, day: '2026-11-01' });
+    expect(text(r)).toBe('Ticked for 2026-11-01. It repeats, so it will be back on its next day.');
+    expect(bodyOf(calls[1])).toMatchObject({ done: false, completed_at: null, completed_dates: ['2026-10-30', '2026-11-01'] });
+    expect(paramsOf(calls[1]).done).toBe('is.true');
+  });
+
+  it("a finish with no completed_at keeps updated_at's day, as the app's Lookback does", async () => {
+    freeze();
+    const calls = sequence([doneOneOff({ completed_at: null, updated_at: '2026-09-02T08:00:00+00:00' })], [{ id: 't1' }]);
+    await callTool('update_task', { id: 't1', repeat: { kind: 'daily' } });
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-09-02']);
+  });
+
+  it('a repeat set on an OPEN task is unchanged: no done columns, no guard', async () => {
+    freeze();
+    const calls = sequence([doneOneOff({ done: false, completed_at: null })], [{ id: 't1' }]);
+    expect(text(await callTool('update_task', { id: 't1', repeat: { kind: 'daily' } }))).toBe('Updated.');
+    expect(bodyOf(calls[1])).toEqual({ recurrence: { kind: 'daily', start: '2026-11-01' }, due: null, updated_at: NOW });
+    expect(paramsOf(calls[1])).toEqual({ id: 'eq.t1', deleted_at: 'is.null' });
+  });
+
+  it('list_today lists a repeat left done (an agent tick before 2026-09-25 set it), as the app shows it', async () => {
+    sequence([{ id: 'r1', title: 'Meds', done: true, recurrence: { kind: 'daily' }, completed_dates: [], skipped_dates: [] }]);
+    expect(text(await callTool('list_today', {}))).toBe('• Meds  (repeats)  [r1]');
   });
 });
 
@@ -1761,7 +1915,21 @@ describe('linked steps: add_steps writes a breakdown, and the last step closes t
     const spy = vi.fn(async () => ({ ok: true, json: async () => anthropic }) as unknown as Response);
     vi.stubGlobal('fetch', spy as unknown as typeof fetch);
     const bound: unknown[][] = [];
-    const DB = { prepare: () => ({ bind: (...p: unknown[]) => ({ run: async () => bound.push(p) }) }) };
+    // The cap's count lives in the same D1 (#7), so the double answers it too: the first call this hour.
+    const DB = {
+      prepare: (sql: string) => {
+        const stmt = {
+          bind: (...p: unknown[]) => {
+            if (sql.startsWith('INSERT INTO ai_calls')) bound.push(p);
+            return stmt;
+          },
+          run: async () => ({}),
+          first: async () => null,
+          all: async () => ({ results: sql.startsWith('INSERT INTO breakdown_counts') ? [{ n: 1 }] : [] }),
+        };
+        return stmt;
+      },
+    };
     const e = { ...env, ANTHROPIC_API_KEY: 'sk-test', DB } as unknown as McpEnv;
     const r = await callTool('break_down', { task: 'Clean the garage' }, USER_JWT, e);
     expect(spy).toHaveBeenCalledTimes(1);

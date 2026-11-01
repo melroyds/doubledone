@@ -121,9 +121,11 @@ export type RepeatSpec = {
   day?: unknown; // 'monthly': the day of the month, 1-31
 };
 
-/** ISO 'YYYY-MM-DD' shape check (a real calendar day, parseable by isoToUtcMs). */
+/** A real calendar day 'YYYY-MM-DD' and nothing more (isValidIsoDay). The old check only read the first ten
+ *  characters, so a datetime start ('2026-11-01T10:00:00Z') or an impossible day passed, and the app, which
+ *  parses a start by splitting it on '-', read it as no date at all and never showed the repeat (#29). */
 function isIsoDay(v: unknown): v is string {
-  return typeof v === 'string' && !Number.isNaN(daysBetween(v, v));
+  return typeof v === 'string' && isValidIsoDay(v);
 }
 
 /** Map an agent's `repeat` object to an internal Recurrence, relative to `todayIso`, or null
@@ -188,3 +190,38 @@ export function isValidIsoDay(s: string): boolean {
   const dt = new Date(Date.UTC(y, mo - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
+
+/** The UTC calendar day of a timestamp column (PostgREST sends timestamptz as an ISO string), or null when it is
+ *  missing or does not parse. */
+function utcDayOf(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const ms = Date.parse(v);
+  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : null;
+}
+
+/**
+ * What setting a repeat does to a task that is DONE (#23, 2026-11-01). The series row has to be open
+ * (done=false, completed_at=null): left done, it vanished from every agent read and from the Calendar,
+ * which skip a done row, while the app still showed it on Today, because the app ignores `done` on a repeat.
+ * Its finish is kept as a tick on the day it was finished, because a repeat's finishes live only in
+ * completed_dates, and without it the finish would drop out of the Lookback.
+ *
+ * The day is completed_at's, else updated_at's (the app's own fallback for a row finished before completedAt
+ * existed), as a UTC day, the basis both surfaces use. When neither reads, no tick is invented: `dates` is null
+ * and completed_dates is left alone. Returns null for a task that is not done, so there is nothing to reopen.
+ * Pure and shared, so REST and MCP write the same columns.
+ */
+export function reopenForRepeat(row: {
+  done?: unknown;
+  completed_at?: unknown;
+  updated_at?: unknown;
+  completed_dates?: unknown;
+}): { day: string | null; dates: string[] | null } | null {
+  if (row.done !== true) return null;
+  const day = utcDayOf(row.completed_at) ?? utcDayOf(row.updated_at);
+  return { day, dates: day ? tickForDay(row.completed_dates, day, true).dates : null };
+}
+
+/** The guard on a write that reopens a done task for its new repeat: it was read done, and the ticks it carries
+ *  are that finish, so a reopen on a phone in between must not be overwritten with a tick the person undid. */
+export const REOPEN_GUARD: Record<string, string> = { done: 'is.true' };

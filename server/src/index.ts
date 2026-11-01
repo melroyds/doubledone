@@ -13,12 +13,12 @@ import { buildFeedbackEmail, parseFeedback } from './feedback';
 import { handleGiftEligibility, JUDGE_MODEL, maybeGiveForNote } from './feedback-month';
 import { parseLanguage } from './lang';
 import { buildLookbackSummaryRequest, LOOKBACK_SUMMARY_MODEL, parseLookbackSummaryResponse } from './lookbackSummary';
-import { handleMcp } from './mcp';
+import { handleMcp, purgeBreakdownCounts } from './mcp';
 import { handleMcpDisconnect, isJwtShaped, isOAuthPath, type KVNamespaceLike, oauthFetch } from './oauth';
 import { buildOcrRequest, type ImageMediaType, OCR_MODEL, parseMediaType, parseOcrResponse } from './ocr';
 import { buildPlanRequest, parsePlanResponse, PLAN_MODEL } from './plan';
 import { handleTrial, requirePremium } from './premium';
-import { deleteSub, parsePushSub, saveSub, sendDailyNudges } from './push';
+import { deleteSub, isHourTick, parsePushSub, saveSub, sendDailyNudges } from './push';
 import { runMonitor } from './monitor';
 import { buildSceneRequest, dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, parseSceneResponse, SCENE_CLAUDE_MODEL, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildEnergyRequest, ENERGY_MODEL, parseEnergyLevel, parseEnergyResponse, parseEnergyTasks } from './energy';
@@ -304,7 +304,10 @@ const router = {
       if (!sub) {
         return Response.json({ error: 'invalid subscription' }, { status: 400, headers: cors });
       }
-      ctx.waitUntil(saveSub(env, sub));
+      // Awaited, so ok means stored (#17). A 503 leaves the browser's offset unsent, and it tries again on its next open.
+      if (!(await saveSub(env, sub))) {
+        return Response.json({ error: 'could not save just now' }, { status: 503, headers: cors });
+      }
       return Response.json({ ok: true }, { headers: cors });
     }
     if (pathname === '/push/unsubscribe' && request.method === 'POST') {
@@ -1281,21 +1284,26 @@ export default {
     ctx.waitUntil(handleReviewEmail(message, env.DB, new Date().toISOString()));
   },
 
-  // Daily web-push nudge (Phase 2). A Cloudflare Cron Trigger fires hourly; this sends a
-  // payloadless push to each subscription whose local hour matches now. See push.ts.
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(sendDailyNudges(env, Date.now()));
-    // The control centre rides the same hourly tick: ping the dead-man's-switch, sweep
-    // D1 for trouble (spend / errors / abuse), and once a day send the pulse. Isolated
-    // from the nudge above so a failure in one never blocks the other. See monitor.ts.
-    ctx.waitUntil(runMonitor(env, Date.now()));
-    // Purge abuse-log IPs past the 24h window every tick, so the privacy policy's "no more than 24 hours" holds
+  // Daily web-push nudge (Phase 2). A Cloudflare Cron Trigger fires every 15 minutes (wrangler.jsonc), so a
+  // half-hour or 45-minute time zone gets its nudge on the hour (#18); this sends a payloadless push to each
+  // subscription due at this tick. Timed by the tick's own scheduledTime, not the clock it happens to run at,
+  // so a slow start never moves a sub out of its window. See push.ts.
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const at = controller.scheduledTime;
+    ctx.waitUntil(sendDailyNudges(env, at));
+    // Everything else stays hourly, on the :00 tick only, so the heartbeat, the D1 sweep and the purges run
+    // exactly as often as they did before the nudge moved to quarter hours.
+    if (!isHourTick(at)) return;
+    // The control centre: ping the dead-man's-switch, sweep D1 for trouble (spend / errors / abuse), and once a
+    // day send the pulse. Isolated from the nudge above so a failure in one never blocks the other. See monitor.ts.
+    ctx.waitUntil(runMonitor(env, at));
+    // Purge abuse-log IPs past the 24h window every hour, so the privacy policy's "no more than 24 hours" holds
     // even through a stretch with no scrapbook traffic (the request path prunes too; this is the no-traffic backstop).
     if (env.DB) {
       try {
         ctx.waitUntil(
           env.DB.prepare('DELETE FROM scrapbook_log WHERE created_at < ?1')
-            .bind(Date.now() - 86_400_000)
+            .bind(at - 86_400_000)
             .run()
             .then(
               () => undefined,
@@ -1306,5 +1314,7 @@ export default {
         // fail open: a transient store error must never break the tick; the request path also prunes
       }
     }
+    // The break_down cap's counts for hours already over (#7). Best effort; it never throws.
+    ctx.waitUntil(purgeBreakdownCounts(env.DB, at));
   },
 } satisfies ExportedHandler<Env>;

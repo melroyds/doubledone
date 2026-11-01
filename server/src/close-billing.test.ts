@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { giftState, grantGift } from './gifts';
 import { decodeJwtSub } from './mcp';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 import { CHARGEABLE_STATUSES, cancelSubscriptionNow, type D1LikeDatabase, findChargeableSubscriptions, handleCloseBilling } from './stripe';
 
 // POST /account/close-billing: account deletion stops Stripe billing FIRST. Same approach as
@@ -79,10 +81,16 @@ function fakeStripe(subs: FakeSub[], opts: { fail?: 'list' | 'search'; hasMore?:
 }
 
 /** A D1 holding one entitlements row (the customer the webhook last wrote), or throwing on read. The
- *  Play-log query (rc_events) is answered separately: no Play delivery unless `playLog` says so. */
-function dbWith(customerId: string | null, opts: { throws?: boolean; source?: string; playLog?: boolean } = {}): D1LikeDatabase & { reads: number } {
+ *  Play-log query (rc_events) is answered separately: no Play delivery unless `playLog` says so. The ONE
+ *  write close-billing may make is deleting the gift record once billing is closed (#6); every write is
+ *  recorded in `writes`, and any other throws. */
+function dbWith(
+  customerId: string | null,
+  opts: { throws?: boolean; source?: string; playLog?: boolean; giftsFail?: boolean } = {},
+): D1LikeDatabase & { reads: number; writes: string[] } {
   const db = {
     reads: 0,
+    writes: [] as string[],
     prepare(sql: string) {
       const stmt = {
         bind() {
@@ -96,7 +104,10 @@ function dbWith(customerId: string | null, opts: { throws?: boolean; source?: st
           return { premium: 1, status: 'active', started_at: null, current_period_end: null, cancel_at_period_end: 0, stripe_customer_id: customerId, source: opts.source ?? 'stripe' } as T;
         },
         async run() {
-          throw new Error('close-billing must never write D1');
+          db.writes.push(sql);
+          if (opts.throws || opts.giftsFail) throw new Error('d1 down');
+          if (!sql.startsWith('DELETE FROM gifts')) throw new Error('close-billing writes nothing but the gift delete');
+          return {};
         },
         async all<T>() {
           return { results: [] as T[] };
@@ -105,7 +116,7 @@ function dbWith(customerId: string | null, opts: { throws?: boolean; source?: st
       return stmt;
     },
   };
-  return db as unknown as D1LikeDatabase & { reads: number };
+  return db as unknown as D1LikeDatabase & { reads: number; writes: string[] };
 }
 
 const env = (db?: D1LikeDatabase, extra: Record<string, string> = {}) => ({ STRIPE_SECRET_KEY: SK, SUPABASE_URL: 'https://proj.supabase.co', DB: db, ...extra });
@@ -338,6 +349,54 @@ describe('close-billing: the review fixes', () => {
     expect(keys).toEqual([`close:${USER}`]);
     expect(stripe.calls).toHaveLength(0);
     expect(db.reads).toBe(0);
+  });
+});
+
+// #6 (2026-11-01): the privacy policy keeps two records after an account is deleted, the billing record and the
+// trial note, and the gift row ("A month on us") was a third. Close-billing runs just before the deletion, so it goes.
+describe('close-billing: the gift record goes with the account (#6)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const OTHER = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+  const NOW_SEC = 1_800_000_000;
+
+  it("deletes exactly this account's gifts on the real schema, and leaves everyone else's", async () => {
+    const DB = await sqliteD1();
+    for (const user of [USER, OTHER]) await grantGift(DB, user, NOW_SEC);
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }]);
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(DB), cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(await giftState(DB, USER, NOW_SEC)).toEqual({ active: false, expiresAt: null, lastGrantedAt: null });
+    expect((await giftState(DB, OTHER, NOW_SEC))?.active).toBe(true);
+  });
+
+  it('keeps the gift on a 502: nothing is deleted then, so the 180-day spacing stands', async () => {
+    const DB = await sqliteD1();
+    await grantGift(DB, USER, NOW_SEC);
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { fail: 'search' });
+    expect((await handleCloseBilling(post(tokenFor(USER)), env(DB), cors, trust)).status).toBe(502);
+    expect((await giftState(DB, USER, NOW_SEC))?.active).toBe(true);
+  });
+
+  it('a gift delete that fails never blocks the close (best effort)', async () => {
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }]);
+    const db = dbWith('cus_1', { giftsFail: true });
+    const res = await handleCloseBilling(post(tokenFor(USER)), env(db), cors, trust);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 1 });
+    expect(db.writes).toEqual(['DELETE FROM gifts WHERE user_id = ?1']); // it was tried
+  });
+
+  it('the gift delete is the one write, bound to the verified user, and only on the 200', async () => {
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }]);
+    const ok = dbWith('cus_1');
+    await handleCloseBilling(post(tokenFor(USER)), env(ok), cors, trust);
+    expect(ok.writes).toEqual(['DELETE FROM gifts WHERE user_id = ?1']);
+    vi.unstubAllGlobals();
+    fakeStripe([{ id: 'sub_1', status: 'active', customer: 'cus_1', userId: USER }], { fail: 'list' });
+    const failed = dbWith('cus_1');
+    await handleCloseBilling(post(tokenFor(USER)), env(failed), cors, trust);
+    expect(failed.writes).toEqual([]);
   });
 });
 

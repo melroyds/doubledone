@@ -18,7 +18,7 @@
 //
 // The one AI/token spender is break_down (the app's Break-it-down engine, reused
 // from decompose.ts). It PROPOSES steps only, never writes, and is per-user
-// hourly-rate-limited against OAUTH_KV so an agent loop can't drain the Anthropic
+// hourly-rate-limited by an atomic D1 count so an agent loop can't drain the Anthropic
 // budget. Everything else is a thin, cheap Supabase proxy.
 //
 // The spine holds even through an agent: propose-then-accept. break_down shows steps
@@ -39,7 +39,18 @@
 // row->list mappers, the OpenAI deep-research shapers) are exported and unit-tested;
 // handleMcp does the I/O.
 
-import { asRecurrence, buildRecurrence, isDueOn, isValidIsoDay, recurringDueToday, tickForDay, type Recurrence, type RepeatSpec } from './cadence';
+import {
+  asRecurrence,
+  buildRecurrence,
+  isDueOn,
+  isValidIsoDay,
+  recurringDueToday,
+  reopenForRepeat,
+  REOPEN_GUARD,
+  tickForDay,
+  type Recurrence,
+  type RepeatSpec,
+} from './cadence';
 import {
   buildDecomposeRequest,
   DECOMPOSE_MODEL,
@@ -81,21 +92,18 @@ import {
   walkParentQuery,
   wholeIn,
 } from './steps';
-import { logAiCall, type TelemetryEnv } from './telemetry';
+import { type D1LikeDatabase, logAiCall, type TelemetryEnv } from './telemetry';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
-// Widened past SUPABASE_* so break_down can reach Anthropic (ANTHROPIC_API_KEY), rate-limit
-// per user (OAUTH_KV), and log to the moat (DB). All optional and additive: the two handleMcp
-// call sites (index.ts) already pass the full Worker Env, and OAuthEnv extends this, so nothing
-// else has to change. TelemetryEnv contributes DB.
+// Widened past SUPABASE_* so break_down can reach Anthropic (ANTHROPIC_API_KEY), and count its
+// per-user hourly cap and log to the moat in D1 (DB, from TelemetryEnv). All optional and
+// additive: the two handleMcp call sites (index.ts) already pass the full Worker Env, and
+// OAuthEnv extends this, so nothing else has to change. (The cap lived in OAUTH_KV until
+// 2026-11-01, #7.)
 export type McpEnv = TelemetryEnv & {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   ANTHROPIC_API_KEY?: string;
-  // The OAuth provider's KV store, reused here ONLY as a per-user counter for the break_down
-  // hourly cap (namespaced keys, see BREAKDOWN_KEY_PREFIX). Typed to just the two methods this
-  // needs so we don't depend on a @cloudflare/workers-types version.
-  OAUTH_KV?: { get(key: string, options?: unknown): Promise<unknown>; put(key: string, value: string, options?: unknown): Promise<unknown> };
   // The same per-IP limiter the app's AI routes use, applied to break_down on the pasted-token path (one
   // device per IP there; the OAuth path's callers are shared connector hosts, so it stays on the verified
   // per-user cap alone). Optional so tests inject a stub.
@@ -428,17 +436,19 @@ export function addTaskRequest(
 
 export function listTodayRequest(env: McpEnv, token: string, todayIso: string): { url: string; init: RequestInit } {
   // Open, not deleted, not a silent parent (a decompose umbrella the app hides from Today).
-  // Two kinds pass: an open one-off that is undated or due today-or-earlier, AND any open
-  // recurring task, whose "due today" is decided in the Worker (see cadence.ts) because
-  // PostgREST can't do the day-of-week / interval math. The cadence fields come back so the
-  // tool can filter. silent_parent=not.is.true keeps false/null rows, excluding only true.
-  // slices comes back so a task tracked in parts can show its progress, and parent_id /
-  // parent_title so a step can name the big task it closes.
+  // Two kinds pass: an open one-off that is undated or due today-or-earlier, AND any recurring
+  // task, whose "due today" is decided in the Worker (see cadence.ts) because PostgREST can't do
+  // the day-of-week / interval math. A recurring task passes whatever its `done` says: the app
+  // ignores that flag on a series, so a repeat an agent ticked before 2026-09-25 (which set it)
+  // or one set on a done task was on the person's Today and missing here (#23). The cadence
+  // fields come back so the tool can filter. silent_parent=not.is.true keeps false/null rows,
+  // excluding only true. slices comes back so a task tracked in parts can show its progress, and
+  // parent_id / parent_title so a step can name the big task it closes.
   const q = new URLSearchParams({
     select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices,parent_id,parent_title',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
-    or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),and(recurrence.not.is.null,done.is.false))`,
+    or: `(and(recurrence.is.null,done.is.false,or(due.is.null,due.lte.${todayIso})),recurrence.not.is.null)`,
     order: 'created_at.asc',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
@@ -511,11 +521,11 @@ function towardMark(toward?: string | null): string {
 }
 
 /** The one read a done-write, a parts change or a breakdown needs first: whether the row repeats and which days are
- *  ticked, whether it is done, its stored parts, whether it is hidden behind its steps, and whether it is itself a
- *  step (and of which big task, so a tick can walk up to it). */
+ *  ticked, whether it is done (and when, so a repeat set on it keeps that finish, #23), its stored parts, whether it
+ *  is hidden behind its steps, and whether it is itself a step (and of which big task, so a tick can walk up to it). */
 export function taskStateRequest(env: McpEnv, token: string, id: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,done,recurrence,completed_dates,slices,silent_parent,parent_id,parent_title',
+    select: 'id,title,done,completed_at,updated_at,recurrence,completed_dates,slices,silent_parent,parent_id,parent_title',
     id: `eq.${id}`,
     deleted_at: 'is.null',
     limit: '1',
@@ -639,17 +649,18 @@ export function upcomingWindow(days: unknown, todayIso: string): { count: number
 }
 
 /** Fetch the rows list_upcoming reasons over: open, not deleted, not a silent parent, and either
- *  a future one-off due within the window OR any open recurring task (its next occurrence is
- *  computed in the Worker). Uses the same silent_parent / deleted guards as list_today. */
+ *  a future one-off due within the window OR any recurring task, done flag or not (its next
+ *  occurrence is computed in the Worker; a series is never closed by `done`, #23). Uses the same
+ *  silent_parent / deleted guards as list_today. */
 export function listUpcomingRequest(env: McpEnv, token: string, todayIso: string, endIso: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
     select: 'id,title,recurrence,completed_dates,skipped_dates,due,slices,parent_id,parent_title',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
-    // A future one-off (open, dated strictly after today, on/before the window end), OR any open
+    // A future one-off (open, dated strictly after today, on/before the window end), OR any
     // recurring task (kept for cadence walking below). The one-off date math PostgREST can do; the
     // recurring "next occurrence" it cannot, so those are filtered in listUpcomingFromRows.
-    or: `(and(recurrence.is.null,done.is.false,due.gt.${todayIso},due.lte.${endIso}),and(recurrence.not.is.null,done.is.false))`,
+    or: `(and(recurrence.is.null,done.is.false,due.gt.${todayIso},due.lte.${endIso}),recurrence.not.is.null)`,
     order: 'due.asc',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
@@ -705,13 +716,15 @@ const APP_URL = 'https://doubledone.app';
 
 /** Fetch the open, non-deleted, non-silent-parent tasks to substring-search (title only). We
  *  pull the small candidate set and match in the Worker (case-insensitive), which is simpler and
- *  safer than escaping user text into a PostgREST ilike. Order is stable (created_at). */
+ *  safer than escaping user text into a PostgREST ilike. Order is stable (created_at). A repeat is
+ *  open whatever its `done` says (#23), so it comes back either way, and searchResultsFrom drops a
+ *  done row that does not really repeat. */
 export function searchTasksRequest(env: McpEnv, token: string): { url: string; init: RequestInit } {
   const q = new URLSearchParams({
-    select: 'id,title,recurrence,due,completed_dates,skipped_dates',
+    select: 'id,title,done,recurrence,due,completed_dates,skipped_dates',
     deleted_at: 'is.null',
     silent_parent: 'not.is.true',
-    done: 'is.false',
+    or: '(done.is.false,recurrence.not.is.null)',
     order: 'created_at.asc',
   });
   return { url: `${env.SUPABASE_URL}/rest/v1/tasks?${q.toString()}`, init: { method: 'GET', headers: supaHeaders(env, token, false) } };
@@ -726,8 +739,11 @@ export function searchResultsFrom(rows: unknown, query: string, cap = 20): { id:
   for (const r of rows) {
     if (out.length >= cap) break;
     if (r == null || typeof r !== 'object') continue;
-    const row = r as { id?: unknown; title?: unknown };
+    const row = r as { id?: unknown; title?: unknown; done?: unknown; recurrence?: unknown };
     if (typeof row.id !== 'string' || typeof row.title !== 'string') continue;
+    // Open means not done, unless it repeats: the query lets every row with a recurrence column through, and only
+    // the shared classifier knows a real repeat from a { kind: 'none' } or a malformed one.
+    if (row.done === true && asRecurrence(row.recurrence) == null) continue;
     // An empty query returns everything (up to the cap): the connector sometimes probes with "".
     if (needle === '' || row.title.toLowerCase().includes(needle)) {
       out.push({ id: row.id, title: row.title, url: APP_URL });
@@ -795,36 +811,63 @@ function describeStatus(row: StatusRow, todayIso: string): string {
 
 // --- break_down: the AI proposer (the only token spender), rate-limited per user -----------
 
-// Per-user hourly cap on break_down, enforced in OAUTH_KV. Keys are namespaced so they can't
-// collide with the OAuth provider's own keys or the session stash. A fixed-window counter (one
-// key per user per UTC hour) is enough here: it's a budget guardrail, not a precise limiter.
-const BREAKDOWN_KEY_PREFIX = 'mcp:bd:';
+// Per-user hourly cap on break_down, counted in D1 (#7, 2026-11-01). It used to be a KV read and
+// then a write, so calls made in parallel all read the same count and all got past the cap, and
+// KV is not read-your-write anyway (the OAuth "Grant not found" lesson). Now ONE upsert adds one
+// and returns the new count, and D1's single writer makes that atomic, so the 21st call in an hour
+// is refused however many arrive at once. A fixed window (one row per user per UTC hour) is enough
+// here: it's a budget guardrail, not a precise limiter. The table is created at runtime (the
+// alerts_sent pattern), so a deploy never waits on a schema apply, and the cron's top-of-hour tick
+// deletes the hours already over (purgeBreakdownCounts), so a count outlives its hour by one tick.
 export const BREAKDOWN_HOURLY_CAP = 20;
 /** The longest task or context break_down will send to the model. A title is a sentence; a few thousand
  *  characters is already a brief, and past that it is somebody feeding the spender. */
 export const BREAKDOWN_MAX_CHARS = 2000;
 
-/** The KV key for a user's break_down count in the current UTC hour. Exported for the test. */
-export function breakdownRateKey(sub: string, nowMs: number): string {
-  const hourBucket = Math.floor(nowMs / 3_600_000);
-  return `${BREAKDOWN_KEY_PREFIX}${sub}:${hourBucket}`;
+const BREAKDOWN_TABLE =
+  'CREATE TABLE IF NOT EXISTS breakdown_counts (user_id text not null, hour integer not null, n integer not null, primary key (user_id, hour)) WITHOUT ROWID';
+const BREAKDOWN_COUNT =
+  'INSERT INTO breakdown_counts (user_id, hour, n) VALUES (?1, ?2, 1) ON CONFLICT(user_id, hour) DO UPDATE SET n = n + 1 RETURNING n';
+
+/** The UTC hour a break_down call is counted in (hours since the epoch). Exported for the test. */
+export function breakdownHour(nowMs: number): number {
+  return Math.floor(nowMs / 3_600_000);
 }
 
-/** Increment the user's hourly break_down counter and report whether they are now OVER the cap.
- *  Unbound KV (local dev) allows; a KV ERROR now refuses (fails closed): this is the only per-user wall in
- *  front of the token spender on the OAuth path, and a guardrail that opens when its store hiccups is not
- *  one. Never throws. */
-async function overBreakdownCap(env: McpEnv, sub: string, nowMs: number): Promise<boolean> {
-  if (!env.OAUTH_KV) return false;
-  const key = breakdownRateKey(sub, nowMs);
+// The D1 bindings the table is known to exist on, so it is created once per binding rather than on every call.
+const breakdownTableReady = new WeakSet<object>();
+
+async function ensureBreakdownTable(db: D1LikeDatabase): Promise<void> {
+  if (breakdownTableReady.has(db)) return;
+  await db.prepare(BREAKDOWN_TABLE).run();
+  breakdownTableReady.add(db);
+}
+
+/** Count this call against the user's hour and report whether they are now OVER the cap. Unbound D1 (local dev,
+ *  tests) allows, as unbound KV did. A store ERROR refuses (fails closed), and so does a count that does not come
+ *  back: this is the only per-user wall in front of the token spender on the OAuth path, and a guardrail that
+ *  opens when its store hiccups is not one. Never throws. Exported for the test. */
+export async function overBreakdownCap(env: McpEnv, sub: string, nowMs: number): Promise<boolean> {
+  if (!env.DB) return false;
+  const db = env.DB;
   try {
-    const current = Number((await env.OAUTH_KV.get(key)) ?? 0);
-    if (Number.isFinite(current) && current >= BREAKDOWN_HOURLY_CAP) return true;
-    // Bump the count, TTL just past the hour so old buckets self-expire.
-    await env.OAUTH_KV.put(key, String((Number.isFinite(current) ? current : 0) + 1), { expirationTtl: 3900 });
-    return false;
+    await ensureBreakdownTable(db);
+    const { results } = await db.prepare(BREAKDOWN_COUNT).bind(sub, breakdownHour(nowMs)).all<{ n: unknown }>();
+    const n = Number(results?.[0]?.n);
+    return !Number.isFinite(n) || n > BREAKDOWN_HOURLY_CAP;
   } catch {
-    return true; // fail CLOSED on a KV hiccup: no spend without a working cap
+    return true; // fail CLOSED on a store hiccup: no spend without a working cap
+  }
+}
+
+/** Delete the break_down counts of hours already over. Best effort, on the cron's top-of-hour tick (index.ts):
+ *  a missing table (no break_down since the deploy) or a store error is left for the next tick. Never throws. */
+export async function purgeBreakdownCounts(db: D1LikeDatabase | undefined, nowMs: number): Promise<void> {
+  if (!db) return;
+  try {
+    await db.prepare('DELETE FROM breakdown_counts WHERE hour < ?1').bind(breakdownHour(nowMs)).run();
+  } catch {
+    // best effort
   }
 }
 
@@ -855,6 +898,8 @@ export type TaskState = {
   id?: unknown;
   title?: unknown;
   done?: unknown;
+  completed_at?: unknown;
+  updated_at?: unknown;
   recurrence?: unknown;
   completed_dates?: unknown;
   slices?: unknown;
@@ -1075,25 +1120,27 @@ async function readTaskState(env: McpEnv, token: string, id: string, transient: 
 /** Carry out a plan as ONE PATCH, with any field change riding in the same write (`fields`, from fieldPatch). A
  *  `say` plan still lands the field change. No plan at all is a plain field change. When the write closes a STEP
  *  (the row read first has a `parent_id`), the finish walk runs once it has landed, dated to this close, and the
- *  reply adds what the walk did (walkReply). */
+ *  reply adds what the walk did (walkReply). `o.guard` pins the fields to the row as read (a done task reopened for
+ *  its new repeat, REOPEN_GUARD), so a miss then means it changed in between, and `o.note` is said after
+ *  "Updated." when no plan has its own reply. */
 async function applyPlan(
   env: McpEnv,
   token: string,
   id: string,
   plan: WritePlan | null,
   fields: Record<string, unknown>,
-  o: { now: string; day: string; transient: string; row: TaskState },
+  o: { now: string; day: string; transient: string; row: TaskState; guard?: Record<string, string>; note?: string },
 ): Promise<ToolResult> {
   if (plan?.kind === 'refuse') return toolText(plan.text, true);
   const hasFields = Object.keys(fields).length > 0;
   if (plan?.kind === 'say' && !hasFields) return toolText(plan.text);
   const write = plan?.kind === 'write' ? plan : null;
-  const w = patchRowRequest(env, token, id, { ...fields, ...write?.body, updated_at: o.now }, write?.guard);
+  const w = patchRowRequest(env, token, id, { ...fields, ...write?.body, updated_at: o.now }, { ...write?.guard, ...o.guard });
   const res = await fetch(w.url, w.init);
   if (!res.ok) return upstreamFailure(res, o.transient);
   const rows = (await res.json()) as unknown;
-  if (!Array.isArray(rows) || rows.length === 0) return toolText(write?.miss ?? NO_MATCH, true);
-  if (!write) return toolText(plan?.kind === 'say' ? `Updated. ${plan.text}` : 'Updated.');
+  if (!Array.isArray(rows) || rows.length === 0) return toolText(o.guard ? CHANGED_TRY : write?.miss ?? NO_MATCH, true);
+  if (!write) return toolText(plan?.kind === 'say' ? `Updated. ${plan.text}` : o.note ? `Updated. ${o.note}` : 'Updated.');
   const parentId = typeof o.row.parent_id === 'string' && o.row.parent_id ? o.row.parent_id : null;
   if (!write.closes || !parentId) return toolText(write.reply);
   const parentTitle = typeof o.row.parent_title === 'string' && o.row.parent_title ? o.row.parent_title : null;
@@ -1413,15 +1460,32 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
       if (row.silent_parent === true) return toolText(`${quoted(row, 'That task')} is waiting on its steps, so it can't repeat. Tick its steps instead.`, true);
       if (typeof row.parent_id === 'string' && row.parent_id) return toolText("That one is a step toward a bigger task, so it can't repeat.", true);
     }
+    // A repeat set on a task that is DONE reopens it as a series, its finish kept as a tick on the day it was
+    // finished (cadence.ts reopenForRepeat), pinned to the row still being done. Left done, it vanished from every
+    // read here and from the Calendar (#23). A `done` riding with it is decided on the row as reopened.
+    const reopen = fields.recurrence != null ? reopenForRepeat(row) : null;
+    const reopened: TaskState = reopen ? { ...row, done: false, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : row;
+    const reopenFields = reopen ? { done: false, completed_at: null, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : {};
+    const reopenNote = reopen
+      ? reopen.day
+        ? `It was done, so it repeats now, with ${reopen.day} ticked as the day it was finished.`
+        : 'It was done, so it repeats now.'
+      : undefined;
     // Judged on the shape AFTER this change, so { repeat: null, done: true } closes the one-off it makes.
     const repeats = fields.recurrence !== undefined ? fields.recurrence !== null : fields.due != null ? false : asRecurrence(row.recurrence) != null;
     const plan =
       parts !== undefined
         ? planParts(row, parts, { now, repeats })
         : done !== undefined
-          ? planDone(row, done, { count: 1, day, now, repeats })
+          ? planDone(reopened, done, { count: 1, day, now, repeats })
           : null;
-    return applyPlan(env, token, taskId, plan, fieldPatch(fields), { now, day, transient, row });
+    return applyPlan(env, token, taskId, plan, { ...fieldPatch(fields), ...reopenFields }, {
+      now,
+      day,
+      transient,
+      row,
+      ...(reopen ? { guard: REOPEN_GUARD, note: reopenNote } : {}),
+    });
   }
 
   if (name === 'delete_task') {
