@@ -45,7 +45,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 **THE STRIPE GUARD, THE COPY BATCH AND THE LOW FIX: BUILT AND REVIEWED (2026-11-02, overnight, on Melroy's "run
 whatever needs running").** a4573db and 78410dd (the Stripe webhook writes the live subscription; an ending never
 waits on the read; a stale id heals; a failed read emails the owner), 0fbe199 and its review fixes (the copy batch
-in five languages), and the Low reset, released as web 1.10.3. **Waiting on Melroy's look:** the add panel's stacked
+in five languages), and the Low reset, as app 1.10.3. **NOT YET LIVE: the overnight production deploy was refused by the session permission layer, so Melroy runs, in order: (1) the Worker deploy from server/ on main (rollback target 7139f696), (2) the push to main, which ships web 1.10.3. The Worker goes first, because the privacy page now says the I-also-did-that count has stopped, which only the new Worker makes true for older phones.** **Waiting on Melroy's look:** the add panel's stacked
 hint seat (#4, reverted after it overflowed the panel), plus the parked review items in the decision log. Still
 open from the sweep: #24 (an agent naming its day), #26 (the Add label in German), #27 (the store listings), #33 and
 #37 (the web a11y pair), #35 and #36 (contrast).
