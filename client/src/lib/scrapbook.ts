@@ -92,6 +92,34 @@ export function upsertScrapbook(books: Scrapbook[], entry: Scrapbook): Scrapbook
   return [entry, ...rest].slice(0, MAX_SCRAPBOOKS);
 }
 
+/**
+ * The R2 key a keepsake picture is served from, or null when it has none (a legacy data: picture lives only on the
+ * device). Never throws: it runs on the account delete's path, where a malformed address must not stop the wipe.
+ */
+export function keepsakeKey(image: string): string | null {
+  const m = image.match(/\/scrapbook-img\/(.+)$/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Make or remake a week's keepsake (#3): the store change upsertScrapbook makes, the keepsake as stored, and the
+ * picture a REMAKE replaced when it is an R2 one, which this device retires once the new one is safely kept
+ * (lib/scrapbook-sync retireReplacedKeepsake), or null. The new keepsake always outranks the one it replaces, even
+ * on a clock running behind: the sync keeps the newer createdAt per week, and a remake that lost that comparison
+ * would bring the retired picture back as the week's.
+ */
+export function remakeScrapbook(books: Scrapbook[], entry: Scrapbook): { books: Scrapbook[]; book: Scrapbook; replaced: string | null } {
+  const previous = findScrapbook(books, entry.weekStart);
+  const book = previous && Number.isFinite(previous.createdAt) && previous.createdAt >= entry.createdAt ? { ...entry, createdAt: previous.createdAt + 1 } : entry;
+  const replaced = previous && previous.image !== entry.image && keepsakeKey(previous.image) !== null ? previous.image : null;
+  return { books: upsertScrapbook(books, book), book, replaced };
+}
+
 /** A short, friendly label for a week, e.g. "week of Sun 15 June" (per locale). */
 export function weekLabel(weekStart: string): string {
   const d = fromISODate(weekStart);

@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Animated, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,9 +19,11 @@ import { t } from '@/lib/locale';
 import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
 import { answerSaysYes } from '@/lib/offer-card';
 import { periodLabel } from '@/lib/premium-ui';
+import { accountKeepsakeImages } from '@/lib/scrapbook-sync';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { STORE_SOURCE } from '@/lib/purchases';
+import { hourReapply } from '@/lib/reminder-hour';
 import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
@@ -82,7 +84,8 @@ export default function SettingsScreen() {
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderNote, setReminderNote] = useState<string | null>(null);
   const [reminderHour, setReminderHour] = useState(9); // the hour the daily nudge fires (free for all, an access need)
-  const reminderHourTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce the re-subscribe on +/-
+  // The debounced re-subscribe on +/-, which the switch always lands after (lib/reminder-hour, #16).
+  const [hourReapplier] = useState(() => hourReapply((h) => enableDailyReminder(h)));
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
   // "A month on us": whether Help's row says a month is on offer (the last real answer, then a fresh one), and the
   // one-line receipt after a note sent from here, shown until Settings is left.
@@ -165,6 +168,9 @@ export default function SettingsScreen() {
   // Toggle the opt-in daily reminder from Settings. Mirrors the Today footer and shares the
   // same lib + persisted flag, so the two stay in sync.
   async function setReminder(on: boolean) {
+    // An hour change still waiting, or still being applied, lands BEFORE the switch, never after it: an Off within
+    // 0.6 s of a +/- tap used to be undone by the re-apply that tap had queued, and the reminder came back on (#16).
+    await hourReapplier.settle();
     if (on) {
       const result = await enableDailyReminder(reminderHour);
       setReminderOn(result.ok);
@@ -188,10 +194,7 @@ export default function SettingsScreen() {
     if (h === reminderHour) return;
     setReminderHour(h);
     void saveReminderHour(h);
-    if (reminderHourTimer.current) clearTimeout(reminderHourTimer.current);
-    reminderHourTimer.current = setTimeout(() => {
-      void enableDailyReminder(h);
-    }, 600);
+    hourReapplier.schedule(h);
   }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
@@ -236,6 +239,9 @@ export default function SettingsScreen() {
     // The token is captured BEFORE the delete, which signs out at its end: the image purge that follows has to
     // prove whose keepsakes they are (a deleted user's token still verifies until it expires).
     const purgeAuth = await authHeader();
+    // The account's keepsake pictures as its rows name them, read now because the rows go with the account and this
+    // device keeps only its newest weeks. Bounded and never throws, so it can never hold up the delete (#3).
+    const accountImages = await accountKeepsakeImages(supabase);
     const res = await deleteAccount(supabase, fetch, { maybePlay: STORE_SOURCE === 'google' || billedByStore(entitlement) === 'google' });
     if (!res.ok) {
       setDeleteError(
@@ -258,8 +264,9 @@ export default function SettingsScreen() {
     }
     track('account.deleted');
     const books = await loadScrapbooks();
-    // The R2 images and any AI connector's custody first, both with the token captured before the delete.
-    await Promise.all([purgeScrapbookImages(books.map((b) => b.image), purgeAuth), dropAiConnectors(purgeAuth)]);
+    // The R2 images (this device's and the account's) and any AI connector's custody first, both with the token
+    // captured before the delete.
+    await Promise.all([purgeScrapbookImages([...books.map((b) => b.image), ...accountImages], purgeAuth), dropAiConnectors(purgeAuth)]);
     await wipeLocalData(); // leave nothing of the account on this device
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.assign('/'); // a clean reload to an empty, signed-out Today

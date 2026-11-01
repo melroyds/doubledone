@@ -90,6 +90,11 @@ export type ScheduledItem = { id: string; title: string; recurring?: boolean };
  * glance-at-the-calendar ask from the 2026-07 feedback wave). Skip-today'd instances
  * are honoured (the series continues, that day is not planned). Future-only: the past
  * belongs to completions, and today belongs to Today.
+ *
+ * A day is planned only with what will show on Today that day. A broken-down task keeps its
+ * date but stays hidden while its steps show (#21), so it plans nothing, as in Later. And
+ * `done` closes only a one-off: a repeat finishes per day, so a repeat whose row says done
+ * (one set on a done task) keeps its days, as Today keeps showing it (#23).
  */
 export function scheduledByDay<T extends Completable>(tasks: T[], today: Date, days?: (string | null)[]): Map<string, ScheduledItem[]> {
   const todayIso = toISODate(today);
@@ -101,12 +106,12 @@ export function scheduledByDay<T extends Completable>(tasks: T[], today: Date, d
   };
   const futureDays = (days ?? []).filter((d): d is string => d != null && d > todayIso);
   for (const t of tasks) {
-    if (t.deletedAt || t.done) continue;
+    if (t.deletedAt || t.silentParent) continue;
     if (isRecurring(t)) {
       for (const iso of futureDays) {
         if (isDueOn(t, fromISODate(iso)) && !(t.skippedDates ?? []).includes(iso)) add(iso, { id: t.id, title: t.title, recurring: true });
       }
-    } else if (t.due != null && t.due > todayIso) {
+    } else if (!t.done && t.due != null && t.due > todayIso) {
       add(t.due, { id: t.id, title: t.title });
     }
   }

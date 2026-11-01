@@ -9,7 +9,8 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 
 import { MAX_SCRAPBOOKS, type Scrapbook } from './scrapbook';
-import { loadScrapbooks, saveScrapbooks } from './storage';
+import { loadScrapbooks, loadSyncedOwner, saveScrapbooks } from './storage';
+import { localBelongsToAnother } from './sync';
 
 const TABLE = 'scrapbooks';
 
@@ -107,5 +108,86 @@ export async function syncScrapbooks(client: SupabaseClient, userId: string, for
     }
   } catch {
     // best effort, never disturbs the task sync it rides behind
+  }
+}
+
+/** How long the account delete waits for the keepsake read before it goes ahead without it. */
+export const KEEPSAKE_READ_TIMEOUT_MS = 4000;
+
+/**
+ * Every keepsake picture this account's rows name, for the account delete's purge (#3). The device keeps only its
+ * newest MAX_SCRAPBOOKS weeks, so an older week's picture is known only to its row, and the rows go with the account
+ * (on delete cascade): read them BEFORE the delete, under RLS with the person's own session. Never throws and never
+ * waits past `timeoutMs`: a read that fails or hangs answers [], so it can never hold up or stop a delete.
+ */
+export async function accountKeepsakeImages(client: SupabaseClient, timeoutMs: number = KEEPSAKE_READ_TIMEOUT_MS): Promise<string[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const read = (async () => {
+    try {
+      const { data, error } = await client.from(TABLE).select('image');
+      if (error || !Array.isArray(data)) return [];
+      return (data as ({ image?: unknown } | null)[])
+        .map((row) => row?.image)
+        .filter((image): image is string => typeof image === 'string' && image.length > 0);
+    } catch {
+      return [];
+    }
+  })();
+  const giveWay = new Promise<string[]>((resolve) => {
+    timer = setTimeout(() => resolve([]), timeoutMs);
+  });
+  try {
+    return await Promise.race([read, giveWay]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Put one remade keepsake on the account now, rather than at the next open's sync, so the picture it replaced can be
+ * retired without another device's next pull landing a deleted picture. The sync's per-week rule holds: a row as new
+ * or newer from another device (the same week remade there since) is left alone. True once the account holds this
+ * keepsake or a newer one that is not `replaced`; false on anything else. Never throws.
+ */
+export async function pushRemade(client: SupabaseClient, userId: string, book: Scrapbook, replaced: string): Promise<boolean> {
+  if (!isSyncableBook(book)) return false;
+  try {
+    const { data, error } = await client.from(TABLE).select('image, created_at').eq('week_start', book.weekStart);
+    if (error) return false;
+    const row = ((data ?? []) as Partial<ScrapbookRow>[])[0];
+    const thereAt = typeof row?.created_at === 'string' ? Date.parse(row.created_at) : Number.NaN;
+    if (row && row.image !== replaced && Number.isFinite(thereAt) && thereAt >= book.createdAt) return true;
+    const { error: pushError } = await client.from(TABLE).upsert([bookToRow(book, userId)], { onConflict: 'user_id,week_start' });
+    return !pushError;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Retire the picture a remade keepsake replaced (#3), on the device that remade it and never inside the sync merge,
+ * where purging whatever lost could delete a picture another device is still showing. It goes only once nothing can
+ * still point at it: the new keepsake is saved on this device and the old one is not; the store is not another
+ * account's; and, signed in, the account holds the new keepsake, so every other device's next pull lands it. Signed
+ * out, only a store that never synced with an account retires anything, because signing out keeps the device's
+ * keepsakes and the account they synced with may still show the old picture. Anything short of that keeps the old
+ * picture, as before. True once it was purged. Never throws.
+ */
+export async function retireReplacedKeepsake(
+  replaced: string,
+  book: Scrapbook,
+  account: { client: SupabaseClient; userId: string } | null,
+  purge: (images: string[]) => Promise<void>,
+): Promise<boolean> {
+  try {
+    const stored = await loadScrapbooks();
+    if (!stored.some((b) => b.image === book.image) || stored.some((b) => b.image === replaced)) return false;
+    const owner = await loadSyncedOwner();
+    if (account ? localBelongsToAnother(owner, account.userId) : owner !== null) return false;
+    if (account && !(await pushRemade(account.client, account.userId, book, replaced))) return false;
+    await purge([replaced]);
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -124,6 +124,39 @@ describe('scheduledByDay', () => {
     expect(m.get('2026-06-25')).toEqual([{ id: 'c', title: 'C' }]);
   });
 
+  // #21: Break it down keeps the big task's date but hides it (its steps show instead), so its day never
+  // shows it. Planning it there would be a promise the day breaks. The same rule as Later's upcomingTasks.
+  it('never plans a broken-down task: it is hidden on its day, and its steps carry the work', () => {
+    const days = ['2026-06-21', '2026-06-22', '2026-06-23'];
+    const m = scheduledByDay(
+      [
+        { ...base, id: 'big', title: 'Clean the garage', due: '2026-06-22', silentParent: true },
+        { ...base, id: 'bigRepeat', title: 'Deep clean', recurrence: { kind: 'daily' as const }, silentParent: true },
+        { ...base, id: 'step', title: 'Clear one shelf', due: '2026-06-23' },
+      ],
+      today,
+      days,
+    );
+    expect(m.has('2026-06-21')).toBe(false);
+    expect(m.has('2026-06-22')).toBe(false);
+    expect(m.get('2026-06-23')).toEqual([{ id: 'step', title: 'Clear one shelf' }]);
+  });
+
+  // #23, the Calendar half: a repeat finishes per day (completedDates), and `done` on its row means nothing.
+  // A repeat set on a done task (an agent, or the app before the 1 Nov Worker fix) kept done: true, and the
+  // Calendar dropped it while Today still showed it every day it was due.
+  it('still plans a repeat whose row says done, since a repeat finishes one day at a time', () => {
+    const days = ['2026-06-21', '2026-06-22'];
+    const m = scheduledByDay([{ ...base, id: 'r', title: 'Water plants', done: true, recurrence: { kind: 'daily' as const } }], today, days);
+    expect(m.get('2026-06-21')).toEqual([{ id: 'r', title: 'Water plants', recurring: true }]);
+    expect(m.get('2026-06-22')).toEqual([{ id: 'r', title: 'Water plants', recurring: true }]);
+  });
+
+  it('a done one-off is still never planned, even on a future day', () => {
+    const m = scheduledByDay([{ ...base, id: 'o', title: 'Book the vet', done: true, due: '2026-06-22' }], today, ['2026-06-22']);
+    expect(m.size).toBe(0);
+  });
+
   it('excludes today/overdue, done, deleted, recurring, and undated tasks', () => {
     const m = scheduledByDay(
       [

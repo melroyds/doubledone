@@ -5,6 +5,7 @@
 
 import { t } from './i18n-active';
 import type { DayType, Setting } from './plan-day';
+import { keepsakeKey } from './scrapbook';
 import { authHeader } from './supabase';
 
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
@@ -414,6 +415,8 @@ export async function makeScrapbook(titles: string[]): Promise<ScrapbookResult> 
 }
 
 export const PURGE_RETRY_MS = 1500;
+// The most keys the Worker deletes in one call (server/src/scrapbook-purge.ts MAX_KEYS); it drops the rest silently.
+export const PURGE_BATCH = 200;
 
 // On account deletion: delete the server's custody of any AI connector (MCP over OAuth) for this account,
 // the encrypted refresh token and the sign-in email it was kept with, through the same POST /mcp/disconnect
@@ -433,29 +436,29 @@ export async function dropAiConnectors(auth: Record<string, string> | null): Pro
 // and asks the Worker to delete those keys. Best-effort: cleanup must never block a delete.
 // `auth` is the token captured BEFORE the account went (deleteAccount signs out at its end); a tagged
 // image is deleted only for its verified owner. Omitted, the current session's is used.
+// Each picture is asked for once (the device's list and the account's rows overlap), in batches the Worker
+// accepts, and a malformed address is skipped rather than thrown, so the wipe that follows always runs.
 export async function purgeScrapbookImages(imageValues: string[], auth?: Record<string, string> | null): Promise<void> {
-  const keys = imageValues
-    .map((v) => {
-      const m = v.match(/\/scrapbook-img\/(.+)$/);
-      return m ? decodeURIComponent(m[1]) : null;
-    })
-    .filter((k): k is string => k !== null);
+  const keys = [...new Set(imageValues.map(keepsakeKey).filter((k): k is string => k !== null))];
   if (keys.length === 0) return;
   try {
     const headers = auth === undefined ? await authHeader() : auth;
-    const send = () =>
-      fetch(`${AI_URL}/scrapbook/purge`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...(headers ?? {}) },
-        body: JSON.stringify({ keys }),
-      });
-    const res = await send();
-    // A refusal can be a verifier blip on the Worker (it reads every failure as "not you"): one retry with
-    // the same captured token, since the keys are wiped from this device straight after.
-    const reply = res.ok ? ((await res.json().catch(() => null)) as { refused?: unknown } | null) : null;
-    if (typeof reply?.refused === 'number' && reply.refused > 0) {
-      await new Promise((r) => setTimeout(r, PURGE_RETRY_MS));
-      await send();
+    for (let i = 0; i < keys.length; i += PURGE_BATCH) {
+      const batch = keys.slice(i, i + PURGE_BATCH);
+      const send = () =>
+        fetch(`${AI_URL}/scrapbook/purge`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...(headers ?? {}) },
+          body: JSON.stringify({ keys: batch }),
+        });
+      const res = await send();
+      // A refusal can be a verifier blip on the Worker (it reads every failure as "not you"): one retry with
+      // the same captured token, since the keys are wiped from this device straight after.
+      const reply = res.ok ? ((await res.json().catch(() => null)) as { refused?: unknown } | null) : null;
+      if (typeof reply?.refused === 'number' && reply.refused > 0) {
+        await new Promise((r) => setTimeout(r, PURGE_RETRY_MS));
+        await send();
+      }
     }
   } catch {
     // best effort; the local data is wiped regardless

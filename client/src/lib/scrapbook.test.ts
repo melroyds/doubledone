@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   findScrapbook,
+  keepsakeKey,
   MAX_SCRAPBOOKS,
+  remakeScrapbook,
   type Scrapbook,
   upsertScrapbook,
   weekCompletions,
@@ -105,5 +107,64 @@ describe('findScrapbook / upsertScrapbook', () => {
       books = upsertScrapbook(books, mk(`2026-01-${String(i + 1).padStart(2, '0')}`));
     }
     expect(books).toHaveLength(MAX_SCRAPBOOKS);
+  });
+});
+
+describe('keepsakeKey', () => {
+  const ID = '0b9a7c3e-1f2d-4c5b-8a6e-9d0f1e2a3b4c.jpg';
+
+  it('reads the R2 key out of a served picture address', () => {
+    expect(keepsakeKey(`https://api.doubledone.app/scrapbook-img/${ID}`)).toBe(ID);
+    expect(keepsakeKey(`https://api.doubledone.app/scrapbook-img/${encodeURIComponent('a b.jpg')}`)).toBe('a b.jpg');
+  });
+
+  it('has nothing for a device-only picture', () => {
+    expect(keepsakeKey('data:image/jpeg;base64,AAAA')).toBeNull();
+    expect(keepsakeKey('')).toBeNull();
+  });
+
+  // It runs on the account delete's path, so a malformed address must never throw and stop the wipe after it.
+  it('never throws on a malformed address', () => {
+    expect(() => keepsakeKey('https://api.doubledone.app/scrapbook-img/%E0%A4%A')).not.toThrow();
+    expect(keepsakeKey('https://api.doubledone.app/scrapbook-img/%E0%A4%A')).toBeNull();
+  });
+});
+
+describe('remakeScrapbook (#3: a remade week names the picture it replaced)', () => {
+  const OLD = 'https://api.doubledone.app/scrapbook-img/old.jpg';
+  const NEW = 'https://api.doubledone.app/scrapbook-img/new.jpg';
+  const at = (weekStart: string, image: string, createdAt: number): Scrapbook => ({ weekStart, image, caption: '', createdAt });
+
+  it('a first keepsake for its week replaces nothing, and stores exactly as upsertScrapbook does', () => {
+    const books = [at('2026-06-07', OLD, 5)];
+    const entry = at('2026-06-14', NEW, 10);
+    const out = remakeScrapbook(books, entry);
+    expect(out.replaced).toBeNull();
+    expect(out.book).toEqual(entry);
+    expect(out.books).toEqual(upsertScrapbook(books, entry));
+  });
+
+  it('a remake replaces the week and names the old R2 picture for retiring', () => {
+    const out = remakeScrapbook([at('2026-06-14', OLD, 5), at('2026-06-07', 'x', 1)], at('2026-06-14', NEW, 10));
+    expect(out.replaced).toBe(OLD);
+    expect(out.books.filter((b) => b.weekStart === '2026-06-14')).toEqual([at('2026-06-14', NEW, 10)]);
+  });
+
+  it('a device-only (data:) picture has nothing to retire', () => {
+    expect(remakeScrapbook([at('2026-06-14', 'data:image/jpeg;base64,AA', 5)], at('2026-06-14', NEW, 10)).replaced).toBeNull();
+  });
+
+  it('never names the new picture itself', () => {
+    expect(remakeScrapbook([at('2026-06-14', NEW, 5)], at('2026-06-14', NEW, 10)).replaced).toBeNull();
+  });
+
+  // The sync keeps the newer createdAt per week. A remake on a clock running behind would lose to the very
+  // keepsake it replaced and bring the retired picture back as the week's, so it always outranks it.
+  it('always outranks the keepsake it replaces, even on a clock running behind', () => {
+    const out = remakeScrapbook([at('2026-06-14', OLD, 500)], at('2026-06-14', NEW, 100));
+    expect(out.book.createdAt).toBe(501);
+    expect(findScrapbook(out.books, '2026-06-14')?.createdAt).toBe(501);
+    expect(remakeScrapbook([at('2026-06-14', OLD, 50)], at('2026-06-14', NEW, 100)).book.createdAt).toBe(100);
+    expect(remakeScrapbook([at('2026-06-14', OLD, NaN)], at('2026-06-14', NEW, 100)).book.createdAt).toBe(100);
   });
 });

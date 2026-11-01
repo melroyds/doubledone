@@ -13,6 +13,7 @@ import {
   parseSteps,
   parseTriage,
   plan,
+  PURGE_BATCH,
   PURGE_RETRY_MS,
   purgeScrapbookImages,
   split,
@@ -463,6 +464,38 @@ describe('scrapbook keepsake ownership', () => {
     vi.stubGlobal('fetch', f);
     await purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/' + IMAGE_ID], { Authorization: 'Bearer before' });
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  // #3: the account delete now purges what the device holds AND what the account's rows name, which overlap.
+  it('asks once per picture, however many times it is named', async () => {
+    const f = fetchOk({ ok: true, deleted: 1, refused: 0 });
+    vi.stubGlobal('fetch', f);
+    const url = 'https://api.doubledone.app/scrapbook-img/' + IMAGE_ID;
+    await purgeScrapbookImages([url, url, url], { Authorization: 'Bearer before' });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ keys: [IMAGE_ID] });
+  });
+
+  // The Worker deletes at most PURGE_BATCH keys a call and silently drops the rest; the account's rows can name more.
+  it('sends a long list in batches the Worker accepts, so nothing past the cap is left behind', async () => {
+    const f = fetchOk({ ok: true, deleted: 1, refused: 0 });
+    vi.stubGlobal('fetch', f);
+    const many = Array.from({ length: PURGE_BATCH + 3 }, (_, i) => `https://api.doubledone.app/scrapbook-img/k${i}.jpg`);
+    await purgeScrapbookImages(many, { Authorization: 'Bearer before' });
+    expect(f).toHaveBeenCalledTimes(2);
+    const sent = f.mock.calls.map((c) => (JSON.parse(c[1].body) as { keys: string[] }).keys);
+    expect(sent[0]).toHaveLength(PURGE_BATCH);
+    expect(sent[1]).toEqual([`k${PURGE_BATCH}.jpg`, `k${PURGE_BATCH + 1}.jpg`, `k${PURGE_BATCH + 2}.jpg`]);
+    expect(f.mock.calls.every((c) => c[1].headers.Authorization === 'Bearer before')).toBe(true);
+  });
+
+  it('a malformed address is skipped, never thrown, so the wipe after it still runs', async () => {
+    const f = fetchOk({ ok: true, deleted: 1, refused: 0 });
+    vi.stubGlobal('fetch', f);
+    await expect(
+      purgeScrapbookImages(['https://api.doubledone.app/scrapbook-img/%E0%A4%A', 'https://api.doubledone.app/scrapbook-img/' + IMAGE_ID], { Authorization: 'Bearer before' }),
+    ).resolves.toBeUndefined();
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ keys: [IMAGE_ID] });
   });
 
   it('falls back to the current session when no token is handed in, and to none at all', async () => {

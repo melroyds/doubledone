@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import bandArt from '../../assets/images/rooms/band-lookback.webp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,8 @@ import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
 import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
-import { lookbackSummary, makeScrapbook } from '@/lib/ai';
+import { lookbackSummary, makeScrapbook, purgeScrapbookImages } from '@/lib/ai';
+import { useSession } from '@/lib/auth';
 import { addMonths, canAddToDay, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
 import { aiErrorLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
@@ -19,11 +20,13 @@ import { captureKeepsakeCard } from '@/lib/keepsake-capture';
 import { lookbackStats } from '@/lib/insights';
 import { fmt, t } from '@/lib/locale';
 import { usePremium } from '@/lib/premium-provider';
-import { findScrapbook, type Scrapbook, upsertScrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
+import { findScrapbook, remakeScrapbook, type Scrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
+import { retireReplacedKeepsake } from '@/lib/scrapbook-sync';
 import { shareScrapbook } from '@/lib/share';
-import { loadScrapbooks, loadTasks, saveScrapbooks, saveTasks } from '@/lib/storage';
-import { makeId, nowMs, type Task, withMonotonicStamps } from '@/lib/tasks';
-import { updateWidget } from '@/widget/update';
+import { loadScrapbooks, loadTasks, saveScrapbooks } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import { updateStoredTasks } from '@/lib/task-writes';
+import { makeId, nowMs, type Task } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -64,6 +67,7 @@ export default function LookbackScreen() {
   // The premium flag's gate-ready entitlement: real tenure, premium resolved through the dev
   // override, so the scrapbook cadence below is exactly what the Settings override drives.
   const { effectiveEntitlement, premium, loading: premiumLoading } = usePremium();
+  const session = useSession(); // a remade keepsake goes to the account before the old picture is retired
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const aiEnabled = useSettings().settings.aiEnabled; // the scrapbook + weekly reflection are AI; hidden when off
@@ -76,15 +80,25 @@ export default function LookbackScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void loadTasks().then((stored) => {
-        if (active) setTasks(stored);
-      });
+      const readTasks = () => {
+        void loadTasks().then((stored) => {
+          if (active) setTasks(stored);
+        });
+      };
+      readTasks();
       void loadScrapbooks().then((books) => {
         if (active) setScrapbooks(books);
       });
       track('lookback.viewed');
+      // A warm resume does not re-fire focus, and the list can change while the app is away (Today, mounted
+      // underneath, sweeps and settles on a resume, and the widget and a sync write too), so read again on the way
+      // back, or the Calendar keeps showing the list as it was when it opened (#2).
+      const resumed = AppState.addEventListener('change', (state) => {
+        if (state === 'active') readTasks();
+      });
       return () => {
         active = false;
+        resumed.remove();
       };
     }, []),
   );
@@ -169,9 +183,12 @@ export default function LookbackScreen() {
     setBookError(null);
     try {
       const { image, caption } = await makeScrapbook(titles);
-      const next = upsertScrapbook(scrapbooks, { weekStart, image, caption, createdAt: Date.now() });
+      const { books: next, book, replaced } = remakeScrapbook(scrapbooks, { weekStart, image, caption, createdAt: Date.now() });
       setScrapbooks(next);
-      void saveScrapbooks(next);
+      // A remake retires the picture it replaced, from THIS device, once the new one is kept here and, signed in, on
+      // the account too; otherwise that picture stayed in storage for good, past even an account delete (#3).
+      const account = supabase && session ? { client: supabase, userId: session.user.id } : null;
+      void saveScrapbooks(next).then(() => (replaced ? retireReplacedKeepsake(replaced, book, account, purgeScrapbookImages) : undefined));
       // A remade week has a fresh image, so clear any stale broken-image flag for it.
       setBrokenImages((prev) => {
         if (!prev.has(weekStart)) return prev;
@@ -239,10 +256,14 @@ export default function LookbackScreen() {
     if (!title || !canAddToDay(selected, todayIso)) return;
     const now = nowMs();
     const added: Task = { id: makeId(), title, done: false, createdAt: now, updatedAt: now, due: selected };
-    const next = withMonotonicStamps([...tasks, added], tasks);
-    setTasks(next);
-    void saveTasks(next);
-    void updateWidget(next, null); // the widget shows TODAY, so a future add cannot change it; kept for store parity
+    // Onto the list as it is STORED now, never this screen's copy from when it opened: writing that copy back erased
+    // everything saved since, by Today underneath, a sync, the widget or another tab (#2). The one write path the
+    // rooms share (lib/task-writes) stamps, saves and keeps the widget in step. The day's mark shows at once, and the
+    // stored list takes over when the write lands.
+    setTasks((prev) => [...prev, added]);
+    void updateStoredTasks((list) => [...list, added], tasks)
+      .then((next) => setTasks(next))
+      .catch(() => undefined);
     setAddText('');
     setAddingForDay(false);
     setAddedNote(t('lookback.addedForDay', { date: formatTodayLabel(fromISODate(selected)) }));

@@ -118,6 +118,20 @@ describe('updateStoredTasks', () => {
     expect(updateWidget).toHaveBeenCalledWith(out, '2026-09-25');
   });
 
+  // #2: the Calendar's "Add for this day" wrote its own copy from when it opened, plus the new task, over the store,
+  // so anything saved since (Today's resume sweep, a shared copy settling, a sync, another tab) was erased.
+  it("the Calendar's add for a future day keeps everything saved since the Calendar opened", async () => {
+    const openedWith = [task({ id: 'a' })];
+    const savedSince = [task({ id: 'a', title: 'renamed on Today', updatedAt: 9 }), task({ id: 'from-sync' })];
+    loadTasks.mockImplementation(() => Promise.resolve(savedSince));
+    const added = task({ id: 'friday', due: '2026-10-02' });
+    const out = await updateStoredTasks((ts) => [...ts, added], openedWith);
+    expect(out.map((x) => x.id)).toEqual(['a', 'from-sync', 'friday']);
+    expect(out[0].title).toBe('renamed on Today');
+    expect(out[2].due).toBe('2026-10-02');
+    expect(saveTasks).toHaveBeenCalledWith(out);
+  });
+
   it('never writes a change onto an empty read while the screen still shows tasks', async () => {
     // loadTasks answers a failed read with [], and writing onto that would wipe the list.
     const onScreen = [task({ id: 'r', recurrence: daily }), task({ id: 'x' })];
