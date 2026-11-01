@@ -331,7 +331,7 @@ the ladder is fixed and readable, never randomised.
   a trap") and the label's own words. No free month is running today, and P12 invites people to start one. Fix:
   pass the trial's end as `trial_end` (check Stripe's minimum lead time, about 48 hours, and choose what the last
   two days do), with a test on the form, then a Worker deploy. Trigger: now, so it ships before 19 Nov.
-- **The moat may have gone quiet (found 2026-11-01).** `outcomes` holds 64 rows, the last on 28 Aug, while
+- ~~**The moat may have gone quiet (found 2026-11-01).**~~ **CHECKED 2026-11-01, the pipe works:** on doubledone.app, a fresh browser broke "Clear out the garage" down (clarify and plan both logged, the plan with its correlation id), accepted 8 tasks, and ticked one step from Later; outcome row 65 landed at 04:47:58 UTC, within seconds. So the silence since 28 Aug is non-use: no AI step was ticked anywhere in nine weeks, while most of the 16 plans were device passes. The test's two AI calls and row 65 are founder rows. *(The original note follows.)* `outcomes` holds 64 rows, the last on 28 Aug, while
   Break it down made 16 plans with correlation ids in September and October. The code path reads as intact
   (bdAccept stamps `decompositionId`, finishTasks reports it, `/outcome` logs it), so either no AI step has been
   ticked since, or something between them broke. Check: on doubledone.app, break a task down, accept the steps,
