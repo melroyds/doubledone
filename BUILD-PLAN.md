@@ -42,7 +42,7 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**THE 1 NOV BUG SWEEP: 24 FIXED ON MAIN, NOTHING PUSHED OR DEPLOYED (2026-11-01).** 40 bugs confirmed besides R8;
+**THE 1 NOV BUG SWEEP: 24 FIXED, LIVE ON THE WEB AND THE WORKER (2026-11-01 evening).** Melroy deployed Worker `7139f696` from main `586b2de` (rollback `636a1611`; bindings identical, `info.version` 1.3.1, money routes 401 JSON), then the web went out as 1.10.2 (deploy-web and CI green; the live bundle carries the fixes, sw.js renotifies and takes over at once). Still to run: PREM-62 (a real card, then cancel), and the phones get the client fixes with the store build in the week of 16 to 22 Nov. *(The plan as written before the deploy follows.)* **Was: 24 FIXED ON MAIN, NOTHING PUSHED OR DEPLOYED.** 40 bugs confirmed besides R8;
 the full report with every file and fix is the sweep's own (decision-log, same day). Fixed and tested, in lanes
 6b9f52d, d51961c, 5942fc0, 71bcbc3, 51a8533, b4851c8 and 54dba4d, plus the review's follow-ups. **Deploy order, each on
 Melroy's word:** (1) the Worker, carrying the billing fix 80d8823 and the Worker batch 6b9f52d (rollback target
