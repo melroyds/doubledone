@@ -323,6 +323,20 @@ the ladder is fixed and readable, never randomised.
   focus, with permission already granted and a live subscription), so the server learns nothing per open. **Trigger:**
   the next web-side change touching reminders, or one report of a reminder at the wrong hour.
 
+- **TIER 1, before P12 (Thu 19 Nov): the web's "Go Premium to keep it" bills at once, mid free month (found
+  2026-11-01 by the build-next review, confirmed in code).** During a card-free month the web paywall shows
+  `premiumPrimaryAction` 'convert' ("Go Premium to keep it"; its spoken label says "after your free month"), but
+  `checkoutSessionForm` (server/src/stripe.ts) passes no `subscription_data[trial_end]`, so Stripe charges the day
+  they tap, and the rest of the free month is lost. That breaks the positioning's third claim ("paying never springs
+  a trap") and the label's own words. No free month is running today, and P12 invites people to start one. Fix:
+  pass the trial's end as `trial_end` (check Stripe's minimum lead time, about 48 hours, and choose what the last
+  two days do), with a test on the form, then a Worker deploy. Trigger: now, so it ships before 19 Nov.
+- **The moat may have gone quiet (found 2026-11-01).** `outcomes` holds 64 rows, the last on 28 Aug, while
+  Break it down made 16 plans with correlation ids in September and October. The code path reads as intact
+  (bdAccept stamps `decompositionId`, finishTasks reports it, `/outcome` logs it), so either no AI step has been
+  ticked since, or something between them broke. Check: on doubledone.app, break a task down, accept the steps,
+  tick one, then `SELECT COUNT(*) FROM outcomes`. Count the row as a founder row. Trigger: this week, before
+  anything quotes the moat.
 - ~~**App copy the screenshot QA turned up (parked 2026-10-25).**~~ **BUILT 2026-11-01** (decision-log, same date): 99 catalogue and seed-row edits, each drafted by a native writer and checked by an adversarial native reviewer per language, plus the code halves (a one-day repeat spelled out in the row and the add panel, a shared row due today saying Today, the weight hint free to wrap) and the French typographic apostrophe across the catalogue, guarded by a test. What the reviewers found beyond this list is the next entry. *(The original entry follows.)* Ten native reviewers read every store slide in five
   languages; these are UI strings, not slide faults, so each needs its own native read before it ships. Grouped,
   most-seen first:
@@ -624,7 +638,7 @@ The single home for consciously parked work. Nothing here is dropped; each item 
   the share extension, RevenueCat, native modules), which never show in the web preview. Needs its
   own build, a closed-track device pass of widget, share, IAP, reminders and Ours, and the mapping
   file uploaded so crash reports stay readable. The console's "upgrade to AGP 9.0" half arrives with
-  the SDK upgrade, not by hand. **Trigger:** the SDK 57 upgrade (which also brings expo-share-intent
+  the SDK upgrade, not by hand. **From the 2026-11-01 review:** turn on minify only and leave resource shrinking OFF, because the widget library looks its images up by name at runtime (`getIdentifier`) and resource shrinking can strip them without an error; check with `unzip -l` whether the mapping file already rides inside the AAB before planning an upload step; and do not promote unless the widget renders and refreshes, the widget offer still appears on a phone with no widget (its check reads an error as "already placed"), shares from Chrome and Notes land, a Play purchase and a restore work, Ours syncs, a fixed-time Rhythm fires with the app swiped away and after a reboot, a Hold knock arrives, AND-10 passes, and a nudge set on the live build still fires after the update. If anything fails, ship without minify and retry R8 alone in January. **Trigger:** the SDK 57 upgrade (which also brings expo-share-intent
   8.x), or 2026-12-01, whichever comes first, so it is done and device-proven well before February.
 - **A tri-state bearer verifier (rejected vs unavailable).** `server/src/verify.ts` returns null for a
   forged or expired token AND for a JWKS fetch failure, so a Supabase auth blip on a cold isolate
