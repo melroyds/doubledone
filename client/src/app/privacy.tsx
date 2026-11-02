@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 1 November 2026.</Text>
+        <Text style={styles.updated}>Last updated 2 November 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -38,7 +38,8 @@ export default function PrivacyScreen() {
 
         <Section styles={styles} heading="If you choose to sync">
           Syncing across devices is optional. If you turn it on, the only personal information held is your email
-          address, used to send a one-time sign-in code. There is no password. Your tasks are stored in rows only you
+          address, used to send a one-time sign-in code. If you connect an AI assistant, your device&apos;s time zone is
+          kept too (see Connecting an AI assistant). There is no password. Your tasks are stored in rows only you
           can read (row-level security scopes every row to your account). Your scrapbook keepsakes sync the same way;
           the keepsake picture itself is stored at an unguessable address so each of your devices can show it. You can
           sign out, or stop syncing, any time.
@@ -168,7 +169,10 @@ export default function PrivacyScreen() {
           your tasks for you. This is off until you turn it on. Once you connect one, that assistant can read the tasks
           it asks for, and those tasks travel to whichever company runs it. To hold the connection open we store your
           email address and sign-in keys for your account: the long-lived key is encrypted, and a short-lived one
-          (about an hour) is kept as-is so you are not asked to reconnect constantly. You can cut the connection at any time in Settings: it stops working straight away, and the email and
+          (about an hour) is kept as-is so you are not asked to reconnect constantly. If you connect an AI assistant,
+          we also keep the name of your device&apos;s time zone, such as Australia/Melbourne, so the assistant works on
+          the same day as your Today. It is read from your device&apos;s clock settings, not from your location, and it
+          goes when you disconnect your assistants in Settings or delete your account. You can cut the connection at any time in Settings: it stops working straight away, and the email and
           keys we held for it are deleted. Deleting your account does the same.
         </Section>
 

@@ -19,7 +19,7 @@ plain create and update, so it is here too.
 |---|---|
 | Base URL | `https://api.doubledone.app/api/v1` |
 | Interactive docs (Swagger UI) | [`/api/v1/docs`](https://api.doubledone.app/api/v1/docs) |
-| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.3.1** |
+| OpenAPI 3.1 spec | [`/api/v1/openapi.json`](https://api.doubledone.app/api/v1/openapi.json), `info.version` **1.4.0** |
 | Auth | `Authorization: Bearer <your DoubleDone token>` on every task call |
 | Format | JSON in, JSON out. Errors are `{ "error": "<plain message>" }` |
 | CORS | Open to any origin (the token is the auth, not the origin) |
@@ -175,7 +175,7 @@ Send any of these. At least one is required.
 |---|---|
 | `title` | A non-empty string, trimmed. |
 | `done` | A JSON boolean (`true` or `false`, not a string). |
-| `day` | With `done` only: the `YYYY-MM-DD` day to tick or un-tick on a repeating task. It must be a real calendar day (`2026-02-30` is refused). Defaults to the UTC day. |
+| `day` | With `done` only: the `YYYY-MM-DD` day to tick or un-tick on a repeating task. It must be a real calendar day (`2026-02-30` is refused). Defaults to your today (see [Days and time zones](#days-and-time-zones)). |
 | `due` | A `YYYY-MM-DD` day, or `null` to clear the date. Setting a day stops any repeat. As on create, only the shape is checked. |
 | `repeat` | A repeat rule, or `null` to stop repeating. Setting a rule clears the due day. |
 | `partsTotal` | A whole number from 2 to 50 to track the task in parts, or `null` to make it one whole task again. See [Parts](#parts). |
@@ -207,8 +207,8 @@ the same:
 
 - **`done: true` on a repeating task** ticks it for one day, in the same per-day record the app
   writes, and leaves the series running. The returned task still shows `done: false` with its
-  `repeats` summary. The day is the **UTC** calendar day unless you send `day`, so if you know
-  the person's local date, send it.
+  `repeats` summary. The day is **your today** unless you send `day` (see
+  [Days and time zones](#days-and-time-zones)).
 - **`done: false` on a repeating task** un-ticks that day **on the server only**. A device that
   has already synced the tick brings it back on its next open, because the app keeps ticks on
   purpose.
@@ -363,7 +363,7 @@ You send a `repeat` rule. The API stores and returns a normalised `recurrence`, 
 | `every_n_days` | `days` (required: a whole number, 1 or more), `start` (optional) | `{ "kind": "interval", "days": 3, "anchor": "…" }` | `every 3 days` (every 1 day reads `every day`) |
 | `monthly` | `day` (optional, 1 to 31), `start` (optional) | `{ "kind": "monthly", "day": 1, "start": "…" }` | `every month on the 1st` |
 
-- **`start`** is a `YYYY-MM-DD` day the repeat begins on, and defaults to today (UTC). A daily,
+- **`start`** is a `YYYY-MM-DD` day the repeat begins on, and defaults to your today. A daily,
   weekly or monthly repeat is not due before its start.
 - **`every_n_days`** counts from its anchor, which is `start`, or today when there is none. It
   comes back as `kind: "interval"` with that `anchor`, so translate it back to `every_n_days`
@@ -383,13 +383,21 @@ repeat shapes. That is why a repeat made anywhere looks the same everywhere.
 
 ## Days and time zones
 
-Every "today" on this API is the **UTC** calendar day at the moment of the call. That covers
-`?today=true`, the start of the `upcoming` window, the default `start` of a new repeat, a
-monthly repeat's default day, and the default day of a tick.
+Every "today" on this API is **your own calendar day**, in the time zone your account keeps once
+you connect an assistant (since 1.4.0, 2 Nov 2026). That covers `?today=true`, the `upcoming`
+window, the default `start` and `every_n_days` anchor of a new repeat, a monthly repeat's default
+day, the default day of a tick, and the day a closed step's finish is dated to. MCP uses the same
+day.
 
-In Melbourne that means the API's "today" is still yesterday's date until 10 am, or 11 am during
-daylight saving. Where the person's local date matters, pass it: `day` on a tick, `start` on a
-repeat, `due` on a one-off.
+- **Where the zone comes from.** Copy my token in Settings keeps your device's time-zone name
+  (such as `Australia/Melbourne`) on your account, and Supabase puts it in every access token
+  (`user_metadata.tz`). The API reads it from the token it has just verified, so a token copied
+  after that carries your day. Disconnect AI connectors clears it.
+- **Without a zone it is the UTC day,** as before: a token copied before the change, or a zone
+  that does not validate. In Melbourne the UTC day is still yesterday's date until 10 am, or 11 am
+  during daylight saving.
+- Wherever a particular day matters, you can still pass it: `day` on a tick, `start` on a repeat,
+  `due` on a one-off. A day you send always wins.
 
 ---
 

@@ -214,10 +214,10 @@ It reads the task first, then decides, in this order:
    or comes back by itself." Nothing is written.
 2. A **repeating** task is ticked for one day and comes back on its next day ("Ticked for
    2026-10-06. It repeats, so it will be back on its next day."). Completing never closes a
-   repeat. To stop one, use `update_task` with `repeat: null`. The day defaults to the **UTC**
-   calendar day and the reply always names it, so an agent that knows your local date can pass
-   `day` next time. Ticking the same day of a repeat twice says it was already ticked and changes
-   nothing.
+   repeat. To stop one, use `update_task` with `repeat: null`. The day defaults to **your today**
+   (see [Days and time zones](#days-and-time-zones)) and the reply always names it, so an agent
+   can pass `day` to tick a different one. Ticking the same day of a repeat twice says it was
+   already ticked and changes nothing.
 3. A task **already done** answers "Already done." and writes nothing, so a second tick never
    moves it in the Lookback.
 4. A task **tracked in parts** moves forward one part, or `count` parts, and the last part closes
@@ -245,7 +245,7 @@ the write matches nothing and the reply says so: "It changed just now. Try again
   **one** part, and the last step closes its big task), `false` reopens a one-off or un-ticks a
   day on a repeat. On a step, `false` reopens the step alone, never the big task it closed, as
   unticking a step in the app does.
-- `day`: with `done`, the day to tick or un-tick on a repeat. Defaults to the UTC day.
+- `day`: with `done`, the day to tick or un-tick on a repeat. Defaults to your today.
 
 At least one change is required, and `parts` and `done` go one at a time, as do `parts` and a new
 `repeat`. A change of title or due day alone is one plain write. Anything with `parts`, `done` or a
@@ -458,7 +458,7 @@ These two complete OpenAI's Deep Research connector contract, and any client may
 - `monthly` takes an optional `day` from 1 to 31, defaulting to the day of the month of `start`,
   or of today. A month with no such day uses its **last** day, so a monthly task is never
   skipped.
-- `start` is an optional `YYYY-MM-DD` day the repeat begins, defaulting to today (UTC).
+- `start` is an optional `YYYY-MM-DD` day the repeat begins, defaulting to your today.
 
 An unreadable rule gets a calm error reply naming the kinds it accepts. One function,
 `buildRecurrence` in [`server/src/cadence.ts`](../server/src/cadence.ts), translates every rule
@@ -470,11 +470,26 @@ stored shape, is in the [REST API's Recurrence section](api.md#recurrence).
 
 ## Days and time zones
 
-The server's "today" is the **UTC** calendar day at the moment of the call. That covers
-`list_today`, the start of the `list_upcoming` window, a repeat's default start and a tick's
-default day. In Melbourne it is still yesterday's date until 10 am, or 11 am during daylight
-saving. An agent that knows your local date should pass it as `day` when ticking a repeat, and the
-tick replies always name the day used, so a wrong guess is visible.
+The server's "today" is **your own calendar day**, in the time zone your account keeps once you
+connect an assistant (since 2 Nov 2026, #24). That covers `list_today`, the `list_upcoming`
+window, a tick's default day, a repeat's default start and `every_n_days` anchor, `monthly`'s
+default day, `fetch`'s status line and the day a step's finish is dated to. A `day` the agent
+names on a write still wins.
+
+- **Where the zone comes from.** Copy my token in Settings keeps your device's time-zone name
+  (such as `Australia/Melbourne`) on your account, and so does Allow on a connector's sign-in page
+  (from the browser you sign in on). The app keeps it current when you open Today in a new zone,
+  but never creates one by itself, and Disconnect AI connectors clears it. Supabase puts it in
+  every access token (`user_metadata.tz`), and the Worker reads it from the token it has just
+  verified, so there is no extra read and nothing new is stored on our side.
+- **Without a zone it is the UTC day,** as before: an account that has not connected since the
+  change, a token copied before it, or a zone that does not validate. In Melbourne the UTC day is
+  still yesterday's date until 10 am, or 11 am during daylight saving. Copy the token again, or
+  reconnect, to fix it.
+- **A token carries the zone it was minted with.** A pasted token keeps its zone for its hour,
+  and a connector's custody picks a new zone up at its next refresh.
+- The `break_down` hourly cap stays on UTC hours on purpose. The tick replies always name the day
+  used, so a wrong day is visible.
 
 ---
 
