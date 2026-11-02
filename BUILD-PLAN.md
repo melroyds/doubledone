@@ -42,6 +42,36 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**PREMIUM WITHOUT AN ACCOUNT (OPTION 1): BUILT AND REVIEWED ON MAIN, NOT PUSHED, NOT DEPLOYED (2026-11-03, on
+Melroy's "Please go on Option 1").** A friend in India bought Premium on his iPhone without signing in, and Chart a
+course told him to rephrase his goal: the four server-gated features (Scan, Chart a course, Plan my day, Reflect on
+this week) needed an account his phone did not have, and refused before any AI saw the goal. A second anonymous App
+Store subscriber is in the same place. Now an iPhone with no account sends its RevenueCat anonymous id in
+`X-Purchaser-Token`, the Worker checks it against our own webhook log and RevenueCat, and nobody is made to sign in.
+Every Premium miss says what happened, in five languages, and only the AI's own empty answer suggests rephrasing.
+Built as `c99309c` (the Worker's store check), `561d5ab` (the app half), `18416d5` (sign-in and Restore) and `2ce398f`
+(the new lines in four languages), then reviewed, with all seven findings applied (`76b96f5`, `4f17650`, `68d2a26`,
+`2ee42dd`, `b5c36c1`, `7a3e0aa` and the docs commit). **Melroy's part, in this order** (the detail is in
+[`docs/operations.md`](docs/operations.md), "Shipping it, in this order"):
+1. **Approve the privacy section** drafted in
+   [`docs/design-source/premium-without-account/privacy-draft.md`](docs/design-source/premium-without-account/privacy-draft.md).
+   A session then puts it on both privacy pages, with Last updated and PRV-03, in one commit. It must be live before
+   step 3, because the new Worker starts keeping scrambled anonymous ids from its first RevenueCat delivery for an
+   account.
+2. **Push main**, the web deploy: the honest lines and both privacy pages. Bump `client/app.json` first, as on 2 Nov,
+   if open tabs should be offered the reload.
+3. **Deploy the Worker** from `server/` on main. The rollback target is `666a23d4`, and a rollback past this change
+   must clear the two store-check tables at once (the runbook has the commands). Record the version in CLAUDE.md's
+   Worker row, with the store check.
+4. **The iPhone store build** in the week of 16 to 22 Nov carries the app half that sends the id.
+
+**The live checks:** after step 3, PREM-74 (every probe answers 401 with the JSON body, and Cloudflare's Logs show
+`x-purchaser-token` as REDACTED with no `RCAnonymousID` anywhere, or the store build waits), then PREM-75 and PREM-78.
+Before step 4, the read-only RevenueCat lookup of the two anonymous App Store customers. With the build, PREM-72, 73,
+79, 80 and 81 on TestFlight (81 takes a day). PREM-77 can run on today's TestFlight build at any time, and PREM-76,
+CHART-09, OCR-08 and SEQ-09 on a local `npm run dev`. Until the store build, the two anonymous buyers' stopgap is in
+the runbook: sign in with an email never used before, and if Premium vanishes, Restore, then relaunch.
+
 **THE 1 NOV SWEEP IS CLOSED (2026-11-02, evening, on Melroy's "do 27, 31 and 34 next. I want to close this off").**
 #31 (a7542c6: on the web, Today says when the browser keeps nothing), #34 (fc71406 and e22ca82: the paywall's
 privacy and Google Play links, the month-day chips and German Settings' AGB say their visible words first), #27
@@ -364,6 +394,16 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **Two things Premium without an account left open (found 2026-11-03, by its build and its review).** (1) The
+  iPhone's signed-in Restore reconciles without checking that RevenueCat's customer is the account, because
+  `restore()` never calls `logIn`. After a sign-in whose `logIn` failed, on an account with no RevenueCat customer
+  yet, the reconcile's lookup can make the bare uuid customer that 18416d5 otherwise stops the app making. The store
+  check still refuses production Premium to an id merged into it. The fix is small: run `identifyPurchaser` before
+  that reconcile in `premium.tsx`, as the mend does, plus a source-held rule beside the other two. (2) RevenueCat's
+  Restore Behavior is keep-with-original, which RevenueCat describes for apps that require an account before
+  purchase, and iOS does not: review the setting in the dashboard. **Trigger:** the next change to `premium.tsx` or
+  `purchases.ios.ts` for (1), and at the latest the iOS build after the 16 to 22 Nov one. For (2), a TRANSFER alert,
+  a support case about a purchase on a second Apple ID, or the next iOS submission.
 - **Three small follow-ups from closing the sweep (found 2026-11-02).** (1) The weekday chips' spoken names ("Repeat
   on Mo" for a chip that shows "Mo") fail the same voice rule #34 fixed, in all five languages; the fix needs a long
   weekday placeholder and code in BrainDump and CadenceSheet, and the German wording is already read ("{day}, jeden

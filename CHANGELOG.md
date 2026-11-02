@@ -19,9 +19,17 @@ versioning: [SemVer](https://semver.org/).
 
 _Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3 to 1.10.6 on 2026-11-02, and on the
 Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02). The app changes reach the
-phones with the store build in the week of 16 to 22 Nov._
+phones with the store build in the week of 16 to 22 Nov. The entries marked **(on main only)** are Premium without
+an account (2026-11-03): built and reviewed, but not yet on the web, the Worker or any phone._
 
 ### Added
+- **Premium works on an iPhone without an account** (on main only). Apple lets an iPhone buy Premium signed
+  out, but Scan, Chart a course, Plan my day and Reflect on this week check Premium on our server, which needed an
+  account, so they refused a paying customer. Now the phone sends its anonymous RevenueCat id, the Worker checks it
+  against our own record of the purchase and with RevenueCat, and nobody has to sign in. The check keeps only
+  scrambled ids, and its answers are gone within two hours. It reaches iPhones with the store build in the week of
+  16 to 22 Nov ([`server/src/store-premium.ts`](server/src/store-premium.ts),
+  [`docs/operations.md`](docs/operations.md)).
 - `doubledone.app/?ref=instagram` and `?ref=facebook` make the website's store badges carry that channel, so each
   store can say which installs it brought. The list is fixed, so no free text reaches a store, and nothing is stored
   (2026-11-01, [`client/src/lib/store-links.ts`](client/src/lib/store-links.ts)).
@@ -53,6 +61,16 @@ phones with the store build in the week of 16 to 22 Nov._
   "the Lookback".
 
 ### Fixed
+- **A Premium feature that cannot run says why** (on main only). Scan, Chart a course, Plan my day and Reflect on
+  this week showed one line for every failure, and Chart told a paying iPhone with no account to rephrase a goal
+  that never left the phone. Now a refusal says no active Premium was found, a Premium that could not be confirmed
+  says so, a dropped call is the feature's own "try again" line, and only the AI's own empty answer suggests
+  rephrasing, in all five languages. After a refusal the app reads the store again, so a subscription that has
+  ended meets the paywall on the next tap, not the same refusal.
+- **Signing in no longer leaves those four features refusing a Premium the iPhone shows** (on main only, for the
+  store build). The iPhone waits for its store before linking the account, a Restore while signed in reaches the
+  four features without a relaunch, and a signed-in refusal while the phone shows Premium mends itself once.
+  Signing in to an account already used on a phone can still hide the purchase until a Restore.
 - **On the web, Today says when the browser keeps nothing.** With site data blocked, a calm line says that
   what you add will not be kept, and how to let doubledone.app save (web 1.10.6,
   [`client/src/lib/storage-probe.ts`](client/src/lib/storage-probe.ts)).
@@ -107,6 +125,10 @@ phones with the store build in the week of 16 to 22 Nov._
   count. OpenAPI 1.3.1.
 
 ### Security
+- **A purchase without an account cannot borrow anyone else's** (on main only). The Worker honours a real one only
+  for an id our own webhook log saw buy (or a reinstall of one), never an id that has joined an account, and never
+  when the request carries any sign-in token, because RevenueCat can merge a made-up id into a stranger's account.
+  Test purchases get a small daily allowance. The header is named so Cloudflare's logs show it as REDACTED.
 - The installed web app is no longer a share target. Its shared text rode in the URL, which reached the host's request
   logs. Android and iPhone share into the store apps as before (web 1.10.3).
 

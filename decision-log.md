@@ -11833,3 +11833,60 @@ rewritten.)*
   remembered for the run, as Android's always was. A sign-out known at launch now always reaches RevenueCat's `logOut`,
   as on Android, where before it depended on which finished first. An id that is already anonymous stays, because
   RevenueCat refuses to log it out.
+- **One narrow path stays open** (found by the review, next entry): the iPhone's signed-in Restore reconciles without
+  checking that RevenueCat's customer is the account. Parked in the Backlog.
+
+## 2026-11-03: the review of Premium without an account: the privacy section ships before the Worker, and what a tester or a session reads matches the code
+
+The batch (`c99309c`, `561d5ab`, `18416d5`, `2ce398f`) had a review of its words and its tests, and a finding was acted
+on only after two skeptics had tried to refute it. Seven findings came through, and all seven are applied, in six
+commits (`7a3e0aa` carries both privacy-draft findings): `76b96f5`, `4f17650`, `68d2a26`, `2ee42dd`, `b5c36c1` and
+`7a3e0aa`, then the plan, the changelog and this entry.
+Two of the seven had one skeptic against them: the privacy draft's refused-ids sentence (no sentence in it was false)
+and the sign-in heading (its "switches off" could be read through its own first sentence). Both were applied anyway,
+because the other skeptic showed a real reader each could mislead, and the words cost nothing to fix. Nothing is pushed
+or deployed.
+
+**Decided:**
+- **The privacy section goes live before the Worker deploy, never after.** From its first RevenueCat delivery that
+  resolves to an account, the new Worker keeps a scrambled form of every anonymous id the delivery lists, in a table
+  nothing purges, and the live policy says nothing about it. So: Melroy approves the draft, one commit puts it on both
+  pages with Last updated and PRV-03, main is pushed, and only then the Worker, its checks, and the iPhone store build
+  (`docs/operations.md`, "Shipping it, in this order").
+- **The push comes before the Worker, the reverse of 2 Nov, for the same reason turned round.** On 2 Nov the Worker
+  went first because the page said a count had stopped, which only the new Worker made true. Here the page describes
+  records the new Worker starts keeping, so the page must be there first. The push needs nothing from the new Worker:
+  the web never sends the purchase header, and the old Worker's 401 and 403 map to the same lines.
+- **The request-log clause is published before PREM-74 can run on the deployed Worker.** It is written for a header
+  Cloudflare redacts. If PREM-74 shows the id, the iPhone build that sends it waits, so no real person's id reaches
+  the log and the clause stays true.
+- **PREM-74 gates the iPhone store build**, not the client commit, as the server half's entry put it: the client
+  commits went onto main before any deploy, and the web never sends the header.
+- **The draft lives in the repo**, at `docs/design-source/premium-without-account/privacy-draft.md`, not only in one
+  session's scratchpad, and its refused-ids sentence now says what the code does: every anonymous id a verified
+  delivery for an account lists, from either store, Android included, scrambled, with no account attached, kept as
+  long as billing records (as `rc_events` is), and the owner's block by hand. It has one PRV-03 text, quoting the body.
+- **The recheck after a refusal is held.** `connection.test.ts` holds the hook and the provider's hand-off in their
+  source, `purchases-split.test.ts` tests both phones' cached and fresh reads against the stubbed SDK, and thirteen
+  mutations each fail a test. PREM-81 is its iOS case.
+- **The manual cases say what the code does.** PREM-76 (d) signs back in, because signed out the web sends nothing,
+  so a dead Worker is never reached, and that corrects OCR-08, CHART-09 and SEQ-09 too. PREM-77 and PREM-78 run their
+  D1 command from the repo root, and so does the runbook's rollback.
+- **The runbook and the comments say what `18416d5` closed**, for builds from the 16 to 22 Nov store build on, and
+  name the one narrow path still open. The sign-in entry's heading no longer says "never".
+
+**Decided against:**
+- **The Worker first, then the push**, the 2 Nov order. The Worker would keep scrambled ids before the policy said so,
+  for as long as the gap lasted.
+- **Holding the privacy section until PREM-74 has passed.** That needs the Worker deployed first, which the order
+  above rules out, and a failed PREM-74 already holds the only build that could put a real id in the log.
+- **A shorter iOS case for the recheck.** Only a real lapse makes the phone's fresh read come back free, and
+  TestFlight renews a subscription once a day whatever its length, so PREM-81 takes a day. The mechanism itself is
+  unit-tested.
+- **Rewriting `18416d5`'s subject.** History is not rewritten, so the heading carries a note that keeps the old words
+  findable.
+- **Fixing the narrow Restore path in this batch.** The iPhone's signed-in Restore reconciles without checking that
+  RevenueCat's customer is the account, because `restore()` never calls `logIn`. It needs a sign-in whose `logIn`
+  failed, on an account with no RevenueCat customer yet, and the store check still refuses production Premium to an
+  id merged into what that makes. It is a code change, outside a review of words and tests, so it is parked in the
+  Backlog with a trigger.
