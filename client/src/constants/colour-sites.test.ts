@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 //     words take accentText, or skyAccent straight on the sky. Honey shows why: its gold fill is 2.8:1 as words.
 //   - A placeholder is never inkFaint, with no exceptions: an empty field's hint is the one line that tells you
 //     what the field is for.
+//   - The five task-dot hues are never words. Words in those hues read accentsText (#36), and the honey ✦, a
+//     symbol, reads premiumMark where it has been solved. Every other mention is listed below with its reason.
 // A new use fails here until it takes a role or joins a list with its reason, and a listed use that goes away fails
 // too, so the lists only ever hold what is really there. Both tokens are scanned at every mention, not only where a
 // `color:` names them, because a colour can reach words through a variable: TaskRow's `heroText` once held the
@@ -82,6 +84,18 @@ const ACCENT_NOT_WORDS: Record<string, string> = {
   'app/premium.tsx spinner': 'the loading spinner, read by ActivityIndicator, not words',
 };
 
+// Every mention of the five task-dot hues (accents), and why it is not words. In light mode the dots are 2.4 to 4.3:1
+// on the paper (#36), so Settle's words read accentsText and the Menu's ✦ reads premiumMark. The ✦s below are symbols,
+// which need 3:1, and still wear the gold dot under it: parked in the BUILD-PLAN Backlog with the rest of C8.
+const DOT_HUES_NOT_WORDS: Record<string, string> = {
+  'app/chart.tsx premiumMark': "the honey ✦ before Chart a course's Premium note, a symbol (under 3:1, parked)",
+  'app/settings.tsx premiumTagMark': "the honey ✦ in a Premium option's tag, a symbol (under 3:1, parked)",
+  'app/today.tsx toolPremiumMark': 'the honey ✦ beside Plan my day, a symbol (under 3:1, parked while Today is frozen)',
+  'components/TaskRow.tsx premiumStar': 'the honey ✦ beside Pin in the held card, a symbol (under 3:1, parked while the held card is frozen)',
+  'components/RotatingPhrase.tsx (no style key)': "the foot phrase's words in dark mode only, held by palette.test.ts (light mode reads skyInk)",
+};
+
+const DOT_HUES = /colors\.accents(?![A-Za-z])/;
 const INK_FAINT = /colors\.inkFaint(?![A-Za-z])/;
 const ACCENT = /colors\.accent(?![A-Za-z])/;
 const EVERY_ACCENT = /colors\.accent(?![A-Za-z])/g;
@@ -142,6 +156,10 @@ describe('the colour roles on every screen', () => {
     expect(accentSites().filter((s) => !(s.id in ACCENT_NOT_WORDS)).map((s) => s.where)).toEqual([]);
   });
 
+  it('never draws words in the dot hues', () => {
+    expect(find(DOT_HUES).filter((s) => !(s.id in DOT_HUES_NOT_WORDS)).map((s) => s.where)).toEqual([]);
+  });
+
   it('reads what a mention of the accent is assigned to', () => {
     // The shapes the screens use, so a change to the reader cannot quietly let words through.
     expect(notWords(assignedTo("checkOn: { backgroundColor: t.colors."))).toBe(true);
@@ -159,7 +177,9 @@ describe('the colour roles on every screen', () => {
   it('lists only what is really there', () => {
     const faint = new Set(find(INK_FAINT).map((s) => s.id));
     const accent = new Set(accentSites().map((s) => s.id));
+    const dots = new Set(find(DOT_HUES).map((s) => s.id));
     expect(Object.keys(INK_FAINT_NOT_WORDS).filter((id) => !faint.has(id))).toEqual([]);
     expect(Object.keys(ACCENT_NOT_WORDS).filter((id) => !accent.has(id))).toEqual([]);
+    expect(Object.keys(DOT_HUES_NOT_WORDS).filter((id) => !dots.has(id))).toEqual([]);
   });
 });

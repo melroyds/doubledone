@@ -41,6 +41,10 @@ export type Palette = {
   scrim: string;
   priorityGradient: readonly string[];
   accents: readonly string[];
+  // The same five hues as WORDS on the page (Settle's guide and its affirmations), one for one with `accents`.
+  accentsText: readonly string[];
+  // The honey ✦, the house mark for a Premium option. A symbol, so it needs 3:1, not 4.5.
+  premiumMark: string;
 };
 
 const light = {
@@ -68,6 +72,13 @@ const light = {
   priorityGradient: ['#3B82F6', '#8B5CF6'], // saved loud blue->violet, for the premium "Prioritise a task" feature
   // A small, calm set of accent hues (e.g. for per-task dots). Desaturated by design.
   accents: ['#9B6A7D', '#4E8C86', '#C19A4F', '#6E72A0', '#BE7F84'], // mauve, teal, gold, periwinkle, rose
+  // On the paper the dots run 2.4:1 (gold) to 4.3:1 (periwinkle), under the 4.5 words need (#36). Each word shade keeps
+  // its dot's hue and saturation, with the lightness solved to clear 4.6:1 on all seven themes' paper (palette.test.ts).
+  accentsText: ['#906073', '#427671', '#876930', '#666A9B', '#A7555C'],
+  // The gold dot is 2.6:1 on a white card. This is its lightness solved to 3.1:1 there, hue and saturation kept: the
+  // Menu's ✦ (#36). The other ✦s still wear accents[2] (colour-sites.test.ts lists them). It is solved for white only,
+  // and on the page it is 2.8:1, so a ✦ that moves onto paper adds the page to its palette.test.ts row and is re-solved.
+  premiumMark: '#B48C40',
 } satisfies Palette;
 
 const dark = {
@@ -94,6 +105,8 @@ const dark = {
   scrim: 'rgba(10,8,6,0.6)', // deeper warm wash so it actually dims the dark surface, never cold black
   priorityGradient: ['#5B8DEF', '#9B6CF0'],
   accents: ['#C68BA0', '#6FB0A8', '#D6B36A', '#8E97C8', '#D6979C'],
+  accentsText: ['#C68BA0', '#6FB0A8', '#D6B36A', '#8E97C8', '#D6979C'], // = accents: 6.0:1 and up on every dark paper
+  premiumMark: '#D6B36A', // = accents[2], 7.6:1 and up on a dark card
 } satisfies Palette;
 
 export const Colors = { light, dark } as const;
@@ -102,8 +115,8 @@ export const Colors = { light, dark } as const;
 // light and dark variant on the same token names (designed and WCAG-verified in Claude Design). Dusk is the
 // unchanged default and the free state; the other six are Premium. Each preset carries the 12 core tokens; the
 // rest of the Palette is derived per preset (surfaceCard / doneSoft / onDone, and the light text roles below) or
-// kept fixed (scrim, the loud priorityGradient, and the per-task `accents` dots are deliberately
-// theme-independent). IMPORTANT: onAccent is PER-THEME, Honey uses DARK label text because a calm gold cannot
+// kept fixed (scrim, the loud priorityGradient, and the per-task `accents` dots, their word shades and the ✦ are
+// deliberately theme-independent). IMPORTANT: onAccent is PER-THEME, Honey uses DARK label text because a calm gold cannot
 // clear AA with white, so button labels must always read t.colors.onAccent, never a hardcoded white.
 export type ThemeTokens = {
   bg: string; surface: string; ink: string; inkSoft: string; inkFaint: string; line: string;
@@ -166,7 +179,8 @@ export function mix(hexA: string, hexB: string, tB: number): string {
 
 // Build a full Palette from a preset's 12 tokens: the rest is derived (surfaceCard a translucent surface,
 // doneSoft a pale tint of done, doneText a deepened done that clears AA as text, onDone a dark ink tick on light
-// / the dark paper on dark) or carried from the fixed, theme-independent extras (scrim, priorityGradient, dots).
+// / the dark paper on dark) or carried from the fixed, theme-independent extras (scrim, priorityGradient, the dots and
+// their word shades, the ✦).
 function toPalette(tk: ThemeTokens, scheme: 'light' | 'dark', preset: ThemeName): Palette {
   const base = scheme === 'dark' ? dark : light;
   const roles: TextRoles = (scheme === 'light' ? LIGHT_TEXT[preset] : undefined) ?? { skyInk: tk.inkSoft, accentText: tk.accent, skyAccent: tk.accent };
@@ -181,6 +195,8 @@ function toPalette(tk: ThemeTokens, scheme: 'light' | 'dark', preset: ThemeName)
     scrim: base.scrim,
     priorityGradient: base.priorityGradient,
     accents: base.accents,
+    accentsText: base.accentsText,
+    premiumMark: base.premiumMark,
   };
 }
 

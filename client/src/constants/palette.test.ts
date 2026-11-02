@@ -121,6 +121,9 @@ const ROLES: [string, Token, Surface[], number, Scheme?][] = [
   // (the one line that put it there) are inkSoft in light mode, and keep the periwinkle in dark. The Calendar's ↻ beside a day's task is a symbol that screen
   // readers skip, held as one.
   ['the Calendar\'s ↻ beside a day\'s task (a symbol, 3:1)', 'repeat', ['bg'], 3],
+  // The Menu's room cards are solid surface in Standard and in Quiet (#36). The other ✦s still wear the gold dot,
+  // accents[2], under 3:1 on their own surfaces: colour-sites.test.ts lists them and the BUILD-PLAN Backlog parks them.
+  ['the honey ✦ beside Chart a course on the Menu (a symbol, 3:1)', 'premiumMark', ['surface'], 3],
   ['Remove and Skip today, and Settings\' Delete in Quiet, which drops the cards', 'danger', ['card', 'shelf', 'quietHeld', 'surface', 'bg'], 4.5],
   ['"done" as words (the affirmation, a closed hold line)', 'doneText', ['card', 'surface', 'bg'], 4.5],
   ['labels on the accent fill (the + pill, Break it down)', 'onAccent', ['accentFill'], 4.5],
@@ -222,6 +225,51 @@ describe('what dark mode keeps, because there it passes', () => {
       }
     });
   }
+});
+
+/** Hue in degrees, saturation and lightness from 0 to 1, to hold a word shade to its dot. */
+function hsl(color: string): [number, number, number] {
+  const [r, g, b] = parse(color).rgb.map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+describe("Settle's words on the page, all 14 palettes (#36)", () => {
+  // The breathing guide and the rare affirmation wear the five dot hues in turn, straight on the room's paper: the
+  // blob sits above the word slot, never behind it. In light mode the dots are 2.4 to 4.3:1 there, so the words read
+  // accentsText, each dot deepened to clear 4.6:1 on all seven papers. Dark mode's dots clear 6.0:1, so there
+  // accentsText is accents, unchanged.
+  for (const theme of THEME_NAMES) {
+    for (const scheme of ['light', 'dark'] as const) {
+      it(`${theme}, ${scheme}`, () => {
+        const p = paletteFor(theme, scheme);
+        expect(p.accentsText).toHaveLength(p.accents.length);
+        for (const word of p.accentsText) {
+          expect(ratio(parse(word).rgb, parse(p.bg).rgb), `${word} on the paper (${p.bg})`).toBeGreaterThanOrEqual(4.5);
+        }
+        if (scheme === 'dark') expect(p.accentsText).toEqual(p.accents);
+      });
+    }
+  }
+
+  it('deepens each dot in light mode and keeps its hue', () => {
+    // The changing colour is the breath, so a word shade is its own dot made darker, never a grey or another hue.
+    const { accents, accentsText } = Colors.light;
+    accentsText.forEach((word, i) => {
+      const [h0, s0, l0] = hsl(accents[i]);
+      const [h1, s1, l1] = hsl(word);
+      const turn = Math.abs(h1 - h0);
+      expect(Math.min(turn, 360 - turn), `${word}'s hue against ${accents[i]}`).toBeLessThan(2);
+      expect(Math.abs(s1 - s0), `${word}'s saturation against ${accents[i]}`).toBeLessThan(0.02);
+      expect(l1, `${word} is deeper than ${accents[i]}`).toBeLessThan(l0);
+    });
+  });
 });
 
 describe('the Dusk preset is what Dusk renders (C9)', () => {

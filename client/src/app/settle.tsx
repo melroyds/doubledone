@@ -80,7 +80,9 @@ export default function Settle() {
   const [affirmation, setAffirmation] = useState<{ key: string; colorIdx: number } | null>(null);
   const [leaving, setLeaving] = useState(false);
   // The words wear the Dusk accents in sequence, exactly like Today's rotating inscription
-  // (Melroy's device-test ask): a random start, then the next hue with every new breath.
+  // (Melroy's device-test ask): a random start, then the next hue with every new breath. They
+  // read the hues' word shades (accentsText): in light mode the dots themselves are 2.4 to
+  // 4.3:1 on the paper, so each is deepened there, same hue (#36). Dark mode keeps the dots.
   const [colorIdx, setColorIdx] = useState(() => Math.floor(Math.random() * 5));
   const colorIdxRef = useRef(0);
   useEffect(() => {
@@ -247,7 +249,7 @@ export default function Settle() {
   });
 
   const dark = theme.scheme === 'dark';
-  const wordColor = theme.colors.accents[colorIdx % theme.colors.accents.length];
+  const wordColor = theme.colors.accentsText[colorIdx % theme.colors.accentsText.length];
 
   return (
     <Animated.View style={[styles.room, { opacity: roomOpacity, paddingTop: insets.top + spacing.four, paddingBottom: insets.bottom + spacing.five }]}>
@@ -315,7 +317,7 @@ export default function Settle() {
             <Animated.Text
               style={[
                 styles.affirmation,
-                { color: theme.colors.accents[affirmation.colorIdx % theme.colors.accents.length], opacity: affirmationOpacity },
+                { color: theme.colors.accentsText[affirmation.colorIdx % theme.colors.accentsText.length], opacity: affirmationOpacity },
               ]}
             >
               {t(affirmation.key)}

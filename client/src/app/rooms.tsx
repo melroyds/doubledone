@@ -355,7 +355,8 @@ const makeStyles = (t: Theme) =>
     name: { color: t.colors.ink, fontSize: 17 * t.scale, lineHeight: 22 * t.scale, fontFamily: fonts.sans, fontWeight: '500' },
     hintWide: { color: t.colors.inkSoft, fontSize: 13 * t.scale, lineHeight: 18 * t.scale, fontFamily: fonts.body },
     hint: { color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body },
-    premiumMark: { color: t.colors.accents[2], fontSize: 13 * t.scale, fontFamily: fonts.body },
+    // The honey ✦ on Chart a course's white card: premiumMark, the gold solved to 3:1 there (#36).
+    premiumMark: { color: t.colors.premiumMark, fontSize: 13 * t.scale, fontFamily: fonts.body },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
     // Two per row: each cell is half the row less half the gap, so the pair fills it exactly.
     cell: { width: '47.5%', flexGrow: 1 },

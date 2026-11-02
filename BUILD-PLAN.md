@@ -502,11 +502,21 @@ the ladder is fixed and readable, never randomised.
   NEVER the review API: a button that calls the API looks broken once the store's quota says no. Trigger: ratings
   still flat 60 days after the asks begin (TEL-03 shows `review.asked.*` counting).
 - **The accessibility Tier 3 (parked 2026-10-19, with slice 2 of `store-1.9`).** Four smaller gaps the a11y scout
-  found (`docs/design-source/store-1.9/a11y.md`): Space does nothing on a task row (Enter ticks it, K5: preventDefault
-  and toggle); Energy's Low / Normal / High do not move with the arrow keys as a radio group should; the floatNote
-  (the sort summary and the affirmation) briefly lies over the lowest rows; and the gold ✦ is 2.5:1 in light mode
-  (C8, #C19A4F to #B18D4A, shared with the per-task dots). Trigger: a keyboard or screen-reader user reports one, or
-  the next change to TaskRow's keys, the Energy pills or the floatNote.
+  found (`docs/design-source/store-1.9/a11y.md`). Two were fixed on 2026-11-02 (bug sweep #37): Space ticks a task
+  row (K5), and Energy's Low / Normal / High move with the arrow keys as one radio group. Still open: the floatNote
+  (the sort summary and the affirmation) briefly lies over the lowest rows, and the gold ✦ (C8), a symbol that needs
+  3:1. **The Menu's ✦ was solved on 2026-11-02 (bug sweep #36):** beside Chart a course it reads `premiumMark`,
+  #B48C40, 3.10:1 on its white card (it was #C19A4F, 2.62:1). It is a token of its own, so the dots keep their gold
+  and C8's first idea, changing `accents[2]` itself, is not needed. The other four ✦s still wear `accents[2]` in light mode: Plan my day's in the Right
+  now frame and its tools panel (`today.tsx` `toolPremiumMark`, 2.52:1 on the frame, 1.51:1 on the sky in Quiet), Pin's
+  in the held card (`TaskRow.tsx` `premiumStar`, 2.52:1 on the card, 2.29:1 on Quiet's held wash), Settings' Premium
+  tag (`settings.tsx` `premiumTagMark`, 2.62:1 on a card, 2.36:1 on the page in Quiet) and the Chart a course page's
+  Premium note (`chart.tsx` `premiumMark`, 2.36:1 on the page). `premiumMark` is solved for white only (2.98:1 on
+  Today's card, 2.79:1 on the page), so each move adds its surfaces to the `premiumMark` row in `palette.test.ts` and
+  solves again, and Quiet's sky needs a shade of its own, as the words have `skyAccent`. `colour-sites.test.ts` lists
+  the four, so one that moves is struck there. Trigger: Melroy's look at the Menu's ✦ (A11Y-20), then Settings and
+  Chart a course together, and Today's and the held card's when the freeze lifts on 3 Jan. The floatNote: a
+  keyboard or screen-reader user reports it, or the next change to it.
 - **Three contrast gaps the slice 3 test and the colour review found and left (parked 2026-10-19, with slice 3 of
   `store-1.9`).** All three are measured by `client/src/constants/palette.test.ts`'s model. (1) **With Quiet on,
   a task row sits straight on the sky.** Quiet drops the row's card, so its words and its check ring are drawn on
@@ -534,13 +544,14 @@ the ladder is fixed and readable, never randomised.
   on every platform since the tint is solid. Light mode passes at 3.07 to 3.24. The test holds the four pairs in
   `OPEN_IN_DARK` too. Fix it with the rest of dark mode: a lighter dark inkFaint, or a ring shade of its own solved
   to 3:1 on both a card and the tint. Trigger: the same as (2). Strike those four entries in the same commit.
-- **Settle's guide words are in the task-dot hues (found and left 2026-10-19, with slice 4 of `store-1.9`).** In the
-  Settle room the breathing guide's words and the rare affirmation wear the five per-task dot colours in turn,
-  straight on the page. In light mode that is 2.4:1 (gold) to 4.3:1 (periwinkle) in every theme, under 4.5:1 for
-  all five. Dark mode clears it at 6.2:1 and up. Slice 3 took the same hues off Today's foot phrase in light mode, but in Settle the
-  changing colour is part of the breath, so this is a taste call rather than a sweep fix. The fix: a darker text
-  shade of each hue for light mode, solved to 4.5:1 on each theme's paper, or the room's own grey for the words.
-  Trigger: Melroy's word, or the next change to Settle.
+- ~~**Settle's guide words are in the task-dot hues (found and left 2026-10-19, with slice 4 of `store-1.9`).**~~
+  **FIXED 2026-11-02 (bug sweep #36), with the first of the two fixes this entry named.** In light mode the guide's
+  words and the rare affirmation read `accentsText` (`client/src/constants/palette.ts`): each dot's hue and
+  saturation kept, its lightness solved to clear 4.6:1 on all seven themes' paper. The dots ran 2.36:1 (gold) to
+  4.26:1 (periwinkle) there, and the word shades run 4.60 to 4.81:1: mauve #9B6A7D to #906073, teal #4E8C86 to
+  #427671, gold #C19A4F to #876930, periwinkle #6E72A0 to #666A9B, rose #BE7F84 to #A7555C. Dark mode keeps the dots,
+  6.06:1 and up. `palette.test.ts` holds the words on every paper in both schemes and each shade to its dot's hue,
+  and `colour-sites.test.ts` fails on words in the raw dot hues. A11Y-20 is the look.
 - **The store slides' follow-ons (parked 2026-10-19, with slice 7 of `store-1.9`).** (1) **Localised App Store
   slides** for de, es (one neutral set for both Spanish storefronts), fr and it. The harness already renders any
   language (translated sample tasks, waits by catalogue string) and its gate refuses one until
