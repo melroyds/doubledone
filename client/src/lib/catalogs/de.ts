@@ -979,7 +979,7 @@ export const de: Catalog = {
     swatchSelectedSuffix: ', ausgewählt',
     syncedTo: 'Synchronisiert mit {email}',
     termsLink: 'AGB',
-    termsLinkA11y: 'Nutzungsbedingungen',
+    termsLinkA11y: 'AGB, die Nutzungsbedingungen',
     textSizeDefault: 'Standard',
     textSizeLabel: 'Textgröße',
     textSizeLarge: 'Groß',

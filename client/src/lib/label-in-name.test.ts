@@ -65,6 +65,12 @@ const PAYWALL: Row[] = [
 
 const WELCOME: Row[] = [['welcome.sortMyself', 'welcome.sortMyselfA11y']];
 
+// Settings' Terms row (the 2 Nov German read): German shows "AGB" and spoke only "Nutzungsbedingungen", so "Tippe
+// auf AGB" pressed nothing. The privacy row above it stays out on purpose. It shows "Privacy & data" and says
+// "Privacy and data", which is how a person reads it aloud, but heard() takes "&" for a gap, so the row would go red
+// in English and German over a name that is right.
+const SETTINGS: Row[] = [['settings.termsLink', 'settings.termsLinkA11y']];
+
 /**
  * The words as a voice command hears them: lower case, soft hyphens gone, apostrophes and hyphens closed up (both
  * kinds, so "I’m" and "I'm" agree), and every other mark, the arrows, the ellipsis, ✓ and › included, read as a gap.
@@ -86,6 +92,7 @@ const GROUPS: [string, Row[]][] = [
   ['the select bar', SELECT_BAR],
   ['the paywall', PAYWALL],
   ['the welcome', WELCOME],
+  ['Settings', SETTINGS],
 ];
 
 describe('label in name: every spoken name starts with the words on its control', () => {
