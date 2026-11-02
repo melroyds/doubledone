@@ -163,7 +163,7 @@ The full, plain-English policy is at [doubledone.app/privacy](https://doubledone
 - **Telemetry lives in Cloudflare D1, with no public write path.** Only the Worker can write to it
   ([`server/d1/schema.sql`](server/d1/schema.sql)):
   - the AI-call log keeps the text sent to most AI features, with no user id, account or IP address, so
-    it is pseudonymous. A few keep only counts. A scanned photo is never stored, only its size and the
+    it is pseudonymous. Its text and replies are deleted after 90 days. A few keep only counts. A scanned photo is never stored, only its size and the
     number of titles found. The weekly reflection keeps only how many titles it read and how long its
     paragraph was. The energy pick and the suggested order keep a task count and the settings chosen,
     never the titles

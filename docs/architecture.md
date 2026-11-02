@@ -281,7 +281,7 @@ D1 (`doubledone-telemetry`, binding `DB`) is bound only to the Worker. Its schem
 
 | Table | Holds | Identity |
 |---|---|---|
-| `ai_calls` | One row per AI call: endpoint, model, input, output, tokens, latency, ok, `corr_id` | None. No user id, no IP. Keeps the text the person sent (disclosed in the privacy policy), except Scan, Reflect, Plan my day and energy matching, which log counts and settings only, never text |
+| `ai_calls` | One row per AI call: endpoint, model, input, output, tokens, latency, ok, `corr_id` | None. No user id, no IP. Keeps the text the person sent and the reply for 90 days, cleared on the :00 tick (disclosed in the privacy policy), except Scan, Reflect, Plan my day and energy matching, which log counts and settings only, never text |
 | `outcomes` | A finished Break-it-down step: `corr_id`, step total, days from offer to finish | None |
 | `app_event_counts` | One counter per day per allowlisted feature name | None |
 | `push_subs` | Web push endpoint and keys, preferred hour, timezone offset | None |

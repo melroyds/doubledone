@@ -329,6 +329,8 @@ These are your answers. Everything is traced to code.
 
 **Location stays No with the assistant's time zone (2026-11-02, #24).** An account that connects an AI assistant keeps the NAME of the device's time zone (such as Australia/Melbourne, in Supabase `user_metadata.tz`), so the agent works on the same day as Today. It is read from the device's clock settings through expo-localization, never from Location Services or any location permission, it is kept only for people who connect an assistant, and it goes on disconnect or account deletion. A time-zone name from the clock settings is not a position, so it is neither Precise nor Coarse Location. The policy's "Connecting an AI assistant" says so.
 
+**2026-11 (Premium without an account):** a signed-out iPhone's Scan, Chart a course, Plan my day and Reflect on this week now send the anonymous RevenueCat purchase id to api.doubledone.app. It is an assigned customer number, so Identifiers, User ID (already Yes, Linked, App Functionality) covers it, and whether Premium is active is Purchases, Purchase History (already Yes, Linked). Our database keeps the id as RevenueCat sends it only in the store's purchase notices (rc_events, as before). The check itself stores only a keyed hash of it, and so does the webhook's list of ids that belong to an account. No answer changes. In the Photos or Videos rationale, "the scan request carries the sign-in token" becomes "the scan request carries the sign-in token, or for a buyer who has not signed in, the anonymous purchase id".
+
 ### Three answers the verification changed
 
 I am flagging these because the first pass had them differently and the verification is right.

@@ -56,7 +56,7 @@
   <body>
     <main>
       <h1>Privacy</h1>
-      <p class="updated">Last updated 2 November 2026.</p>
+      <p class="updated">Last updated 3 November 2026.</p>
 
       <p class="lead">
         DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that
@@ -106,8 +106,11 @@
         choose to our server, which passes it to Anthropic's Claude to do the work. Anthropic does not train their
         models on it, and deletes it within 30 days. Anything flagged for safety or legal reasons can be held by
         Anthropic for up to two years. Separately, we keep a copy on our side, without your name, account, or IP address,
-        to improve how the app breaks tasks down for everyone. It is pseudonymous and aggregate, never tied to
+        to improve how the app breaks tasks down for everyone. It is pseudonymous, never tied to
         you and never sold.
+        After 90 days we delete the text and the reply from that copy and keep only the rest of the row, such as which
+        feature ran, how long it took, whether it worked, and the random id that links a break-down to its
+        finished steps. Our hosting provider's short-lived backups (up to 30 days) can hold it for that long.
       </p>
       <p>
         And when you finish steps from a broken-down task, the app notes only that they got done, a random id
@@ -176,6 +179,9 @@
         from (up to a week), for recovery and fault-finding. We do not use either to study how anyone uses the
         app. The server accepts
         a short fixed list of names and drops everything else.
+        It also counts a few of its own steps the same way, as plain daily numbers: whether the check on a note to
+        us stopped or failed, each month given for a note, and the purchase checks described under Premium without
+        an account.
       </p>
 
       <h2>Visits to the website</h2>
@@ -197,10 +203,37 @@
         follow your account across your devices. When something happens on your subscription, a payment
         succeeding or failing, a refund, a cancellation, or a renewal, we keep a record against your account:
         whether Premium is on, its status, when the current period ends, whether it is set to stop, when you first
-        subscribed, and which store it came from, along with the store's own notice of what happened. That is what
+        subscribed, and which store it came from, along with the store's own notice of what happened.
+        If you bought on an iPhone or iPad without signing in, there is no account to keep it against, so we keep
+        only the store's notices, which carry the anonymous purchase id RevenueCat gave your device, for as long
+        as we keep billing records (see Premium without an account).
+        That is what
         keeps your Premium status correct. We never sell or share it. If you delete your account, these billing
         records, and RevenueCat's record of the purchase, are kept for as long as tax law and refunds need them.
         They hold nothing you wrote.
+      </p>
+
+      <h2>Premium without an account</h2>
+      <p>
+        On an iPhone or iPad you can buy Premium without signing in. Four Premium features, Scan, Chart a course,
+        Plan my day and Reflect on this week, ask our server to check your Premium before they run. When you use
+        one of them without an account, the app sends our server the anonymous purchase id that RevenueCat gave
+        this device. It is a random code, not your name, email or Apple ID. Our server looks the id up in the
+        store's notices of purchases made without an account, which we keep (see Payment events) and which carry
+        that id as the store sends it, and asks RevenueCat whether the purchase is active. The check itself keeps
+        only the latest answer, filed under a scrambled form of the id that can't be turned back into it and is
+        never tied to an account, and deletes it within two hours of the last check. To stop one purchase being
+        overused, it also counts how often that purchase was used in the current hour, under the same scrambled
+        form, and deletes that count within two hours (a test purchase made through Apple's TestFlight or App
+        Review is also counted for its day, and that count is deleted the next day). RevenueCat gives the app such
+        an id on every iPhone, iPad and Android phone. Whenever the store's notices show that one of these ids
+        belongs to an account, we keep its scrambled form, with no account attached, for as long as we keep
+        billing records, so that it works only through that account. We can also block one purchase's scrambled id
+        by hand if it is being misused, until we lift the block. We also count how many of these checks ran each
+        day and how they came out, as plain numbers. Our hosting provider's short-lived backups (up to 30 days)
+        can hold any of these for that long, and its request log (up to a week) can include the network address
+        the request came from. Once you sign in, the app stops sending the id and we check your account instead.
+        The Android app and the website never send an id for this check.
       </p>
 
       <h2>Connecting an AI assistant</h2>

@@ -42,6 +42,10 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**OPTION 1'S PRIVACY TEXT IS APPROVED AND ON BOTH PAGES (2026-11-03, Melroy: "Fix the privacy pages"), WITH THE AI
+LOG'S 90 DAYS.** The push puts it live; Melroy deploys the Worker straight after (Option 1, the 90-day purge on the
+:00 tick); then PREM-74 (the purchase id REDACTED in Cloudflare's logs) before the iPhone build that sends it.
+
 **PREMIUM WITHOUT AN ACCOUNT (OPTION 1): BUILT AND REVIEWED ON MAIN, NOT PUSHED, NOT DEPLOYED (2026-11-03, on
 Melroy's "Please go on Option 1").** A friend in India bought Premium on his iPhone without signing in, and Chart a
 course told him to rephrase his goal: the four server-gated features (Scan, Chart a course, Plan my day, Reflect on

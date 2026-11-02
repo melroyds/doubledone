@@ -39,6 +39,10 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   [`client/src/lib/day.ts`](client/src/lib/day.ts)).
 
 ### Changed
+- **The privacy policy**, both copies (3 Nov): a "Premium without an account" section for an iPhone or iPad
+  bought without signing in; the AI features' copy on our side keeps the text and the reply for 90 days, then
+  only the rest of the row (it no longer says "aggregate", which it was not); and the server's own counts are
+  named under Feature-usage counts.
 - **Spoken names start with the words on screen**: the paywall's privacy and Google Play links, the add
   panel's month-day chips ("15, repeat on the 15th of each month") and German Settings' AGB, so voice control
   finds them (web 1.10.6).
