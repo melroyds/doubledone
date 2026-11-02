@@ -11468,6 +11468,17 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   failed clear never fails the disconnect.
 - **OpenAPI goes to 1.4.0**, since every "today" changes behaviour, and the tool descriptions say the day is the
   user's own.
+- **The app's half (lib/account-zone.ts).** The device's zone comes from expo-localization (lib/locale.ts
+  deviceTimeZone), never from Intl's resolvedOptions in shared code (the Hermes gotcha), and a value the Worker would
+  refuse (Android can give GMT+11:00) is skipped. Copy my token is 'connect': it writes when the device's zone is
+  valid and differs from the stored one. Today's focus and a warm resume are 'refresh': they write ONLY when a zone
+  is already stored and differs, so they never create one. Each write is followed by a session refresh, because the
+  zone reaches the next access token, not the one in hand.
+- **Copy my token keeps the zone first, then copies the fresh token**, waiting at most 3 seconds before it copies
+  the token it has. On the web the copy starts inside the tap, as a ClipboardItem holding a promise, because Safari
+  refuses a clipboard write that comes after a network wait. The token stays on screen and selectable, as before.
+- **After Disconnect AI connectors the app refreshes its session**, and clears the zone itself if the Worker's clear
+  did not land, so Today's refresh can never keep a zone the account no longer has.
 
 **Decided against:**
 - **(a) Keeping the zone for everyone signed in.** It dilutes "your email is the only personal information we hold"
@@ -11487,8 +11498,15 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   as reuse and end the connection. The stale first token puts that refresh on the path that already handles it.
 - **Naming the date in the list replies** (optional in the design). It would change replies that agents and tests
   read exactly, for little gain once the day is right.
+- **Telling the app whether an assistant is connected.** Nothing in the app can tell today: no route reports
+  custody, and a pasted token leaves no trace. A status route would be a new surface for a one-time gap, so an
+  account connected before this change gets its zone the next time the person taps Copy my token or connects again,
+  and its agent keeps the UTC day until then.
+- **A 'refresh' that writes without a stored zone**, on every signed-in open. That is option (a) by the back door.
 
 **Accepted edges:**
+- Two devices in different zones on one account trade the zone back and forth, the one opened last winning. The
+  device in your hand is the better guess.
 - A browser with scripts off sends no zone, so that connection keeps the UTC day until the person taps Copy my
   token or connects again. The app keeps a zone current but never creates one.
 - The zone in a token is as old as the token. After a flight, the agent catches up within about an hour: the app

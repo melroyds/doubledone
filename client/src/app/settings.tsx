@@ -10,12 +10,14 @@ import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { billedByStore, deleteAccount } from '@/lib/account';
+import { forgetZone, tokenForAssistant } from '@/lib/account-zone';
 import { dropAiConnectors, purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
+import { copyWhenReady } from '@/lib/copy-later';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
 import { spoken } from '@/lib/i18n';
-import { t } from '@/lib/locale';
+import { deviceTimeZone, t } from '@/lib/locale';
 import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
 import { answerSaysYes } from '@/lib/offer-card';
 import { picked } from '@/lib/picked';
@@ -279,10 +281,16 @@ export default function SettingsScreen() {
   // Reveal (and on web, copy) the user's MCP token: their Supabase access token.
   // An AI agent pastes it into its MCP client to act on this account's tasks under
   // RLS. Selectable so native users can copy it too; the token refreshes ~hourly.
+  // Copying it is connecting an assistant, so the account keeps this device's time zone first and the token handed
+  // over carries it, which is what puts the agent on the same day as Today (#24). The wait is capped (TOKEN_WAIT_MS),
+  // then the current token is copied anyway.
   async function revealMcpToken() {
     if (!supabase) return;
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token ?? null;
+    const ready = tokenForAssistant(supabase.auth, deviceTimeZone());
+    // On the web the copy starts NOW, inside the tap, and takes the token when it is ready: Safari refuses a
+    // clipboard write that comes after a network wait. The selectable field below is the fallback.
+    const copied = Platform.OS === 'web' ? copyWhenReady(ready) : null;
+    const token = await ready;
     if (!token) {
       // The access token expired and could not refresh: point at re-sign-in instead of dead-ending silently
       // (the footnote tells users to re-copy when their agent stops, so the expired case is the common one).
@@ -291,14 +299,7 @@ export default function SettingsScreen() {
     }
     setMcpExpired(false);
     setMcpToken(token);
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(token);
-        setMcpCopied(true);
-      } catch {
-        // the selectable field below is the fallback
-      }
-    }
+    if (copied && (await copied)) setMcpCopied(true);
   }
 
   // The immediate kill switch for URL-connected (OAuth) agents: POST /mcp/disconnect with
@@ -323,6 +324,9 @@ export default function SettingsScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMcpDisconnectNote(res.ok ? t('settings.mcpDisconnectDone') : t('settings.mcpDisconnectError'));
+      // The Worker cleared the time zone kept for the assistants (#24). Refresh so this device agrees, or Today's
+      // refresh would keep a zone the account no longer has, and clear it from here if the Worker's clear missed.
+      if (res.ok) void forgetZone(supabase.auth);
     } catch {
       setMcpDisconnectNote(t('settings.mcpDisconnectError'));
     } finally {

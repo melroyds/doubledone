@@ -43,6 +43,7 @@ import {
   type Questions,
 } from '@/lib/ai';
 import { canMatchEnergy, recordEnergyUse, shouldWarnEnergy } from '@/lib/energy';
+import { keepZoneCurrent } from '@/lib/account-zone';
 import { useSession } from '@/lib/auth';
 import { completionsByDay } from '@/lib/calendar';
 import { weekStartISO, weekTitles } from '@/lib/scrapbook';
@@ -61,7 +62,7 @@ import { dayWeight, heavyAt, weightedLoad } from '@/lib/estimate';
 import { dayCleared, dayClosed, dragLifted, stepsLanded, taskDone } from '@/lib/haptics';
 import { dragSpan, dragTargetIndex, moveToIndex, settleOffset, shiftFor, type Slot } from '@/lib/drag-order';
 import { seedRoute, subscribeInbound, takeInbound } from '@/lib/inbound';
-import { aiLanguage, fmt, t } from '@/lib/locale';
+import { aiLanguage, deviceTimeZone, fmt, t } from '@/lib/locale';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 
@@ -732,6 +733,9 @@ export default function TodayScreen() {
         // share), so a device running ahead here poisons the other person's list exactly as it does
         // from the room. Once per visit, and silent if it fails.
         void syncClock(client);
+        // An account that keeps a time zone for its AI assistant follows this device to a new zone (#24). Never
+        // creates one: only connecting does. No network when nothing changed.
+        void keepZoneCurrent(client.auth, deviceTimeZone());
         void isOursOpen(client).then((open) => {
           if (!active) return;
           if (!open) return setOursName(null);
@@ -981,6 +985,9 @@ export default function TodayScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') return;
+      // A warm resume after a flight is where a phone meets its new time zone, and the focus effect does not re-run on
+      // a resume (#24). Reads its own session, so the listener never needs re-binding.
+      if (supabase) void keepZoneCurrent(supabase.auth, deviceTimeZone());
       // Ask again whether a newer DoubleDone is out. The focus effect asks once per visit and a warm resume does not
       // re-fire it, so a tab left resting on Today never heard about a deploy (#30). Silent like the first ask, and a
       // check that could not tell keeps what this screen already knew.

@@ -27,5 +27,17 @@ export const locale: Locale = activeLocale();
 /** The language to ask the AI to answer in, or undefined for English. */
 export const aiLanguage: string | undefined = aiLanguageFor(locale);
 
+/** The device's time-zone name ('Australia/Melbourne') from its clock settings, or null. Read on every call, never
+ *  held here, so a phone that has moved zones is seen when the app next opens. Native on iOS and Android, Intl on
+ *  the web, inside expo-localization, so shared code never calls Intl's resolvedOptions itself (the Hermes gotcha).
+ *  Only ever kept for an account that connects an AI assistant (lib/account-zone.ts, #24). */
+export function deviceTimeZone(): string | null {
+  try {
+    return Localization.getCalendars?.()?.[0]?.timeZone ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** The screen-facing entry points: import { t, fmt } from '@/lib/locale'. */
 export { fmt, t } from './i18n-active';
