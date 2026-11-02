@@ -18,15 +18,18 @@
 const ZONE_MAX = 64;
 const ZONE_SHAPE = /^[A-Za-z0-9_+\-/]+$/;
 
-// One formatter per zone, built once per isolate. Only names Intl has accepted are cached, and the tz database is
-// finite (a few hundred names), so the map is bounded however many accounts an isolate serves.
+// One formatter per zone, built once per isolate. Only names Intl has accepted are cached. The tz database is a few
+// hundred names, but Intl also accepts any casing of each ('australia/MELBOURNE'), and a person can write their own
+// user_metadata, so the map is capped rather than trusted to stay small.
 const formatters = new Map<string, Intl.DateTimeFormat>();
+const FORMATTERS_MAX = 512;
 
 function formatterFor(zone: string): Intl.DateTimeFormat {
   let f = formatters.get(zone);
   if (!f) {
     // en-US with the gregorian calendar and latin digits, so the numeric parts read as plain numbers.
     f = new Intl.DateTimeFormat('en-US', { timeZone: zone, calendar: 'gregory', numberingSystem: 'latn', year: 'numeric', month: 'numeric', day: 'numeric' });
+    if (formatters.size >= FORMATTERS_MAX) formatters.clear();
     formatters.set(zone, f);
   }
   return f;

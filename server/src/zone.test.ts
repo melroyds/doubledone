@@ -104,6 +104,19 @@ describe('validZone', () => {
       expect(validZone(z), String(z)).toBeNull();
     }
   });
+  it('stays right past the formatter cache cap, which any casing of a name can fill', () => {
+    // Intl accepts 'australia/MELBOURNE' as readily as the real name, so a person writing their own metadata could
+    // grow an unbounded cache one casing at a time. 600 casings run past the cap and still read the Melbourne day.
+    const seen = new Set<string>();
+    for (let i = 0; i < 600; i++) {
+      let bit = 0;
+      // Bit n of i sets the case of the nth letter, so every i is a different casing.
+      const casing = [...'australia/melbourne'].map((c) => (c === '/' ? c : (i >> bit++) & 1 ? c.toUpperCase() : c)).join('');
+      seen.add(casing);
+      expect(localDay(casing, at('2026-11-01T21:30:00Z'))).toBe('2026-11-02');
+    }
+    expect(seen.size).toBe(600);
+  });
 });
 
 describe('readZoneClaim (from a token already verified)', () => {
