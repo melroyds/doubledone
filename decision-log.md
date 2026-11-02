@@ -11614,3 +11614,101 @@ be proven on a device. The switch and its keeps are on main now, so the next And
 
 **Decided against:** keeping it a separate, earlier build (a second build from the monthly quota for the same device
 pass), and resource shrinking (the widget's images).
+
+## 2026-11-03: Premium without an account, the server half: the Worker checks an anonymous iPhone purchase against our own webhook log and RevenueCat
+
+Melroy: "Please go on Option 1." A friend in India bought Premium on his iPhone without signing in (Apple lets him,
+and DoubleDone allows it on iOS by design, 5.1.1). His phone shows Premium, but Chart a course said "Try rephrasing the
+goal?", because the four server-gated Premium routes (Scan, Chart a course, Plan my day, Reflect on this week) need a
+Supabase token and he has none. A second anonymous App Store subscriber has been in the same place since August.
+Option 1: the app sends its RevenueCat anonymous id, the Worker checks with RevenueCat, nobody is forced to sign in.
+A design, then a security review and an Apple, product and privacy review of it, then this build: the server only
+(store-premium.ts, purchaser.ts, the shared reader in rc-v1.ts, the webhook, the monitor). The client half, which
+sends the header and fixes the misleading lines, is its own commit. Neither is deployed.
+
+**Decided:**
+- **Two doors, and a bearer always decides.** Any Authorization header at all (valid, forged, expired, Basic, empty)
+  takes the account path unchanged, and the purchase header is never read, so a bad token never gets a second try. The
+  store door runs only when there is no Authorization header, and only for `$RCAnonymousID:` plus 32 lowercase hex.
+- **The header is `X-Purchaser-Token`, not the design's `X-Purchaser`.** Cloudflare's logs show request headers in the
+  clear unless the name contains `auth`, `key`, `secret`, `token` or `jwt`, and the anonymous id is a long-lived
+  credential for a paying customer that nobody can revoke. The name ships inside a store build, so it had to be right
+  before that. Seeing REDACTED on the deployed Worker (PREM-74) gates the client commit.
+- **The strict form only rules out an account. Our webhook log is what ties an id to a purchase.** RevenueCat merges an
+  anonymous id into any App User ID with no anonymous alias yet, through a `logIn` the public SDK key can call, and a
+  merged id reads that account's subscriptions. Account uuids are not secret (a shared-list partner can read one). So
+  someone could mint an id, merge it into a stranger's account, and ride that account's purchase. Production Premium is
+  now honoured only for an id `rc_events` saw buy: an INITIAL_PURCHASE, RENEWAL or UNCANCELLATION of
+  `app.doubledone.premium.*`, production, `unresolved-user`, with no user id. A delivery that is not a purchase does not
+  count, because `rcIgnoreOutcome` labels every anonymous delivery `unresolved-user` first.
+- **One narrow exception, the reinstall:** a fresh id with no row of its own, whose RevenueCat `original_app_user_id`
+  is a buyer the log saw. A Restore on a new install aliases the fresh id onto the old purchase whatever the restore
+  setting, and the fresh id gets no row until the next renewal (a month, or a year on annual).
+- **Refused outright, before the cache:** an id any `rc_events` row resolved to an account, an id a verified delivery
+  listed beside an account, and an id blocked by hand. The webhook now records every anonymous id in a delivery that
+  resolves to an account (`app_user_id`, `original_app_user_id`, `aliases`), scrambled, in `store_premium_refused`.
+  That closes the paid-once variant: buy a month on your own id, merge it into a stranger's, let it lapse, and ride the
+  stranger's later purchase, whose deliveries carry the stranger's uuid.
+- **Sandbox is honoured for any id, in allowances of 40 served requests per purchase and 100 overall per UTC day, and
+  over either is a 503, never a 403.** App Review buys signed out in sandbox, inside the production build, and a refusal
+  there is a "purchased content does not work" rejection. One shared budget (the design's 25) could be spent by
+  Melroy's own TestFlight run on the day of the review, and the 403 would tell a reviewer who had just bought that
+  Premium was not active. The webhook and the reconcile still refuse sandbox: they write durable rows, and this writes
+  nothing that lasts. A sandbox subscription with no cancel and no billing issue gets ten minutes past its expiry,
+  because a sandbox month lasts five minutes and renews as it ends, and a minute-long no never replaces a sandbox yes.
+- **Two lookup lanes:** RevenueCat is asked at most 60 times a minute for ids our log saw buy (or test), and 10 for
+  the rest, globally, counted in D1. A cached yes is always served, whatever the caps. So a flood of made-up ids can
+  slow only the reinstall lane, never a known buyer. A RevenueCat 429 stops this isolate asking for the rest of the
+  minute: the key is shared with the reconcile and account deletion.
+- **One purchase may make 60 requests an hour (429 past that), and one purchase can be blocked by hand.** An
+  anonymous purchase has no session to end and no account to delete, and refunds are Apple's.
+- **The cache is D1, keyed by HMAC-SHA256 of the id under `RC_SECRET_KEY`, never the id.** A yes for an hour at most
+  and never past the store's own expiry, a no for a minute, nothing from an answer we could not read, and an older
+  check never overwrites a newer one (`checked_at`, two misses either side of a refund). The `:00` tick purges, so an
+  answer is gone within two hours of its check.
+- **One reader of a subscriber body for the reconcile and the store check** (`premiumFromSubscriber`, moved into the
+  leaf `rc-v1.ts`), so the two can never disagree. It now refuses a row whose `refunded_at` is set rather than trust
+  RevenueCat to pull the expiry back, which tightens the reconcile too. Every existing reconcile test passes unchanged.
+  `revenuecat-api.ts` now imports the verifier from `verify.ts`, since `premium.ts` imports the store check.
+- **An anonymous purchase whose log row cannot be written answers 503**, so RevenueCat delivers it again. That row is
+  load-bearing now: lose it to a D1 blip and a paying customer is locked out until their next renewal is logged. Every
+  other delivery is acknowledged as before.
+- **The store-check alarm ships in this batch, not later:** a capped minute, a 429, an overused purchase or a spent
+  sandbox allowance emails the owner the same day, and so do 10 RevenueCat errors or 30 unknown ids in a day. The
+  beacon's volume alarm leaves these Worker counters out, so a flood of made-up ids never reads as scripted `/event`
+  posts.
+
+**Decided against:**
+- **The strict regex as the whole of the security** (the design's section 2). It only rules out uuids.
+- **A strict gate with no reinstall lane**, which would have meant a never-seen id costs no lookup and leaves no empty
+  customer in RevenueCat (the security review's test list). Its own other recommendation, the reinstall lane, needs
+  that lookup, and it is the lane that keeps a reinstalled buyer working, and App Review working if RevenueCat never
+  forwards Apple sandbox deliveries, which `rc_events` has never shown one of. The price: a made-up id can still make
+  an empty RevenueCat customer, at most 10 a minute.
+- **The security review's 10 per purchase inside 25 for sandbox**, superseded by the Apple review's 40 and 100.
+- **Storing the account aliases raw**, as `rc_events` keeps `app_user_id`. Nothing new holds a RevenueCat id in the clear.
+- **A counter on every refusal.** A flood could repeat them, so refusals, caps and spent allowances count once a minute
+  per isolate.
+- **Also recording the reconcile's `original_app_user_id` as an account alias.** The webhook covers the same case at the
+  next delivery, for one more write on every sign-in.
+- **A new secret for the HMAC, KV or memory for the verdict, a stale-yes grace while RevenueCat is down, and an
+  anonymous path on Android** (the design's reasons stand: a deploy step and the blank-secret trap, no read-your-write,
+  failing open for a refunded purchase, and Android sells only to accounts).
+
+**Accepted edges, and traps recorded for the client half:**
+- **Signing in can take Premium away.** RevenueCat merges an anonymous purchase into an account only if that account
+  has never been signed in through the SDK. A returning account gets no merge: the phone reads the account, the
+  reconcile finds nothing, and Premium disappears at sign-in. A Restore brings it back (an identified id restoring a
+  receipt an anonymous id owns is aliased), but a restore while signed in does not run the reconcile, so the four
+  features answer 403 until the next launch. The client half should reconcile after a signed-in restore, and once
+  more on a 403 while the device still shows Premium.
+- **The iOS identify race.** iOS can skip `logIn` while RevenueCat is configuring and still run the reconcile, whose
+  lookup creates a bare uuid customer, the exact shape RevenueCat merges an attacker's id into. The store check refuses
+  that attack, but the client should wait for configure and reconcile only after a `logIn` that worked.
+- **RevenueCat's Restore Behavior is keep-with-original**, which its docs say suits apps that require an account before
+  purchase. iOS does not. This path works either way, but the setting needs its own review.
+- **The RevenueCat request's path carries the id** (v1 has no other way to ask), so Workers traces must never be turned
+  on for this Worker without checking what a fetch span records.
+- **Rotating `RC_SECRET_KEY` re-scrambles every id**: blocks and account refusals lapse until re-added or re-recorded.
+- **After a rollback past this change, clear `store_premium_cache` and `store_premium_counts` by hand**, because the
+  older Worker has no purge (docs/operations.md).

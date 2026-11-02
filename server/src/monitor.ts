@@ -66,8 +66,20 @@ export const THRESHOLDS = {
   scrapbookAbusePerIp: 16, // 80% of the per-IP 20/24h backstop, so pressure is heard before the cap bites
   volumePerHour: 150, // AI calls in one hour, well above launch-normal
   appEventsPerDay: 2000, // beacon rows in one day, far above launch-normal (spam poisons the Settle signal silently otherwise)
+  storeErrorsPerDay: 10, // the store check (Premium without an account): RevenueCat failures in one UTC day
+  storeUnknownPerDay: 30, // ... and ids RevenueCat had never heard of: made-up ids, so a flood
   dedupHours: 6, // suppress a repeat of the same alarm kind within this window (no crying wolf)
 };
+
+// The store check's counters that are trouble the first time they appear in a day (store-premium.ts). Each is
+// written at most once a minute per isolate, so a count is "minutes it happened", not requests.
+const STORE_TROUBLE_ON_FIRST: { event: string; means: string }[] = [
+  { event: 'premium.store.capped.known', means: 'lookups for real buyers hit their cap, so a paying customer was told to try again' },
+  { event: 'premium.store.capped', means: 'lookups for ids our webhook never saw buy hit their cap: likely a flood of made-up ids' },
+  { event: 'premium.store.throttled', means: 'RevenueCat answered 429, and the same key serves reconcile and account deletion' },
+  { event: 'premium.store.overused', means: 'one purchase passed its hourly limit: possibly a leaked purchase id' },
+  { event: 'premium.store.sandbox.spent', means: 'a sandbox allowance ran out, which can lock App Review out of what it bought' },
+];
 
 const DIGEST_HOUR_UTC = 20; // ~06:00 Melbourne (AEST): the daily pulse lands before the day starts
 
@@ -84,7 +96,8 @@ export type Metric = {
   topEndpointsLastHour: { endpoint: string; calls: number }[];
   scrapbookToday: number;
   scrapbookMaxPerIp: number;
-  appEventsToday: number; // beacon events today (SUM of app_event_counts); 0 when the table is absent
+  appEventsToday: number; // beacon events today (SUM of app_event_counts, the store check's own counters left out); 0 when the table is absent
+  storePremiumToday: Record<string, number>; // today's premium.store.* counters by name (store-premium.ts); {} when absent
 };
 
 export type Alarm = { kind: string; title: string; detail: string };
@@ -152,6 +165,24 @@ export function evaluateAlarms(m: Metric): Alarm[] {
       kind: 'volume',
       title: `${m.callsLastHour} AI calls in the last hour`,
       detail: `Well above launch-normal. By endpoint: ${top}. Watch the spend alarm; a Sonnet-heavy spike costs far more than a Haiku one.`,
+    });
+  }
+
+  // The store check (Premium on an iPhone without an account). Counts only: never an id, scrambled or not.
+  const sp = m.storePremiumToday;
+  const count = (event: string) => Number(sp[event] ?? 0);
+  const reasons = STORE_TROUBLE_ON_FIRST.filter((t) => count(t.event) > 0).map((t) => `${t.event} ${count(t.event)}: ${t.means}`);
+  if (count('premium.store.error') >= THRESHOLDS.storeErrorsPerDay) {
+    reasons.push(`premium.store.error ${count('premium.store.error')}: RevenueCat failed or timed out that often, so buyers were told to try again`);
+  }
+  if (count('premium.store.unknown') >= THRESHOLDS.storeUnknownPerDay) {
+    reasons.push(`premium.store.unknown ${count('premium.store.unknown')}: ids RevenueCat had never seen, each now an empty customer in its dashboard`);
+  }
+  if (reasons.length) {
+    out.push({
+      kind: 'store-premium',
+      title: 'The store check for Premium without an account needs a look',
+      detail: `Today (UTC): ${reasons.join('; ')}. The first move for each is in docs/operations.md, "Premium without an account".`,
     });
   }
 
@@ -316,13 +347,28 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     .first<{ mx: number }>();
 
   // The beacon's volume, defensively: app_event_counts may not exist yet (deploy-before-
-  // schema), and it is one counter per day per name, so today's total is a SUM.
+  // schema), and it is one counter per day per name, so today's total is a SUM. The store check's own
+  // counters are the Worker's, not the beacon's, so they are left out: a flood of made-up purchase ids
+  // must not read as scripted /event posts.
   let appEventsToday = 0;
   try {
-    const ev = await db.prepare("SELECT COALESCE(SUM(n), 0) AS n FROM app_event_counts WHERE day >= date('now')").first<{ n: number }>();
+    const ev = await db
+      .prepare("SELECT COALESCE(SUM(n), 0) AS n FROM app_event_counts WHERE day >= date('now') AND event NOT LIKE 'premium.store.%'")
+      .first<{ n: number }>();
     appEventsToday = Number(ev?.n ?? 0);
   } catch {
     // table absent: nothing to guard yet
+  }
+  const storePremiumToday: Record<string, number> = {};
+  try {
+    const rows = (
+      await db
+        .prepare("SELECT event, n FROM app_event_counts WHERE day = date('now') AND event LIKE 'premium.store.%'")
+        .all<{ event: string; n: number }>()
+    ).results;
+    for (const r of rows ?? []) storePremiumToday[String(r.event)] = Number(r.n);
+  } catch {
+    // table absent: nothing to report yet
   }
 
   return {
@@ -337,6 +383,7 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     scrapbookToday: Number(sbToday?.imgs ?? 0),
     scrapbookMaxPerIp: Number(sbMax?.mx ?? 0),
     appEventsToday,
+    storePremiumToday,
   };
 }
 

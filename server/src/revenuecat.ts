@@ -10,6 +10,7 @@
 
 import { type D1LikeDatabase, type Entitlement, type EntitlementSource, writeEntitlement } from './entitlements';
 import { buildOwnerEmail, lastAlert, recordAlert } from './monitor';
+import { anonIdsOf, isAnonPurchaser, PREMIUM_PRODUCT_PREFIX, PURCHASE_TYPES, refuseForAccount } from './purchaser';
 import { timingSafeEqual } from './stripe';
 
 export type RcEnv = {
@@ -28,6 +29,9 @@ export type RcEnv = {
   // The Supabase user ids whose SANDBOX purchases may still be written (the review accounts and the
   // owner's license tester), comma separated. Everyone else's sandbox purchase is refused, as before.
   SANDBOX_GRANT_UIDS?: string;
+  // The RevenueCat v1 secret key. The webhook only uses it to scramble the anonymous ids a delivery lists
+  // beside an account (refuseForAccount), exactly as the store check does. Unset, nothing is recorded.
+  RC_SECRET_KEY?: string;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -358,11 +362,30 @@ export const RC_EVENTS_DDL =
   "CREATE TABLE IF NOT EXISTS rc_events (id integer primary key autoincrement, event_id text unique, type text not null, period_type text, environment text, store text, product_id text, app_user_id text, original_transaction_id text, user_id text, price real, price_in_purchased_currency real, currency text, is_trial_conversion integer, applied integer not null default 0, outcome text not null, event_timestamp_ms integer, created_at text not null default (datetime('now')))";
 
 /**
- * Append one row. NEVER throws and never returns a failure: observability that can break a billing
- * path is worse than no observability. INSERT OR IGNORE plus the UNIQUE event_id makes an
- * at-least-once re-delivery a no-op rather than a duplicate row.
+ * Is this delivery one the store check reads as proof that an anonymous id BOUGHT Premium (store-premium.ts)?
+ * An INITIAL_PURCHASE, RENEWAL or UNCANCELLATION of one of our App Store products, for an anonymous id that
+ * resolves to no account. Since 2026-11-03 such a row is load-bearing: lose it to a D1 blip and a paying
+ * customer is locked out of the server's Premium features until their next renewal is logged.
  */
-export async function logRcEvent(db: D1LikeDatabase, row: RcEventRow, nowISO: string): Promise<void> {
+export function isStoreProof(event: unknown): boolean {
+  const e = (event ?? {}) as { type?: unknown; product_id?: unknown; app_user_id?: unknown };
+  return (
+    isAnonPurchaser(e.app_user_id) &&
+    appUserIdFromRcEvent(event) === null &&
+    typeof e.type === 'string' &&
+    (PURCHASE_TYPES as readonly string[]).includes(e.type) &&
+    typeof e.product_id === 'string' &&
+    e.product_id.toLowerCase().startsWith(PREMIUM_PRODUCT_PREFIX)
+  );
+}
+
+/**
+ * Append one row. NEVER throws: observability that can break a billing path is worse than no
+ * observability. It answers whether the row was written, and the handler acts on that for one kind
+ * of row only (isStoreProof), which nothing else records. INSERT OR IGNORE plus the UNIQUE event_id
+ * makes an at-least-once re-delivery a no-op rather than a duplicate row (and still answers true).
+ */
+export async function logRcEvent(db: D1LikeDatabase, row: RcEventRow, nowISO: string): Promise<boolean> {
   try {
     await db.prepare(RC_EVENTS_DDL).run();
     await db
@@ -378,9 +401,11 @@ export async function logRcEvent(db: D1LikeDatabase, row: RcEventRow, nowISO: st
         row.isTrialConversion, row.applied, row.outcome, row.eventTimestampMs, nowISO,
       )
       .run();
+    return true;
   } catch {
     // Deliberately silent. A missing table, a locked database, a schema drift: none of them are
     // worth failing a purchase over.
+    return false;
   }
 }
 
@@ -458,6 +483,12 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   const event = (body?.event ?? {}) as { type?: unknown; id?: unknown };
   const type = typeof event.type === 'string' ? event.type : '';
 
+  // An anonymous id that arrives beside an account belongs to that account now, so the store check must stop
+  // honouring it on its own (store-premium.ts). Without this, someone who merged their own paid-once id into
+  // a stranger's account could ride that account's later purchase signed out. Recorded scrambled, first
+  // thing, so every kind of delivery counts (a duplicate, a sandbox or an ignored one too). Never throws.
+  if (env.RC_SECRET_KEY && appUserIdFromRcEvent(event)) await refuseForAccount(env.DB, env.RC_SECRET_KEY, anonIdsOf(event), nowMs);
+
   // TRANSFER should never fire under keep-with-original Restore Behavior. If it does (a genuine
   // phone handover), write nothing and let a human resolve it in the dashboard, because the event
   // carries no expiration to grant the new owner with.
@@ -476,7 +507,10 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   if (isSandboxEvent(event)) {
     const uid = appUserIdFromRcEvent(event);
     if (!uid || !sandboxAllowlist(env.SANDBOX_GRANT_UIDS).has(uid.toLowerCase())) {
-      await logRcEvent(env.DB, rcEventRow(event, 'sandbox'), nowISO);
+      const logged = await logRcEvent(env.DB, rcEventRow(event, 'sandbox'), nowISO);
+      // The store check reads this row (an anonymous sandbox purchase): if it could not be written, say so, and
+      // RevenueCat delivers it again rather than losing it.
+      if (!logged && isStoreProof(event)) return new Response('log failed', { status: 503 });
       return new Response(JSON.stringify({ received: true, sandbox: true }), { headers: { 'content-type': 'application/json' } });
     }
     allowlisted = true;
@@ -485,8 +519,11 @@ export async function handleRcWebhook(request: Request, env: RcEnv, nowISO: stri
   const ent = entitlementFromRcEvent(event, nowMs);
   if (!ent) {
     // The one that mattered most: an ANONYMOUS purchase dies here, and until now died silently, so
-    // a paying customer existed nowhere in our data at all.
-    await logRcEvent(env.DB, rcEventRow(event, rcIgnoreOutcome(event, nowMs)), nowISO);
+    // a paying customer existed nowhere in our data at all. Since 2026-11-03 its row is also how the
+    // store check knows that id bought, so a row that could not be written answers 503 and RevenueCat
+    // retries it. Any other ignored delivery is acknowledged whether or not its row landed, as before.
+    const logged = await logRcEvent(env.DB, rcEventRow(event, rcIgnoreOutcome(event, nowMs)), nowISO);
+    if (!logged && isStoreProof(event)) return new Response('log failed', { status: 503 });
     return new Response(JSON.stringify({ received: true, ignored: true }), { headers: { 'content-type': 'application/json' } });
   }
 

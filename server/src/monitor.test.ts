@@ -23,6 +23,7 @@ const baseMetric = (over: Partial<Metric> = {}): Metric => ({
   scrapbookToday: 0,
   scrapbookMaxPerIp: 0,
   appEventsToday: 0,
+  storePremiumToday: {},
   ...over,
 });
 
@@ -76,6 +77,39 @@ describe('evaluateAlarms', () => {
     expect(evaluateAlarms(baseMetric({ scrapbookMaxPerIp: 16 })).map((a) => a.kind)).toContain('scrapbook-abuse');
     expect(evaluateAlarms(baseMetric({ callsLastHour: 150 })).map((a) => a.kind)).toContain('volume');
     expect(evaluateAlarms(baseMetric({ appEventsToday: 2000 })).map((a) => a.kind)).toContain('app-events-volume');
+  });
+});
+
+// Premium without an account (2026-11-03): the review moved this alarm into the same batch as the check, so a
+// capped minute emails the owner that day instead of waiting for someone to read the counters.
+describe('the store-check alarm', () => {
+  const kinds = (sp: Record<string, number>) => evaluateAlarms(baseMetric({ storePremiumToday: sp })).map((a) => a.kind);
+
+  it('trips the first time a cap, a throttle, an overused purchase or a spent sandbox allowance appears', () => {
+    for (const event of ['premium.store.capped', 'premium.store.capped.known', 'premium.store.throttled', 'premium.store.overused', 'premium.store.sandbox.spent']) {
+      expect(kinds({ [event]: 1 }), event).toContain('store-premium');
+    }
+  });
+
+  it('trips on errors and on ids RevenueCat never saw only past their daily floors', () => {
+    expect(kinds({ 'premium.store.error': 9 })).not.toContain('store-premium');
+    expect(kinds({ 'premium.store.error': 10 })).toContain('store-premium');
+    expect(kinds({ 'premium.store.unknown': 29 })).not.toContain('store-premium');
+    expect(kinds({ 'premium.store.unknown': 30 })).toContain('store-premium');
+  });
+
+  it('stays silent on an ordinary day of lookups, yeses, nos and refusals', () => {
+    expect(
+      kinds({ 'premium.store.lookup': 40, 'premium.store.yes': 30, 'premium.store.no': 5, 'premium.store.sandbox': 4, 'premium.store.refused': 2, 'premium.store.unproven': 1 }),
+    ).toEqual([]);
+  });
+
+  it('names each count and what it means, and nothing else', () => {
+    const [alarm] = evaluateAlarms(baseMetric({ storePremiumToday: { 'premium.store.capped.known': 3, 'premium.store.error': 12 } }));
+    expect(alarm.detail).toContain('premium.store.capped.known 3');
+    expect(alarm.detail).toContain('premium.store.error 12');
+    expect(alarm.detail).toContain('docs/operations.md');
+    expect(alarm.detail).not.toMatch(/RCAnonymousID|[0-9a-f]{32}/);
   });
 });
 

@@ -8,13 +8,17 @@
 
 import { isCompEmail } from './comp';
 import { decodeJwtEmail } from './mcp';
+import { checkStorePremium, purchaserFrom, type StoreCheck } from './store-premium';
 import { bearer, type D1LikeDatabase, type EntitlementView, readEntitlement } from './stripe';
 import { giftState } from './gifts';
 import { activeTrial, startTrial } from './trials';
 import { defaultVerifySub, type SubVerifier } from './verify';
 
-export type PremiumOk = { ok: true; userId: string };
-export type PremiumDenied = { ok: false; status: 401 | 403 | 503 };
+// Two kinds of yes. The account branch keeps its exact shape. A store purchase proven by an anonymous id has
+// no account at all (userId null), only `purchaser`, the scrambled id (store-premium.ts), so no caller can ever
+// mistake it for an account.
+export type PremiumOk = { ok: true; userId: string } | { ok: true; userId: null; purchaser: string };
+export type PremiumDenied = { ok: false; status: 401 | 403 | 429 | 503 };
 export type PremiumResult = PremiumOk | PremiumDenied;
 
 // The verifier itself lives in verify.ts (it guards money, AI spend and both public surfaces now, not only
@@ -22,22 +26,33 @@ export type PremiumResult = PremiumOk | PremiumDenied;
 export { defaultVerifySub } from './verify';
 export type { SubVerifier } from './verify';
 
-type PremiumEnv = { DB?: D1LikeDatabase; SUPABASE_URL?: string; COMP_EMAILS?: string };
+type PremiumEnv = { DB?: D1LikeDatabase; SUPABASE_URL?: string; COMP_EMAILS?: string; RC_SECRET_KEY?: string };
 
 
 /**
- * Gate a costed route on a premium entitlement. 401 = no / forged / expired token (re-auth), 403 = a valid
- * token but the user is not premium (upsell), 503 = the entitlement store or project URL is unbound (fail
- * closed, never serve paid compute on a config error). The caller maps the status to a JSON body + CORS,
- * exactly like the existing handlers, so this stays transport-agnostic. The caller MUST attach CORS to ALL
- * of 401 / 403 / 503 (a CORS-less error reads as a network failure in the browser, hiding the upsell vs
- * re-auth vs retry distinction). On ok it returns the verified userId for downstream attribution.
+ * Gate a costed route on Premium. Two doors, and a bearer always decides which:
+ *  - ANY Authorization header (valid, forged, expired, Basic, empty) takes the account door, and the purchase
+ *    header is never read. 401 = no / forged / expired token (re-auth), 403 = a verified user who is not
+ *    premium (upsell), 503 = the entitlement store or project URL is unbound (fail closed). So a bad token
+ *    never gets a second try through the other door.
+ *  - NO Authorization header at all: the store door, for an iPhone that bought Premium without an account.
+ *    It needs the X-Purchaser-Token header in the exact anonymous form, else 401, and then store-premium.ts
+ *    decides: 403 not Premium (or refused), 429 that purchase is being used far too much, 503 cannot decide.
+ * The caller maps the status to a JSON body + CORS, exactly like the existing handlers, so this stays
+ * transport-agnostic. The caller MUST attach CORS to EVERY denial (a CORS-less error reads as a network
+ * failure in the browser, hiding the upsell vs re-auth vs retry distinction). On ok the account door returns
+ * the verified userId, and the store door returns userId null and the scrambled purchaser.
  */
 export async function requirePremium(
   request: Request,
   env: PremiumEnv,
   verifySub: SubVerifier = defaultVerifySub,
+  storeCheck: StoreCheck = checkStorePremium,
 ): Promise<PremiumResult> {
+  if (!request.headers.has('Authorization')) {
+    const purchaser = purchaserFrom(request);
+    return purchaser ? storeCheck(purchaser, env, Date.now()) : { ok: false, status: 401 };
+  }
   const token = bearer(request);
   if (!token) return { ok: false, status: 401 };
   if (!env.DB || !env.SUPABASE_URL) return { ok: false, status: 503 }; // cannot decide -> fail closed

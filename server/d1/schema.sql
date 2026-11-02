@@ -178,6 +178,44 @@ create table if not exists breakdown_counts (
   primary key (user_id, hour)
 ) without rowid;
 
+-- Premium without an account (2026-11-03; server/src/store-premium.ts). An iPhone that bought Premium signed
+-- out proves it with its RevenueCat anonymous id, and the Worker asks RevenueCat before a Premium route spends.
+-- These three tables are everything that check keeps. None of them ever holds the id itself: only
+-- id_hash, an HMAC-SHA256 of it keyed with the RC_SECRET_KEY Worker secret, so even someone who can read D1
+-- cannot join them to rc_events (which keeps the raw id as RevenueCat sends it). No user id, no IP, no feature
+-- name. The Worker creates all three at runtime (CREATE TABLE IF NOT EXISTS), so a deploy never depends on this
+-- file being applied first.
+--
+-- The latest answer per purchase. A yes lives an hour at most and never past the store's own expiry, a no a
+-- minute. The cron's :00 tick deletes rows past expires_at, so an answer is gone within two hours of its check.
+create table if not exists store_premium_cache (
+  id_hash text primary key,             -- the scrambled id (never the id)
+  premium integer not null,             -- 1 yes, 0 no
+  sandbox integer not null default 0,   -- 1 when the yes came from a sandbox purchase (App Review, TestFlight)
+  expires_at integer not null,          -- epoch ms; past it the row is ignored and RevenueCat is asked again
+  checked_at integer not null           -- epoch ms of the check; an older check never overwrites a newer one
+) without rowid;
+create index if not exists store_premium_cache_exp on store_premium_cache (expires_at);
+-- Counters. kind 'lookup' (RevenueCat asks for ids our webhook never saw buy, per minute, global),
+-- 'lookup.known' (the same for ids it did), 'served:<id_hash>' (requests one purchase made, per hour),
+-- 'sandbox:<id_hash>' and 'sandbox' (served sandbox requests per UTC day, one purchase's and everyone's). The
+-- :00 tick deletes every slot already over, so a per-purchase count lives at most about two hours (a day for a
+-- sandbox one).
+create table if not exists store_premium_counts (
+  kind text not null,
+  slot integer not null,                -- minutes, hours or days since the epoch, UTC, by kind
+  n integer not null,
+  primary key (kind, slot)
+) without rowid;
+-- The scrambled ids the check refuses outright: why 'account' (a RevenueCat delivery listed the id beside an
+-- account, so it works only through that account now), or 'blocked' (blocked by hand, docs/operations.md).
+-- Kept like rc_events. Rotating RC_SECRET_KEY re-scrambles every id and orphans these rows.
+create table if not exists store_premium_refused (
+  id_hash text primary key,
+  why text not null,                    -- 'account' | 'blocked'
+  at integer not null                   -- epoch ms it was recorded
+) without rowid;
+
 -- MCP OAuth grant custody: the bridge between a workers-oauth-provider grant and the
 -- user's own Supabase session. Holds the ROTATING Supabase refresh token AES-GCM-
 -- encrypted with the MCP_GRANT_KEY Worker secret (never plaintext, never in KV), plus a
@@ -242,3 +280,6 @@ create table if not exists rc_events (
 );
 create index if not exists rc_events_env on rc_events (environment, type);
 create index if not exists rc_events_user on rc_events (user_id);
+-- The store check's gate (2026-11-03): did our webhook see THIS anonymous id buy? One indexed read per Premium
+-- request from an iPhone without an account. The Worker also creates it at runtime.
+create index if not exists rc_events_app_user on rc_events (app_user_id);

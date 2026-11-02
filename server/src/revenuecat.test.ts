@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
+import { purchaserHash } from './purchaser';
 import {
   appUserIdFromRcEvent,
   entitlementFromRcEvent,
   EXPIRY_SKEW_MS,
   handleRcWebhook,
   isSandboxEvent,
+  isStoreProof,
   rcEventRow,
   rcIgnoreOutcome,
   sandboxAllowlist,
@@ -16,6 +18,7 @@ import {
 } from './revenuecat';
 import { readEntitlement, writeEntitlement } from './entitlements';
 import { sqliteD1 } from './sqlite-d1.test-helper';
+import { checkStorePremium } from './store-premium';
 
 const UID = '11111111-2222-3333-4444-555555555555';
 const NOW_MS = 1_800_000_000_000; // fixed "now" for the stale-expiration guard
@@ -858,5 +861,84 @@ describe('the review scenarios (real SQLite)', () => {
     expect(await res.text()).toBe('bad signature');
     expect(db.raw.prepare('SELECT event_id, outcome, applied FROM rc_events').get()).toMatchObject({ event_id: null, outcome: 'bad-signature', applied: 0 });
     expect(await readEntitlement(db, UID)).toMatchObject({ premium: false });
+  });
+});
+
+// ---- 2026-11-03: Premium without an account. The webhook feeds the store check two things: which anonymous ids
+// bought (rc_events), and which anonymous ids now belong to an account (store_premium_refused).
+describe('the webhook and the store check', () => {
+  const SECRET = 'test-rc-secret';
+  const A1 = `$RCAnonymousID:${'a'.repeat(32)}`;
+  const A2 = `$RCAnonymousID:${'b'.repeat(32)}`;
+  const AT = '2026-11-03T00:00:00.000Z';
+  const refused = (db: Awaited<ReturnType<typeof sqliteD1>>) =>
+    db.raw.prepare('SELECT id_hash, why FROM store_premium_refused ORDER BY id_hash').all() as { id_hash: string; why: string }[];
+
+  it('records each anonymous id a delivery lists beside an account, scrambled, and the store check then refuses it', async () => {
+    const db = await sqliteD1();
+    const event = rcEvent({ id: 'e-alias', app_user_id: UID, original_app_user_id: A1, aliases: [A1, A2, UID, '$RCAnonymousID:x'] });
+    const res = await handleRcWebhook(rawReq({ event }), { DB: db, RC_WEBHOOK_AUTH: 'secret', RC_SECRET_KEY: SECRET }, AT, NOW_MS);
+    expect(res.status).toBe(200);
+    expect(await readEntitlement(db, UID)).toMatchObject({ premium: true }); // the account's own purchase still lands
+    const rows = refused(db);
+    expect(rows).toHaveLength(2); // '$RCAnonymousID:x' is not the strict form, and the uuid is the account itself
+    expect(rows).toEqual(expect.arrayContaining([{ id_hash: await purchaserHash(A1, SECRET), why: 'account' }, { id_hash: await purchaserHash(A2, SECRET), why: 'account' }]));
+    expect(JSON.stringify(rows)).not.toContain('RCAnonymousID');
+
+    // A1 also has its own purchase row from before it joined the account, and is refused all the same.
+    db.raw
+      .prepare("INSERT INTO rc_events (event_id, type, environment, product_id, app_user_id, user_id, applied, outcome) VALUES ('p-1', 'INITIAL_PURCHASE', 'PRODUCTION', 'app.doubledone.premium.monthly', ?, NULL, 0, 'unresolved-user')")
+      .run(A1);
+    let asked = 0;
+    const doFetch = (async () => {
+      asked++;
+      return new Response('{}');
+    }) as unknown as typeof fetch;
+    expect(await checkStorePremium(A1, { DB: db, RC_SECRET_KEY: SECRET }, NOW_MS, { doFetch })).toEqual({ ok: false, status: 403 });
+    expect(asked).toBe(0);
+  });
+
+  it('records nothing for a delivery with no account in it, or with no secret to scramble with', async () => {
+    const db = await sqliteD1();
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'e-anon', app_user_id: A1, aliases: [A1] }) }), { DB: db, RC_WEBHOOK_AUTH: 'secret', RC_SECRET_KEY: SECRET }, AT, NOW_MS);
+    await handleRcWebhook(rawReq({ event: rcEvent({ id: 'e-nokey', aliases: [A2, UID] }) }), { DB: db, RC_WEBHOOK_AUTH: 'secret' }, AT, NOW_MS);
+    expect(refused(db)).toEqual([]);
+  });
+
+  it('records nothing from a delivery whose signature failed', async () => {
+    const db = await sqliteD1();
+    const raw = JSON.stringify({ event: rcEvent({ id: 'e-forged', aliases: [A1, UID] }) });
+    const req = new Request('https://api.doubledone.app/rc-webhook', { method: 'POST', headers: { Authorization: 'secret', 'X-RevenueCat-Webhook-Signature': `t=${T},v1=${'0'.repeat(64)}` }, body: raw });
+    const res = await handleRcWebhook(req, { DB: db, RC_WEBHOOK_AUTH: 'secret', RC_WEBHOOK_HMAC: 'hmac', RC_SECRET_KEY: SECRET }, AT, NOW_MS);
+    expect(res.status).toBe(401);
+    expect(refused(db)).toEqual([]);
+  });
+
+  // rc_events is now how the store check knows an anonymous id bought, so that one kind of row must not be lost.
+  it('answers 503 when an anonymous purchase cannot be logged, so RevenueCat delivers it again; anything else is acknowledged as before', async () => {
+    const db = fakeDb();
+    const broken: D1LikeDatabase = {
+      prepare(sql: string) {
+        if (sql.includes('rc_events')) throw new Error('no such table: rc_events');
+        return db.prepare(sql);
+      },
+    };
+    const anonBuy = rcEvent({ app_user_id: A1, aliases: [A1], product_id: 'app.doubledone.premium.monthly' });
+    expect((await handleRcWebhook(rawReq({ event: anonBuy }), env(broken), AT, NOW_MS)).status).toBe(503);
+    expect((await handleRcWebhook(rawReq({ event: { ...anonBuy, environment: 'SANDBOX' } }), env(broken), AT, NOW_MS)).status).toBe(503);
+    expect((await handleRcWebhook(rawReq({ event: { ...anonBuy, type: 'CANCELLATION' } }), env(broken), AT, NOW_MS)).status).toBe(200);
+    expect((await handleRcWebhook(rawReq({ event: { ...anonBuy, product_id: 'com.example.other' } }), env(broken), AT, NOW_MS)).status).toBe(200);
+    expect((await handleRcWebhook(rawReq({ event: anonBuy }), env(fakeDb()), AT, NOW_MS)).status).toBe(200);
+  });
+
+  it('isStoreProof names exactly the rows the store check reads as a purchase', () => {
+    const buy = rcEvent({ app_user_id: A1, aliases: [A1], product_id: 'app.doubledone.premium.annual' });
+    expect(isStoreProof(buy)).toBe(true);
+    for (const type of ['RENEWAL', 'UNCANCELLATION']) expect(isStoreProof({ ...buy, type }), type).toBe(true);
+    for (const type of ['CANCELLATION', 'EXPIRATION', 'BILLING_ISSUE', 'TEST', 'TRANSFER']) expect(isStoreProof({ ...buy, type }), type).toBe(false);
+    expect(isStoreProof({ ...buy, product_id: 'com.example.other' })).toBe(false);
+    expect(isStoreProof({ ...buy, app_user_id: '$RCAnonymousID:x' })).toBe(false);
+    expect(isStoreProof({ ...buy, aliases: [A1, UID] })).toBe(false); // it resolves to an account
+    expect(isStoreProof({ ...buy, app_user_id: UID })).toBe(false);
   });
 });

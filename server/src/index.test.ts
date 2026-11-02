@@ -1,6 +1,9 @@
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { writeEntitlement } from './entitlements';
 import worker, { type Env } from './index';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 import type { D1LikeDatabase } from './telemetry';
 
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
@@ -214,6 +217,117 @@ describe('Chart a course (premium-gated)', () => {
     });
     const res = await worker.fetch(r, makeEnv(), ctx); // makeEnv binds no DB / SUPABASE_URL
     expect(res.status).toBe(503);
+  });
+});
+
+// Premium without an account (2026-11-03): every requirePremium route, for both kinds of caller.
+describe('the four Premium routes and the purchase header', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ANON = '$RCAnonymousID:0123456789abcdef0123456789abcdef';
+  const UID = '11111111-2222-3333-4444-555555555555';
+  const SUPA = 'https://store-check.supabase.co';
+  const SECRET = 'test-rc-secret';
+  const ROUTES: [string, unknown, string][] = [
+    ['/ocr', { image: 'aGVsbG8=' }, 'tasks'],
+    ['/lookback-summary', { titles: ['Paid the rent'] }, 'summary'],
+    ['/chart', { goal: 'run a 10k by March' }, 'course'],
+    ['/sequence', { tasks: [{ id: 't1', title: 'Email the landlord' }] }, 'order'],
+  ];
+  const post = (path: string, body: unknown, headers: Record<string, string>) =>
+    new Request(`https://doubledone-ai.example.dev${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+  it('lists the purchase header in the CORS preflight', async () => {
+    const res = await worker.fetch(req('OPTIONS', '/chart', { origin: 'https://doubledone.app' }), makeEnv(), ctx);
+    expect(res.headers.get('Access-Control-Allow-Headers')).toBe('content-type, authorization, x-purchaser-token');
+  });
+
+  for (const [path, body] of ROUTES) {
+    it(`${path}: no token and no proof we accept is a 401 JSON with CORS, and a valid proof with no store bound is a 503`, async () => {
+      const proofs: Record<string, string>[] = [{ 'X-Purchaser-Token': 'not-an-id' }, { 'X-Purchaser-Token': UID }, { 'X-Purchaser': ANON }];
+      for (const headers of proofs) {
+        const res = await worker.fetch(post(path, body, { Origin: 'https://doubledone.app', ...headers }), makeEnv(), ctx);
+        expect(res.status, JSON.stringify(headers)).toBe(401);
+        expect(await res.json()).toEqual({ error: 'premium required' });
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+      }
+      const res = await worker.fetch(post(path, body, { Origin: 'https://doubledone.app', 'X-Purchaser-Token': ANON }), makeEnv(), ctx);
+      expect(res.status).toBe(503); // makeEnv binds no DB and no RC_SECRET_KEY
+      expect(await res.json()).toEqual({ error: 'premium required' });
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://doubledone.app');
+    });
+  }
+
+  it('serves a signed-in Premium account and a signed-out store buyer on all four, each on its own credential', async () => {
+    // The account: a real ES256 token, verified against a key set served by the stubbed fetch.
+    const { publicKey, privateKey } = await generateKeyPair('ES256');
+    const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'ES256', use: 'sig' };
+    const token = await new SignJWT({ sub: UID }).setProtectedHeader({ alg: 'ES256', kid: 'k1' }).setIssuer(`${SUPA}/auth/v1`).setExpirationTime('1h').sign(privateKey);
+    const db = await sqliteD1();
+    await writeEntitlement(db, { userId: UID, premium: true, status: 'active', currentPeriodEnd: 2_000_000_000, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-11-03T00:00:00Z');
+    // The store buyer: the webhook saw this id buy, and RevenueCat says the purchase is live.
+    db.raw
+      .prepare("INSERT INTO rc_events (event_id, type, environment, product_id, app_user_id, user_id, applied, outcome) VALUES ('p-1', 'INITIAL_PURCHASE', 'PRODUCTION', 'app.doubledone.premium.monthly', ?, NULL, 0, 'unresolved-user')")
+      .run(ANON);
+    const subscriber = {
+      subscriber: {
+        original_app_user_id: ANON,
+        entitlements: { premium: { expires_date: new Date(Date.now() + 30 * 86_400_000).toISOString(), product_identifier: 'app.doubledone.premium.monthly' } },
+        subscriptions: { 'app.doubledone.premium.monthly': { is_sandbox: false, store: 'app_store' } },
+      },
+    };
+    const reply = {
+      content: [
+        { type: 'text', text: 'A calm week.' },
+        { type: 'tool_use', name: 'record_tasks', input: { tasks: ['Buy milk'] } },
+        { type: 'tool_use', name: 'record_course', input: { heading: 'Toward the 10k', steps: [] } },
+        { type: 'tool_use', name: 'record_order', input: { order: [] } },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    };
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        const url = String(input);
+        calls.push(url);
+        if (url.endsWith('/auth/v1/.well-known/jwks.json')) return Response.json({ keys: [jwk] });
+        if (url.startsWith('https://api.revenuecat.com/')) return Response.json(subscriber);
+        if (url.startsWith('https://api.anthropic.com/')) return Response.json(reply);
+        return new Response('unexpected', { status: 500 });
+      }),
+    );
+    const env = makeEnv({ DB: db, SUPABASE_URL: SUPA, RC_SECRET_KEY: SECRET });
+
+    for (const [path, body, key] of ROUTES) {
+      for (const [who, headers] of [
+        ['account', { Authorization: `Bearer ${token}` }],
+        ['store buyer', { 'X-Purchaser-Token': ANON }],
+      ] as [string, Record<string, string>][]) {
+        const before = calls.filter((u) => u.startsWith('https://api.anthropic.com/')).length;
+        const res = await worker.fetch(post(path, body, headers), env, ctx);
+        expect(res.status, `${path} ${who}`).toBe(200);
+        expect(Object.keys((await res.json()) as object), `${path} ${who}`).toEqual([key]);
+        expect(calls.filter((u) => u.startsWith('https://api.anthropic.com/')).length, `${path} ${who}`).toBe(before + 1);
+      }
+    }
+    // RevenueCat was asked once for the store buyer (then the cached yes served three more), never for the account.
+    expect(calls.filter((u) => u.startsWith('https://api.revenuecat.com/'))).toEqual([`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(ANON)}`]);
+  });
+
+  it('a store buyer the webhook never saw buy is refused before any AI call', async () => {
+    const db = await sqliteD1();
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        calls.push(String(input));
+        return Response.json({ subscriber: { original_app_user_id: UID, entitlements: { premium: { expires_date: new Date(Date.now() + 86_400_000).toISOString(), product_identifier: 'app.doubledone.premium.monthly' } }, subscriptions: { 'app.doubledone.premium.monthly': { is_sandbox: false } } } });
+      }),
+    );
+    const res = await worker.fetch(post('/chart', { goal: 'borrow a stranger\'s Premium' }, { 'X-Purchaser-Token': ANON }), makeEnv({ DB: db, RC_SECRET_KEY: SECRET }), ctx);
+    expect(res.status).toBe(403);
+    expect(calls.some((u) => u.startsWith('https://api.anthropic.com/'))).toBe(false);
   });
 });
 
@@ -476,6 +590,18 @@ describe('the cron: nudges every quarter hour, the hourly work on the :00 tick o
     expect(r.heartbeat).toBe(true);
     expect(r.sql.some((q) => q.startsWith('DELETE FROM scrapbook_log'))).toBe(true);
     expect(r.sql.some((q) => q.startsWith('DELETE FROM breakdown_counts'))).toBe(true);
+  });
+
+  // Premium without an account (2026-11-03): the store check's answers and counters go on the :00 tick only, which
+  // is what keeps "deleted within two hours of the last check" true.
+  it('purges the store check on the :00 tick, and on no other', async () => {
+    const top = await run('2026-11-01T21:00:00Z');
+    expect(top.sql.some((q) => q.startsWith('DELETE FROM store_premium_cache'))).toBe(true);
+    expect(top.sql.some((q) => q.startsWith('DELETE FROM store_premium_counts'))).toBe(true);
+    for (const iso of ['2026-11-01T21:15:00Z', '2026-11-01T21:30:00Z', '2026-11-01T21:45:00Z']) {
+      vi.unstubAllGlobals();
+      expect((await run(iso)).sql.some((q) => q.includes('store_premium')), iso).toBe(false);
+    }
   });
 });
 

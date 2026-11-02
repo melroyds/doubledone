@@ -23,6 +23,7 @@ import { runMonitor } from './monitor';
 import { buildSceneRequest, dataUrl, IMAGE_MODEL, imagePrompt, overDailyCap, parseImage, parseScene, parseSceneResponse, SCENE_CLAUDE_MODEL, SCENE_MODEL, sceneMessages } from './scrapbook';
 import { buildEnergyRequest, ENERGY_MODEL, parseEnergyLevel, parseEnergyResponse, parseEnergyTasks } from './energy';
 import { buildSequenceRequest, parseEnergy, parseSequenceResponse, SEQUENCE_MODEL } from './sequence';
+import { PURCHASER_HEADER, purgeStorePremium } from './store-premium';
 import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
@@ -117,6 +118,10 @@ export interface Env {
   OTP_LIMITER?: RateLimitBinding;
   // Per-user limit on POST /account/close-billing (see stripe.ts handleCloseBilling).
   BILLING_LIMITER?: RateLimitBinding;
+  // A RevenueCat v1 SECRET key (sk_…), a Worker secret. Read by POST /apple/reconcile, account deletion's Play
+  // cancel, and the store check that lets an iPhone use Premium without an account (store-premium.ts), which
+  // also keys its scrambled ids with it. Unset, the store check answers 503.
+  RC_SECRET_KEY?: string;
   MCP_GRANT_KEY?: string;
   OAUTH_PROVIDER?: OAuthHelpers;
 }
@@ -146,7 +151,9 @@ function isAllowedOrigin(origin: string | null): boolean {
 function corsFor(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type, authorization',
+    // The purchase header too, so a browser caller never reads the store check as a network failure (today only
+    // the iPhone app sends it, and native fetch ignores CORS).
+    'Access-Control-Allow-Headers': `content-type, authorization, ${PURCHASER_HEADER.toLowerCase()}`,
     Vary: 'Origin',
   };
   if (isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin as string;
@@ -535,7 +542,8 @@ const router = {
     // OCR photo capture (PREMIUM): a photo of a list in, the task titles out, for the user to
     // review and edit in the brain-dump box before anything is committed. The FIRST costed route
     // behind requirePremium (the money gate): it cryptographically verifies the Supabase JWT and
-    // reads the D1 entitlement, fail-closed. Validation (cheap, no AI) runs before the gate so a
+    // reads the D1 entitlement, fail-closed, or, for an iPhone with no account, checks its store
+    // purchase (store-premium.ts). Validation (cheap, no AI) runs before the gate so a
     // bad body is a clean 400/413; the gate runs before any vision call so non-premium never spends.
     if (pathname === '/ocr' && request.method === 'POST') {
       let imageBase64 = '';
@@ -1316,5 +1324,8 @@ export default {
     }
     // The break_down cap's counts for hours already over (#7). Best effort; it never throws.
     ctx.waitUntil(purgeBreakdownCounts(env.DB, at));
+    // The store check's answers past their expiry and its counters whose minute, hour or day is over, so an answer
+    // is gone within two hours of its check (the privacy policy's promise). Best effort, and it never throws.
+    ctx.waitUntil(purgeStorePremium(env.DB, at));
   },
 } satisfies ExportedHandler<Env>;

@@ -22,6 +22,7 @@ Each fires to the `FEEDBACK_TO` inbox, de-duplicated so the same kind cannot rep
 | **App events volume** | 2,000 or more feature-usage counts in one day | the `/event` beacon takes no token, so a flood is likely scripted and would poison the counts in `app_event_counts` |
 | **Stripe** | a dispute, refund, or failed payment arrives on the webhook, or the webhook cannot read a subscription from Stripe (at most one email per 6 hours) | real-money events Stripe's dashboard no longer emails about, and a broken `STRIPE_SECRET_KEY` found inside Stripe's three days of retries instead of after them |
 | **RevenueCat** | a delivery fails the HMAC signature check (at most one email per 6 hours), or a TRANSFER event arrives | a signing secret out of step with the dashboard, or a purchase moving between accounts, which writes nothing |
+| **Store check** | today's `premium.store.capped`, `.capped.known`, `.throttled`, `.overused` or `.sandbox.spent` is above 0, or `.error` reaches 10, or `.unknown` reaches 30 | Premium without an account (below) is being flooded, throttled or misused, or App Review could be locked out of what it bought |
 
 The alert email is deliberately information-poor: counts, endpoints, error strings, and dollar amounts only. Never task text, never an IP, never a user id. An alert email is a new way data leaves the pseudonymous store, so it carries nothing identifying.
 
@@ -110,6 +111,68 @@ npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --comman
 ```
 
 The log starts the day it deploys and is deliberately NOT backfilled: RevenueCat does not replay historical webhooks, and an audit log mixing observed rows with reconstructed ones is worse than one that honestly starts empty, because the next person cannot tell which rows are evidence. The history up to that point is written as dated prose in `decision-log.md` instead.
+
+**Since 2026-11-03 two things in this webhook feed the store check below.** An anonymous purchase row (an `INITIAL_PURCHASE`, `RENEWAL` or `UNCANCELLATION` of `app.doubledone.premium.*` for an `$RCAnonymousID:` that resolves to no account) is how the Worker knows that id bought, so a row that cannot be written now answers `503 log failed` and RevenueCat delivers it again. Every other delivery is acknowledged as before, written or not. And every verified delivery that resolves to an account records the anonymous ids it lists (`app_user_id`, `original_app_user_id`, `aliases`), scrambled, in `store_premium_refused`, so an id that has joined an account works only through that account.
+
+## Premium without an account (the store check), added 2026-11-03
+
+An iPhone may buy Premium signed out (App Review 5.1.1). The four server-gated Premium routes, `POST /ocr` (Scan), `/lookback-summary` (Reflect on this week), `/chart` (Chart a course) and `/sequence` (Plan my day), used to need a Supabase token, so those buyers were refused. Now a request with **no `Authorization` header at all** may carry `X-Purchaser-Token: $RCAnonymousID:<32 lowercase hex>`, the device's RevenueCat anonymous App User ID, and the Worker decides ([`server/src/store-premium.ts`](../server/src/store-premium.ts), [`server/src/purchaser.ts`](../server/src/purchaser.ts)). Scrapbooks and energy matching are metered on the device and never asked.
+
+**The rules, in the order they run:**
+- **A bearer always decides.** Any `Authorization` header (valid, forged, expired, Basic, empty) takes the account path, and the purchase header is never read. A bad token never gets a second try.
+- **Only the exact anonymous form.** Anything else in the header (a uuid, uppercase, a near miss, a duplicate) is `401`, with nothing looked up.
+- **Refused outright, `403`:** an id an `rc_events` row resolved to an account, an id a delivery listed beside an account (`store_premium_refused` why `account`), and an id blocked by hand (why `blocked`). Before the cache, so a cached yes stops at once.
+- **A live cached answer is used as it is.** A yes lives an hour at most and never past the store's own expiry. A no lives a minute, so a re-subscribe unlocks within one.
+- **Otherwise RevenueCat is asked** (`GET /v1/subscribers/{id}` with `RC_SECRET_KEY`, four seconds at most, never `X-Platform`), under a global cap a minute: **60 for ids our webhook saw buy, 10 for the rest**, so a flood of made-up ids can slow only the rare case below, never a known buyer.
+- **Production Premium needs proof from our own log**: an anonymous purchase row for that very id, or, for a reinstall or a new phone whose Restore aliased a fresh id onto the old purchase, RevenueCat naming such a buyer as the customer's original id. Without it a live production subscription is refused (`unproven`). This is what stops the merge attack: RevenueCat folds an anonymous id into any account with no anonymous alias yet, through a `logIn` anyone can call with the public SDK key, and the folded id then reads that account's subscriptions.
+- **Sandbox Premium (App Review, TestFlight, our own builds) is honoured for any id**, inside 40 served requests per purchase and 100 overall per UTC day, with ten minutes' grace past a sandbox expiry while its renewal lands. Over either allowance is `503`, never `403`: the person did buy.
+- **One purchase may make 60 requests an hour**, every answer counted. Past that, `429`.
+
+**What each status means:** `401` no proof we accept. `403` checked, and Premium is not active (or the id is refused). `429` that purchase is being used far too much this hour. `503` cannot decide just now: D1, RevenueCat, a cap or a sandbox allowance. Nothing is ever cached from an answer that could not be read.
+
+**What it keeps** (all created at runtime, no schema step, and never the id itself, only `id_hash`, an HMAC-SHA256 of the id keyed with `RC_SECRET_KEY`):
+- `store_premium_cache`: the latest answer per purchase. An older check never overwrites a newer one (`checked_at`).
+- `store_premium_counts`: `lookup` and `lookup.known` per minute, `served:<id_hash>` per hour, `sandbox:<id_hash>` and `sandbox` per UTC day.
+- `store_premium_refused`: the ids it refuses. Kept like `rc_events`.
+- The `rc_events_app_user` index, so the "did this id buy?" read is indexed.
+- The `:00` tick deletes answers past their expiry and every counter whose minute, hour or day is over, so an answer is gone within two hours of its check (the privacy policy's promise).
+
+**The counters** (`app_event_counts`, written by the Worker, never the id): `premium.store.lookup` (a RevenueCat call), `.unknown` (RevenueCat had never heard of the id, so it just made an empty customer), `.yes`, `.sandbox`, `.no`, `.unproven` (a production yes refused for want of proof), `.error`, `.throttled` (RevenueCat answered 429), `.capped` and `.capped.known` (a lookup lane was full), `.refused`, `.overused` and `.sandbox.spent`. The last five, and the two caps, are written at most once a minute per isolate, so they count minutes, not requests. The **Store check** alarm above reads them. The first move for each:
+- `.capped.known` or `.throttled`: real buyers were told to try again. Check RevenueCat's status page and the Worker's error rate. The key is shared with the reconcile and account deletion.
+- `.capped` or `.unknown` high: someone is posting made-up ids. Known buyers are unaffected. The only cost is empty customers in RevenueCat's dashboard.
+- `.overused`: one purchase passed 60 requests in an hour, possibly a leaked id. Find it with the query below and block it if it keeps on.
+- `.sandbox.spent`: a tester or App Review used up a day's allowance. If a review is in progress, raise `STORE_SANDBOX_PER_PURCHASER_PER_DAY` or `STORE_SANDBOX_PER_DAY` in `store-premium.ts` and deploy.
+- `.error` at 10 or more: RevenueCat failing or slow. Nothing is cached from a failure, so it heals by itself.
+
+```bash
+# Today's store-check counters
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT event, n FROM app_event_counts WHERE day = date('now') AND event LIKE 'premium.store.%' ORDER BY event"
+# What the cache holds right now (counts only)
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT COUNT(*) AS rows, SUM(premium) AS yes, SUM(sandbox) AS sandbox FROM store_premium_cache"
+# The busiest purchases this hour, by scrambled id
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT substr(kind, 8) AS id_hash, n FROM store_premium_counts WHERE kind LIKE 'served:%' AND slot = CAST(strftime('%s','now') AS INTEGER) / 3600 ORDER BY n DESC LIMIT 5"
+# How many anonymous ids our webhook has seen buy (no id is printed)
+npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "SELECT environment, COUNT(DISTINCT app_user_id) AS buyers FROM rc_events WHERE user_id IS NULL AND app_user_id LIKE '_RCAnonymousID:%' AND type IN ('INITIAL_PURCHASE','RENEWAL','UNCANCELLATION') GROUP BY 1"
+```
+
+(The `_` in `'_RCAnonymousID:%'` stands for the `$`, which the shell would otherwise eat inside double quotes.)
+
+**Blocking one purchase**, by the scrambled id from the busiest-purchases query: `INSERT OR REPLACE INTO store_premium_refused (id_hash, why, at) VALUES ('<64 hex>', 'blocked', CAST(strftime('%s','now') AS INTEGER) * 1000)`. It takes effect on that purchase's next request, cached yes or not. Unblock with `DELETE FROM store_premium_refused WHERE id_hash = '<64 hex>' AND why = 'blocked'`. An anonymous purchase cannot be revoked any other way: there is no session to end and no account to delete, and refunds are Apple's.
+
+**Before the client that sends the header ships** (this check gates the client commit, not only the build): deploy the Worker, run PREM-74, then open the Worker's Logs in the Cloudflare dashboard, open one of those requests, and confirm `x-purchaser-token` reads `REDACTED` and that a search for `RCAnonymousID` finds nothing. Cloudflare redacts a header whose name contains `token`, which is why it is not called `X-Purchaser`. If the value shows in the clear, stop: the name ships inside a store build, and changing it later costs another build. **Never turn on Workers traces for this Worker without checking the same thing first**: the RevenueCat request's path carries the id (v1 has no other way to ask), and a fetch span could record it.
+
+**Rotating `RC_SECRET_KEY`** re-scrambles every id. Cache rows and counters are orphaned and the purge clears them. Blocks and account refusals lapse: re-add any block by its new scrambled id (from the busiest-purchases query), and each account's refusals are re-recorded by its next delivery.
+
+**Rolling back the Worker past this change:** `npx wrangler rollback <version>` from `server/`, then **at once**, because the older Worker has no purge and would break "deleted within two hours": `npm exec -w server -- wrangler d1 execute doubledone-telemetry --remote --command "DELETE FROM store_premium_cache"`, and the same for `DELETE FROM store_premium_counts`. Leave `store_premium_refused` and the `rc_events_app_user` index: both are harmless to the old Worker and needed again on the way forward. A phone with the new build then gets `401` and its honest "couldn't confirm" line, with no AI spend.
+
+**Before the iOS release that sends the header**, look up both anonymous App Store customers in RevenueCat's dashboard, read-only: their Last seen, app version and aliases. A recent Last seen and no uuid alias means they use the app signed out, and the store build reaches them with nothing to do. A uuid alias, or a Last seen weeks old, means they signed in (where this path does not apply) or no longer open the app. `rc_events` alone cannot tell these apart, because renewals keep arriving under the anonymous id even after a sign-in to an account used before. To find them without printing their ids: `SELECT original_transaction_id, type, datetime(event_timestamp_ms/1000,'unixepoch') AS at FROM rc_events WHERE user_id IS NULL AND app_user_id LIKE '_RCAnonymousID:%' ORDER BY event_timestamp_ms DESC`, then search RevenueCat's Customers by that store transaction id, or by the purchase date.
+
+**Until the store build lands**, the live 1.10.x apps never send the header, so an anonymous buyer still sees "Try rephrasing the goal?". The stopgap to offer (optional, never required): sign in with an email never used in DoubleDone before. A returning account can lose the purchase at sign-in, because RevenueCat moves an anonymous purchase into an account only if that account has never been signed in on a phone. If Premium disappears, tap Restore a purchase on the Premium screen, then close and reopen the app (the reconcile runs on the next launch).
+
+**Known edges, for the client and for later:**
+- iOS can skip `Purchases.logIn` while RevenueCat is still configuring, yet still calls the reconcile, whose lookup creates a bare uuid customer: the shape RevenueCat merges an attacker's anonymous id into. The store check refuses that attack (no proof in our log), but the client should wait for configure and reconcile only after a `logIn` that worked.
+- A restore made while signed in does not run the reconcile until the next launch, so the four features answer `403` in between.
+- RevenueCat's Restore Behavior is keep-with-original, which RevenueCat says is meant for apps that require an account before purchase. Anonymous owners are aliased whatever the setting, so this path works, but the setting deserves its own review.
 
 ## The /energy route in the spend picture
 

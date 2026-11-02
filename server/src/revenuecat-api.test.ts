@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { D1LikeDatabase } from './entitlements';
 import { readEntitlement, writeEntitlement } from './entitlements';
+import { originalAppUserId, premiumFromSubscriber } from './rc-v1';
 import { buildSubscriberRequest, grantFromSubscriber, handleAppleReconcile, sourceForV1Store } from './revenuecat-api';
 import { sqliteD1 } from './sqlite-d1.test-helper';
 
@@ -243,6 +244,59 @@ describe('Path A review: reconcile is rate-limited per user', () => {
     const res = await handleAppleReconcile(req, env, {}, '2026-09-30T00:00:00Z', NOW_MS, async () => UID, doFetch);
     expect(res.status).toBe(429);
     expect(called).toBe(false);
+  });
+});
+
+// 2026-11-03: the reader moved into rc-v1.ts so the store check (Premium without an account) reads a subscriber
+// body by exactly the reconcile's rule. Every test above is unchanged: that is the proof of the move.
+describe('premiumFromSubscriber, the one shared reader', () => {
+  const exp = NOW_MS + 30 * 24 * HOUR_MS;
+
+  it('tells a body it cannot read from a real no from a yes', () => {
+    for (const junk of [null, undefined, 7, 'nope', {}, { subscriber: null }, { subscriber: 'nope' }]) {
+      expect(premiumFromSubscriber(junk, NOW_MS), String(junk)).toEqual({ kind: 'malformed' });
+    }
+    expect(premiumFromSubscriber({ subscriber: { entitlements: 7 } }, NOW_MS)).toEqual({ kind: 'inactive' });
+    expect(premiumFromSubscriber(subscriber({ ent: null }), NOW_MS)).toEqual({ kind: 'inactive' });
+    expect(premiumFromSubscriber(subscriber(), NOW_MS)).toEqual({ kind: 'active', source: 'apple', sandbox: false, expiresMs: exp, untilMs: exp, cancelAtPeriodEnd: false });
+  });
+
+  it('carries sandbox, finds a Google base plan under either key, and reads auto-renew off', () => {
+    expect(premiumFromSubscriber(subscriber({ sub: { is_sandbox: true } }), NOW_MS)).toMatchObject({ kind: 'active', sandbox: true });
+    for (const key of ['premium:monthly', 'premium']) {
+      const body = { subscriber: { entitlements: { premium: { expires_date: new Date(exp).toISOString(), product_identifier: 'premium:monthly' } }, subscriptions: { [key]: { store: 'play_store' } } } };
+      expect(premiumFromSubscriber(body, NOW_MS), key).toMatchObject({ kind: 'active', source: 'google' });
+    }
+    expect(premiumFromSubscriber(subscriber({ sub: { unsubscribe_detected_at: '2026-08-18T00:00:00Z' } }), NOW_MS)).toMatchObject({ cancelAtPeriodEnd: true });
+  });
+
+  it('reads a refunded row as no, whatever its expiry says', () => {
+    expect(premiumFromSubscriber(subscriber({ sub: { refunded_at: '2026-08-18T00:00:00Z' } }), NOW_MS)).toEqual({ kind: 'inactive' });
+    expect(premiumFromSubscriber(subscriber({ sub: { refunded_at: '' } }), NOW_MS)).toMatchObject({ kind: 'active' }); // empty is not a refund
+  });
+
+  it('gives a grace past expiry only when asked, only to sandbox, and never to a cancelled or failing one', () => {
+    const lapsed = (sub: Record<string, unknown>) => subscriber({ ent: { expires_date: new Date(NOW_MS - 5 * 60_000).toISOString() }, sub });
+    const grace = { sandboxGraceMs: 10 * 60_000 };
+    expect(premiumFromSubscriber(lapsed({ is_sandbox: true }), NOW_MS)).toEqual({ kind: 'inactive' }); // not asked
+    expect(premiumFromSubscriber(lapsed({ is_sandbox: true }), NOW_MS, grace)).toMatchObject({ kind: 'active', untilMs: NOW_MS + 5 * 60_000 });
+    expect(premiumFromSubscriber(lapsed({ is_sandbox: false }), NOW_MS, grace)).toEqual({ kind: 'inactive' });
+    expect(premiumFromSubscriber(lapsed({ is_sandbox: true, unsubscribe_detected_at: '2026-08-18T00:00:00Z' }), NOW_MS, grace)).toEqual({ kind: 'inactive' });
+    expect(premiumFromSubscriber(lapsed({ is_sandbox: true, billing_issues_detected_at: '2026-08-18T00:00:00Z' }), NOW_MS, grace)).toEqual({ kind: 'inactive' });
+  });
+
+  it('reads the original App User ID, or null', () => {
+    expect(originalAppUserId({ subscriber: { original_app_user_id: '$RCAnonymousID:abc' } })).toBe('$RCAnonymousID:abc');
+    for (const junk of [null, {}, { subscriber: {} }, { subscriber: { original_app_user_id: 7 } }, { subscriber: { original_app_user_id: '' } }]) {
+      expect(originalAppUserId(junk)).toBeNull();
+    }
+  });
+
+  it('the reconcile now refuses a refunded purchase too', async () => {
+    const db = fakeDb();
+    const res = await handleAppleReconcile(req(), envOf(db), {}, 'n', NOW_MS, ok, fetchJson(subscriber({ sub: { refunded_at: '2026-08-18T00:00:00Z' } })));
+    expect(await res.json()).toEqual({ attached: false });
+    expect(db.rows.size).toBe(0);
   });
 });
 

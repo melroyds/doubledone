@@ -21,9 +21,12 @@
 // can therefore only ever reconcile themselves, and only into a purchase RevenueCat already agrees
 // is theirs. There is no request body at all.
 
-import { type D1LikeDatabase, type Entitlement, type EntitlementSource, writeEntitlement } from './entitlements';
-import { defaultVerifySub, type SubVerifier } from './premium';
+import { type D1LikeDatabase, type Entitlement, writeEntitlement } from './entitlements';
+import { buildSubscriberRequest, premiumFromSubscriber, sourceForV1Store } from './rc-v1';
 import { sandboxAllowlist } from './revenuecat';
+// Straight from verify.ts, where the verifier lives: importing it through premium.ts would close a cycle now
+// that premium.ts imports the store check.
+import { defaultVerifySub, type SubVerifier } from './verify';
 
 export type ReconcileEnv = {
   DB?: D1LikeDatabase;
@@ -37,83 +40,46 @@ export type ReconcileEnv = {
   BILLING_LIMITER?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 };
 
-/**
- * Which of our sources a v1 subscription row's `store` belongs to, or null for one we never grant from.
- * The v1 body spells stores in lower case (`app_store`, `play_store`), unlike the webhook. A missing
- * store is Apple, as it always was. `promotional` (a dashboard grant) and every other store grants
- * nothing: this route GRANTS premium, so a store we do not sell through must mean no.
- */
-export function sourceForV1Store(store: unknown): Exclude<EntitlementSource, 'stripe'> | null {
-  if (store === undefined || store === null || store === '') return 'apple';
-  if (store === 'app_store' || store === 'mac_app_store') return 'apple';
-  if (store === 'play_store') return 'google';
-  return null;
-}
-
-/** The RevenueCat entitlement id, mirroring revenuecat.ts and the client. */
-const ENTITLEMENT = 'premium';
-
 const bearer = (request: Request): string => {
   const h = request.headers.get('Authorization') ?? '';
   return h.startsWith('Bearer ') ? h.slice(7) : '';
 };
 
-// The v1 subscriber lookup lives in rc-v1.ts (shared with account deletion); re-exported so the
-// existing tests and callers keep importing it from here.
-import { buildSubscriberRequest } from './rc-v1';
-export { buildSubscriberRequest };
+// The v1 subscriber lookup and the store spelling live in rc-v1.ts, shared with account deletion and the
+// store check, and are re-exported so the existing tests and callers keep importing them from here.
+export { buildSubscriberRequest, sourceForV1Store };
 
 /**
  * Read a subscriber body into an entitlement, or null.
  *
  * FAILS CLOSED, in every direction. No premium entitlement, no expiry, an unparseable expiry, an
- * expiry in the past, no matching subscription row, or a sandbox subscription: all null. This route
- * GRANTS premium, so "not sure" has to mean "no".
+ * expiry in the past, no matching subscription row, a refund, or a sandbox subscription: all null. This
+ * route GRANTS premium, so "not sure" has to mean "no". The reading itself is premiumFromSubscriber
+ * (rc-v1.ts), shared with the store check, so this and that can never disagree. A body it cannot read
+ * at all ('malformed') is null here too, so the reconcile answers exactly as it always did.
  *
  * The sandbox check is the one worth reading twice. The entitlement object alone does not say which
- * environment it came from; only the per-product `subscriptions` row carries `is_sandbox`. So we
- * look the product up and refuse when the row is MISSING as well as when it is sandbox, because a
- * missing row means we cannot prove it is production. Without that, an entitlement with no
- * `product_identifier` would skip the check entirely and a TestFlight tester could reconcile
- * themselves a real Premium, which is precisely the hole the sandbox webhook guard just closed.
+ * environment it came from; only the per-product `subscriptions` row carries `is_sandbox`. So the
+ * reader refuses when the row is MISSING as well as when it is sandbox, because a missing row means we
+ * cannot prove it is production. Without that, an entitlement with no `product_identifier` would skip
+ * the check entirely and a TestFlight tester could reconcile themselves a real Premium, which is
+ * precisely the hole the sandbox webhook guard just closed. No sandbox grace here: this writes a
+ * durable row.
  */
 export function grantFromSubscriber(body: unknown, userId: string, nowMs: number, sandboxOk = false): Entitlement | null {
-  const sub = (body as { subscriber?: Record<string, unknown> } | null)?.subscriber;
-  if (!sub || typeof sub !== 'object') return null;
-
-  const ent = (sub.entitlements as Record<string, unknown> | undefined)?.[ENTITLEMENT] as
-    | { expires_date?: unknown; product_identifier?: unknown }
-    | undefined;
-  if (!ent || typeof ent !== 'object') return null;
-  const subs = sub.subscriptions as Record<string, unknown> | undefined;
-
-  const expMs = typeof ent.expires_date === 'string' ? Date.parse(ent.expires_date) : NaN;
-  if (!Number.isFinite(expMs) || expMs <= nowMs) return null; // absent, unreadable, or already over
-
-  // The row is keyed by the entitlement's product id. For a Google base plan RevenueCat names the
-  // product `subscription:base_plan` in webhooks, while the v1 body may key the row by the bare
-  // subscription id (with the plan in `product_plan_identifier`), so both spellings are tried. Neither
-  // found still means no grant.
-  const productId = typeof ent.product_identifier === 'string' ? ent.product_identifier : '';
-  const keys = productId ? [productId, productId.split(':')[0]] : [];
-  const row = keys.map((k) => subs?.[k]).find((r) => r && typeof r === 'object') as
-    | { is_sandbox?: unknown; unsubscribe_detected_at?: unknown; store?: unknown }
-    | undefined;
-  if (!row) return null; // cannot prove production -> do not grant
-  if (row.is_sandbox === true && !sandboxOk) return null; // test money is not money, bar the named few
-  const source = sourceForV1Store(row.store);
-  if (!source) return null; // promotional, or a store we never sell through
-
+  const p = premiumFromSubscriber(body, nowMs);
+  if (p.kind !== 'active') return null;
+  if (p.sandbox && !sandboxOk) return null; // test money is not money, bar the named few
   return {
     userId,
     customerId: null, // store rows never carry a Stripe customer; the portal correctly 404s
-    source,
+    source: p.source,
     premium: true,
     status: 'active',
-    currentPeriodEnd: Math.floor(expMs / 1000),
+    currentPeriodEnd: Math.floor(p.expiresMs / 1000),
     // Auto-renew already turned off. Access still runs to the period end, exactly as the webhook's
     // CANCELLATION branch treats it: this is not a revoke.
-    cancelAtPeriodEnd: typeof row.unsubscribe_detected_at === 'string' && row.unsubscribe_detected_at !== '',
+    cancelAtPeriodEnd: p.cancelAtPeriodEnd,
   };
 }
 

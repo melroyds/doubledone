@@ -1,7 +1,8 @@
 import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
-import { defaultVerifySub, requirePremium, type SubVerifier } from './premium';
+import { defaultVerifySub, type PremiumResult, requirePremium, type SubVerifier } from './premium';
+import type { StoreCheck } from './store-premium';
 import { type D1LikeDatabase, writeEntitlement } from './stripe';
 
 // A minimal in-memory D1, the same shape as stripe.test.ts's fakeDb (it honours the upsert + read).
@@ -149,6 +150,69 @@ describe('requirePremium', () => {
   it('rejects a FORGED comp-email token (the comp check runs only after the signature verifies)', async () => {
     const token = tokenWith({ sub: 'attacker', email: COMP_EMAIL });
     expect(await requirePremium(req(token), env(fakeDb()), verifiesTo(null))).toEqual({ ok: false, status: 401 });
+  });
+});
+
+// Premium without an account (2026-11-03): the store door. A bearer always decides. The purchase header is read
+// only when there is no Authorization header at all, so a bad token never gets a second try.
+describe('requirePremium: the two doors', () => {
+  const ANON = '$RCAnonymousID:0123456789abcdef0123456789abcdef';
+  const STORE_YES: PremiumResult = { ok: true, userId: null, purchaser: 'f'.repeat(64) };
+  /** A stand-in store check that records who reached it. */
+  function storeDoor(answer: PremiumResult = STORE_YES) {
+    const seen: { id: string; nowMs: number }[] = [];
+    const check: StoreCheck = async (id, _env, nowMs) => {
+      seen.push({ id, nowMs });
+      return answer;
+    };
+    return { seen, check };
+  }
+  const withHeaders = (headers: Record<string, string>) => new Request('https://api.doubledone.app/chart', { method: 'POST', headers });
+
+  it('no Authorization and a valid purchase header: the store check decides, and its answer is returned', async () => {
+    const door = storeDoor();
+    const before = Date.now();
+    expect(await requirePremium(withHeaders({ 'X-Purchaser-Token': ANON }), env(fakeDb()), verifiesTo('user-1'), door.check)).toEqual(STORE_YES);
+    expect(door.seen).toHaveLength(1);
+    expect(door.seen[0].id).toBe(ANON);
+    expect(door.seen[0].nowMs).toBeGreaterThanOrEqual(before);
+    for (const denied of [403, 429, 503] as const) {
+      expect(await requirePremium(withHeaders({ 'X-Purchaser-Token': ANON }), env(fakeDb()), verifiesTo('user-1'), storeDoor({ ok: false, status: denied }).check)).toEqual({
+        ok: false,
+        status: denied,
+      });
+    }
+  });
+
+  it('no Authorization and a malformed (or no) purchase header: 401, and the store check never runs', async () => {
+    const door = storeDoor();
+    const proofs: Record<string, string>[] = [{ 'X-Purchaser-Token': '11111111-2222-3333-4444-555555555555' }, { 'X-Purchaser-Token': `${ANON}x` }, { 'X-Purchaser': ANON }, {}];
+    for (const headers of proofs) {
+      expect(await requirePremium(withHeaders(headers), env(fakeDb()), verifiesTo('user-1'), door.check)).toEqual({ ok: false, status: 401 });
+    }
+    expect(door.seen).toHaveLength(0);
+  });
+
+  it('a premium bearer plus a valid purchase header: the account answers, and the store check never runs', async () => {
+    const db = fakeDb();
+    await writeEntitlement(db, { userId: 'user-1', premium: true, status: 'active', currentPeriodEnd: 123, cancelAtPeriodEnd: false, customerId: 'cus_1', source: 'stripe' }, '2026-06-20T00:00:00Z');
+    const door = storeDoor();
+    expect(await requirePremium(withHeaders({ Authorization: 'Bearer t', 'X-Purchaser-Token': ANON }), env(db), verifiesTo('user-1'), door.check)).toEqual({ ok: true, userId: 'user-1' });
+    expect(door.seen).toHaveLength(0);
+  });
+
+  it('never falls back to the purchase header: a forged, Basic or empty Authorization is 401, a free account is 403', async () => {
+    const door = storeDoor();
+    const both = (auth: string) => withHeaders({ Authorization: auth, 'X-Purchaser-Token': ANON });
+    expect(await requirePremium(both('Bearer forged'), env(fakeDb()), verifiesTo(null), door.check)).toEqual({ ok: false, status: 401 });
+    expect(await requirePremium(both('Basic eDp5'), env(fakeDb()), verifiesTo('user-1'), door.check)).toEqual({ ok: false, status: 401 });
+    expect(await requirePremium(both(''), env(fakeDb()), verifiesTo('user-1'), door.check)).toEqual({ ok: false, status: 401 });
+    expect(await requirePremium(both('Bearer t'), env(fakeDb()), verifiesTo('free-user'), door.check)).toEqual({ ok: false, status: 403 });
+    expect(door.seen).toHaveLength(0);
+  });
+
+  it('without an injected check, a valid purchase header reaches the real one, which fails closed with no store bound', async () => {
+    expect(await requirePremium(withHeaders({ 'X-Purchaser-Token': ANON }), { SUPABASE_URL: SUPA }, verifiesTo('user-1'))).toEqual({ ok: false, status: 503 });
   });
 });
 
