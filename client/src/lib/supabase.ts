@@ -41,3 +41,16 @@ export async function authHeader(): Promise<Record<string, string> | null> {
     return null;
   }
 }
+
+/** The signed-in Supabase user id, or null when signed out, when sync is off, or when the session cannot be read.
+ *  For lib code outside React: lib/ai's mend of a refused Premium call links the store to this id. Screens read
+ *  the session from lib/auth. Never throws. */
+export async function sessionUserId(): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}

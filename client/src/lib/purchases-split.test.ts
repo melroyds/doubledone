@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import Purchases from 'react-native-purchases';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /* eslint-disable import/no-duplicates -- ESLint's resolver reads the base and its platform files as one module */
 import { PURCHASER_HEADER } from './ai';
@@ -11,10 +12,11 @@ import * as android from './purchases.android';
 import * as ios from './purchases.ios';
 /* eslint-enable import/no-duplicates */
 
-// Premium without an account (2026-11-03): the proof each platform hands lib/ai, and the two constants the phone
-// and the Worker must agree on. The platform files are glue around the RevenueCat native module, which cannot run in
-// node, so the SDK is a stub here that answers what a phone would (vi.mock is hoisted above the imports). Only the
-// proof is tested through it: the rest of those files stays the untested glue their headers describe.
+// Premium without an account (2026-11-03): the proof each platform hands lib/ai, the identity the root layout
+// reconciles behind, and the two constants the phone and the Worker must agree on. The platform files are glue
+// around the RevenueCat native module, which cannot run in node, so the SDK is a stub here that answers what a phone
+// would (vi.mock is hoisted above the imports). Only the configure wait, the identity and the proof are tested
+// through it: the rest of those files stays the untested glue their headers describe.
 const sdk = vi.hoisted(() => ({ appUserId: '', throws: false }));
 vi.mock('react-native-purchases', () => ({
   default: {
@@ -25,18 +27,37 @@ vi.mock('react-native-purchases', () => ({
       if (sdk.throws) throw new Error('the store is not answering');
       return sdk.appUserId;
     }),
+    logIn: vi.fn(async (id: string) => {
+      if (sdk.throws) throw new Error('the store is not answering');
+      sdk.appUserId = id;
+      return { customerInfo: {}, created: false };
+    }),
   },
   LOG_LEVEL: { VERBOSE: 'VERBOSE', WARN: 'WARN' },
 }));
 vi.mock('react-native', () => ({ Linking: { openURL: vi.fn() } }));
-vi.mock('./supabase', () => ({ authHeader: vi.fn(), supabase: null, isSyncConfigured: false }));
+vi.mock('./supabase', () => ({ authHeader: vi.fn(), sessionUserId: vi.fn(), supabase: null, isSyncConfigured: false }));
 
 const ANON = '$RCAnonymousID:0123456789abcdef0123456789abcdef';
 const UID = '11111111-2222-3333-4444-555555555555';
+const rc = vi.mocked(Purchases);
 
+// Each platform file configures once and remembers the attempt, so its key (and __DEV__, which configure reads)
+// must be in place before its first call.
+beforeAll(() => {
+  vi.stubGlobal('__DEV__', false);
+  process.env.EXPO_PUBLIC_RC_IOS_KEY = 'appl_test';
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY = 'goog_test';
+});
+afterAll(() => {
+  delete process.env.EXPO_PUBLIC_RC_IOS_KEY;
+  delete process.env.EXPO_PUBLIC_RC_ANDROID_KEY;
+  vi.unstubAllGlobals();
+});
 beforeEach(() => {
   sdk.appUserId = ANON;
   sdk.throws = false;
+  rc.logIn.mockClear();
 });
 
 describe('purchaserProof, per platform', () => {
@@ -47,20 +68,40 @@ describe('purchaserProof, per platform', () => {
   it('Android never has one: it sells only to accounts, so a signed-out id never holds a purchase', async () => {
     expect(await android.purchaserProof()).toBeNull();
   });
+});
 
-  it("the iPhone: nothing before the store has configured, then the anonymous id, and never an account's", async () => {
-    // Before configure: no proof, and no configure started from here.
-    expect(await ios.purchaserProof()).toBeNull();
+describe('the iPhone waits for its store, then links and proves', () => {
+  it('a call made while configure is still running waits for it, rather than skipping the logIn', async () => {
+    let finishConfigure: () => void = () => {};
+    rc.setLogLevel.mockImplementationOnce(() => new Promise<void>((done) => (finishConfigure = done)));
+    const linked = ios.identifyPurchaser(UID); // a session found in the first moments of a launch
+    let proofAnswered = false;
+    const proof = ios.purchaserProof().then(() => (proofAnswered = true));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(rc.configure).not.toHaveBeenCalled();
+    expect(rc.logIn).not.toHaveBeenCalled(); // it used to return here, silently, with no logIn at all
+    expect(proofAnswered).toBe(false); // and the proof waits too, rather than answering "none"
+    finishConfigure();
+    expect(await linked).toBe(true);
+    expect(rc.logIn).toHaveBeenCalledWith(UID);
+    await proof;
+    await ios.configurePurchases();
+    expect(rc.configure).toHaveBeenCalledTimes(1); // one configure, however many callers waited on it
+  });
 
-    vi.stubGlobal('__DEV__', false);
-    process.env.EXPO_PUBLIC_RC_IOS_KEY = 'appl_test';
-    try {
-      await ios.configurePurchases();
-    } finally {
-      delete process.env.EXPO_PUBLIC_RC_IOS_KEY;
-      vi.unstubAllGlobals();
-    }
+  it("says whether RevenueCat's customer is the account, so the root layout reconciles only then", async () => {
+    sdk.appUserId = UID;
+    expect(await ios.identifyPurchaser(UID)).toBe(true);
+    expect(rc.logIn).not.toHaveBeenCalled(); // already linked: no logIn
+    sdk.appUserId = ANON;
+    sdk.throws = true;
+    expect(await ios.identifyPurchaser(UID)).toBe(false); // a failed logIn is no link, never a throw
+    sdk.throws = false;
+    rc.logIn.mockImplementationOnce(async () => ({ customerInfo: {}, created: false }) as never); // answered, linked nothing
+    expect(await ios.identifyPurchaser(UID)).toBe(false);
+  });
 
+  it("proves with the anonymous id only, and never an account's", async () => {
     expect(await ios.purchaserProof()).toBe(ANON); // signed out: the id RevenueCat gave this install
     sdk.appUserId = UID;
     expect(await ios.purchaserProof()).toBeNull(); // signed in: the id is the Supabase uuid, never sent as a proof
@@ -68,6 +109,37 @@ describe('purchaserProof, per platform', () => {
     expect(await ios.purchaserProof()).toBeNull(); // anything not exactly the anonymous form
     sdk.throws = true;
     expect(await ios.purchaserProof()).toBeNull(); // and a store error is no proof, never a throw
+  });
+});
+
+describe('the other platforms say whether the account is linked too', () => {
+  it('Android: true once linked, false when the logIn fails', async () => {
+    expect(await android.identifyPurchaser(UID)).toBe(true);
+    sdk.appUserId = ANON;
+    sdk.throws = true;
+    expect(await android.identifyPurchaser(UID)).toBe(false);
+  });
+
+  it('the web: never, there is no store to link', async () => {
+    expect(await web.identifyPurchaser(UID)).toBe(false);
+  });
+});
+
+// The two screens that reconcile are not rendered by the harness, so their rules are held in their source (the
+// settings.test.ts precedent): the reconcile runs behind a logIn that linked the account, and after a Restore while
+// signed in, so a restored purchase reaches the four server features without a relaunch.
+describe('the root layout and the paywall reconcile only when it can attach', () => {
+  const read = (...p: string[]) => readFileSync(join(__dirname, '..', ...p), 'utf8');
+
+  it('the root layout reconciles only behind a logIn that linked the account', () => {
+    const src = read('app', '_layout.tsx');
+    expect(src).toContain('void identifyPurchaser(id).then((linked) => {');
+    expect(src).toContain('if (IAP_AVAILABLE && linked) void reconcileApple();');
+  });
+
+  it('a Restore while signed in reconciles, then re-reads', () => {
+    const src = read('app', 'premium.tsx');
+    expect(src).toContain('if (uid) void reconcileApple().then(() => refresh());');
   });
 });
 

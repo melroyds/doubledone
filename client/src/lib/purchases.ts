@@ -37,7 +37,10 @@ export type BuyResult = { ok: boolean; code?: string; heldBy?: 'apple' | 'google
 export type RestoreResult = { ok: boolean; premium: boolean; code?: string };
 
 export async function configurePurchases(): Promise<void> {}
-export async function identifyPurchaser(_userId: string): Promise<void> {}
+// Whether RevenueCat's customer is now this account. Never on the web: there is no store to link.
+export async function identifyPurchaser(_userId: string): Promise<boolean> {
+  return false;
+}
 export async function forgetPurchaser(): Promise<void> {}
 export async function loadOffers(): Promise<StoreOffer[]> {
   return [];

@@ -99,11 +99,14 @@ function RootStack() {
     // ORDER MATTERS. identifyPurchaser calls Purchases.logIn, which is what puts this Supabase id in
     // RevenueCat's alias group. Only after that can the server ask RevenueCat about the id and find
     // an anonymous purchase to attach, so the reconcile has to await the identify rather than race
-    // it. Store builds only: on the web there is no logIn, so there is never an alias and the call could
-    // only ever answer "nothing", which is not worth a request on every sign-in. Android keeps it as the
-    // safety net for a missed webhook (the server reads the store and grants only a real one).
-    void identifyPurchaser(id).then(() => {
-      if (IAP_AVAILABLE) void reconcileApple();
+    // it, and runs only when the identify says RevenueCat's customer IS this account (2026-11-03). A
+    // reconcile behind a logIn that never happened asked RevenueCat about an account it had never linked,
+    // which creates a bare customer, the shape a stranger's made-up id can be merged into. Store builds
+    // only: on the web there is no logIn, so there is never an alias and the call could only ever answer
+    // "nothing", which is not worth a request on every sign-in. Android keeps it as the safety net for a
+    // missed webhook (the server reads the store and grants only a real one).
+    void identifyPurchaser(id).then((linked) => {
+      if (IAP_AVAILABLE && linked) void reconcileApple();
     });
   }, [sessionKnown, session?.user?.id]);
 

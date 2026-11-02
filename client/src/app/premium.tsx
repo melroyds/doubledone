@@ -18,7 +18,7 @@ import { checkoutRefusal, convertSpokenKeys, manageRoute, periodLabel as formatP
 import { buy, IAP_AVAILABLE, loadOffers, openStoreSubscriptions, restore, STORE_SOURCE, type StoreOffer } from '@/lib/purchases';
 import { loadTrialUsed, saveTrialUsed } from '@/lib/storage';
 import { PLAY_COPY, SELLS_HERE, STRIPE_HERE } from '@/lib/storefront';
-import { loadEntitlementChecked, startCheckout, startPortal, startTrial } from '@/lib/stripe';
+import { loadEntitlementChecked, reconcileApple, startCheckout, startPortal, startTrial } from '@/lib/stripe';
 import { track } from '@/lib/telemetry';
 import { useThemedStyles } from '@/lib/theme-provider';
 
@@ -320,7 +320,13 @@ export default function PremiumScreen() {
     setBusy(false);
     if (res.ok && res.premium) {
       setRestoreMsg(t('premium.restoreRestored'));
-      refresh();
+      // Signed in, the restored purchase has to reach the ACCOUNT too, or Scan, Chart a course, Plan my day and
+      // Reflect on this week keep refusing it until a relaunch reruns the reconcile (2026-11-03). It matters most
+      // after signing in to an account that has signed in on a phone before: RevenueCat moves no anonymous purchase
+      // onto it then, so Premium seems to vanish, and this Restore is how it comes back. Signed out there is no
+      // account to attach to, and the store check reads the purchase as it is.
+      if (uid) void reconcileApple().then(() => refresh());
+      else refresh();
     } else if (res.ok) {
       setRestoreMsg(t(COPY.restoreNothing));
     } else if (res.code === 'owned_elsewhere') {

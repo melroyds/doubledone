@@ -71,11 +71,12 @@ async function identified(uid: string): Promise<boolean> {
 }
 
 // Attach the RevenueCat customer to the signed-in Supabase id, so a purchase belongs to the account and
-// follows it to other devices. Waits for configure. Swallows failures: a failed logIn must never block
+// follows it to other devices. Waits for configure, and says whether RevenueCat's customer is that account
+// now (the root layout reconciles only when it is). Swallows failures: a failed logIn must never block
 // sign-in itself, and buy() and restore() check the identity again before anything is charged.
-export async function identifyPurchaser(userId: string): Promise<void> {
-  if (!(await ready())) return;
-  await identified(userId);
+export async function identifyPurchaser(userId: string): Promise<boolean> {
+  if (!(await ready())) return false;
+  return identified(userId);
 }
 
 // The device's own answer for the current customer, as the fields our model uses. On Android a customer

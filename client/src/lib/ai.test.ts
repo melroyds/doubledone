@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   chart,
@@ -6,6 +6,7 @@ import {
   decompose,
   defaultQuestions,
   dropAiConnectors,
+  HEAL_EVERY_MS,
   lookbackSummary,
   makeScrapbook,
   ocr,
@@ -28,13 +29,24 @@ import {
   triage,
 } from './ai';
 
-import { purchaserProof } from './purchases';
-import { authHeader } from './supabase';
+import { identifyPurchaser, localPremium, purchaserProof } from './purchases';
+import { reconcileApple } from './stripe';
+import { authHeader, sessionUserId } from './supabase';
 
-vi.mock('./supabase', () => ({ authHeader: vi.fn(), supabase: null, isSyncConfigured: false }));
+vi.mock('./supabase', () => ({ authHeader: vi.fn(), sessionUserId: vi.fn(async () => null), supabase: null, isSyncConfigured: false }));
 const authHeaderMock = vi.mocked(authHeader);
-// The device's purchase proof (lib/purchases): on an iPhone without an account, its anonymous RevenueCat id.
-vi.mock('./purchases', () => ({ purchaserProof: vi.fn(async () => null) }));
+// The store seam (lib/purchases): the iPhone's purchase proof, its own read of Premium and its link to the account.
+// `store.iap` is the build: true for a store build, false for the web.
+const store = vi.hoisted(() => ({ iap: true }));
+vi.mock('./purchases', () => ({
+  get IAP_AVAILABLE() {
+    return store.iap;
+  },
+  identifyPurchaser: vi.fn(async () => false),
+  localPremium: vi.fn(async () => null),
+  purchaserProof: vi.fn(async () => null),
+}));
+vi.mock('./stripe', () => ({ reconcileApple: vi.fn(async () => false) }));
 const proofMock = vi.mocked(purchaserProof);
 
 describe('parseSteps', () => {
@@ -572,6 +584,147 @@ describe('premiumHeaders: one credential, never both', () => {
     expect(f.mock.calls[0][1].headers).toEqual({ 'content-type': 'application/json' });
     expect(proofMock).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+});
+
+// The traps the server half recorded for the app (2026-11-03). A signed-in Premium call refused while the phone's
+// store still shows Premium is a purchase the account was never told about (a Restore while signed in, a logIn that
+// failed or raced configure, a webhook that lags), so it links the store, reconciles once, and asks once more.
+describe('a signed-in refusal while the store still shows Premium mends itself once', () => {
+  const UID = '11111111-2222-3333-4444-555555555555';
+  const LOCAL = { since: '2026-11-01T00:00:00.000Z', currentPeriodEnd: 1_800_000_000, cancelAtPeriodEnd: false, source: 'apple' as const };
+  const localMock = vi.mocked(localPremium);
+  const identifyMock = vi.mocked(identifyPurchaser);
+  const reconcileMock = vi.mocked(reconcileApple);
+  const uidMock = vi.mocked(sessionUserId);
+  const COURSE = { course: { heading: 'Toward a 10k', steps: [{ title: 'Walk for 20 minutes', minutes: 20 }] } };
+  let clock = Date.UTC(2027, 0, 1);
+
+  /** A fetch that answers each call with the next status in turn, the last one repeating. */
+  const answers = (...statuses: number[]) => {
+    let n = 0;
+    return vi.fn(async (_url: string, _init: Init) => {
+      const status = statuses[Math.min(n++, statuses.length - 1)];
+      return { ok: status === 200, status, json: async () => (status === 200 ? COURSE : { error: 'premium required' }) } as unknown as Response;
+    });
+  };
+
+  beforeEach(() => {
+    clock += 10 * 60_000; // each case starts well past the once-a-minute limit of the one before it
+    vi.setSystemTime(clock);
+    store.iap = true;
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer me' });
+    localMock.mockResolvedValue(LOCAL);
+    uidMock.mockResolvedValue(UID);
+    identifyMock.mockResolvedValue(true);
+    reconcileMock.mockResolvedValue(true);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    store.iap = true;
+    authHeaderMock.mockReset();
+    proofMock.mockReset();
+    localMock.mockReset();
+    localMock.mockResolvedValue(null);
+    identifyMock.mockReset();
+    identifyMock.mockResolvedValue(false);
+    reconcileMock.mockReset();
+    reconcileMock.mockResolvedValue(false);
+    uidMock.mockReset();
+    uidMock.mockResolvedValue(null);
+  });
+
+  it('links the store to the account, reconciles once, and asks once more with the same token', async () => {
+    const f = answers(403, 200);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: true, value: COURSE.course });
+    expect(identifyMock).toHaveBeenCalledWith(UID);
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    expect(f).toHaveBeenCalledTimes(2);
+    for (const [, init] of f.mock.calls) expect(init.headers.Authorization).toBe('Bearer me');
+  });
+
+  it('asks only once more: a second refusal is the answer, and the screen rechecks', async () => {
+    const f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a refusal alone when the phone does not show Premium either: then the refusal is the truth', async () => {
+    localMock.mockResolvedValue(null);
+    const f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(identifyMock).not.toHaveBeenCalled();
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+
+  it('does not ask again when the link fails, or the reconcile attaches nothing', async () => {
+    identifyMock.mockResolvedValue(false);
+    let f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(reconcileMock).not.toHaveBeenCalled();
+    expect(f).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime((clock += 2 * 60_000));
+    identifyMock.mockResolvedValue(true);
+    reconcileMock.mockResolvedValue(false);
+    f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('never for a phone without an account, which has nothing to attach to', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    proofMock.mockResolvedValue(ANON);
+    const f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(localMock).not.toHaveBeenCalled();
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+
+  it('never on the web, which has no store', async () => {
+    store.iap = false;
+    const f = answers(403);
+    vi.stubGlobal('fetch', f);
+    expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(localMock).not.toHaveBeenCalled();
+  });
+
+  it('only after a 403: a token the server could not check, or a server that could not decide, is not mended', async () => {
+    for (const [status, miss] of [
+      [401, 'not_confirmed'],
+      [503, 'unavailable'],
+    ] as const) {
+      const f = answers(status);
+      vi.stubGlobal('fetch', f);
+      expect(await chart('run a 10k')).toEqual({ ok: false, miss });
+      expect(f).toHaveBeenCalledTimes(1);
+    }
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+
+  it('at most once a minute, so a row of taps never hammers the reconcile', async () => {
+    reconcileMock.mockResolvedValue(false);
+    vi.stubGlobal('fetch', answers(403));
+    await chart('run a 10k');
+    vi.setSystemTime(clock + HEAL_EVERY_MS - 1);
+    await chart('run a 10k');
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(clock + HEAL_EVERY_MS);
+    await chart('run a 10k');
+    expect(reconcileMock).toHaveBeenCalledTimes(2);
+    clock += HEAL_EVERY_MS;
   });
 });
 

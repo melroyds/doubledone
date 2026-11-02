@@ -6,9 +6,10 @@
 import { isOffline, type PremiumMiss, premiumMiss } from './connection';
 import { t } from './i18n-active';
 import type { DayType, Setting } from './plan-day';
-import { purchaserProof } from './purchases';
+import { IAP_AVAILABLE, identifyPurchaser, localPremium, purchaserProof } from './purchases';
 import { keepsakeKey } from './scrapbook';
-import { authHeader } from './supabase';
+import { reconcileApple } from './stripe';
+import { authHeader, sessionUserId } from './supabase';
 
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
 
@@ -38,27 +39,57 @@ export async function premiumHeaders(): Promise<PremiumCredential | null> {
  *  or the reason there was none (lib/connection PremiumMiss), for the screen to say honestly. */
 export type PremiumResult<T> = { ok: true; value: T } | { ok: false; miss: PremiumMiss };
 
+/** How often a refused, signed-in Premium call may try to mend the account (healAccountPremium): once a minute per
+ *  app run, so a row of taps can never hammer the reconcile, which the server also limits per account. */
+export const HEAL_EVERY_MS = 60_000;
+let lastHealMs = Number.NEGATIVE_INFINITY;
+
+/**
+ * A signed-in Premium call the server refused (a 403) while this phone's store still shows Premium: the purchase is
+ * real, but the account was never told. A Restore while signed in, a sign-in whose logIn failed or raced the store's
+ * configure, and a webhook that lags a purchase all end here, and the four features refused it until a relaunch. So
+ * link the store to the account once more, and ask the server to attach what the store holds (POST /apple/reconcile,
+ * which grants only a real purchase, and a sandbox one only for an account on SANDBOX_GRANT_UIDS). True only when
+ * it attached something, so the caller asks once more. Never throws. Never runs on the web (no store), and never for
+ * a phone without an account (premiumCall calls it only for the account's credential).
+ */
+async function healAccountPremium(): Promise<boolean> {
+  if (!IAP_AVAILABLE) return false;
+  if (!(await localPremium())) return false; // the phone does not show Premium either, so the refusal is the truth
+  const now = Date.now();
+  if (now - lastHealMs < HEAL_EVERY_MS) return false;
+  lastHealMs = now;
+  const uid = await sessionUserId();
+  if (!uid || !(await identifyPurchaser(uid))) return false;
+  return reconcileApple();
+}
+
 /**
  * One Premium AI call, the four of them (Scan, Reflect on this week, Chart a course, Plan my day). Never throws.
  * No credential means no request at all: 'not_confirmed', or 'unavailable' when the web can tell it is offline (a
  * session whose refresh failed offline looks the same). A refusal is read from its status (lib/connection
- * premiumMiss). A 200 counts only when it is this route's answer: `parse` returns null for a body without the route's
- * own field, and a body that is not JSON at all (the Worker answers plain text on a path it does not know, so a 200
- * proves nothing on its own) is 'unavailable' too, never an empty answer that would blame the person's input.
+ * premiumMiss), after one quiet mend when an account's refusal disagrees with the phone's store (healAccountPremium).
+ * A 200 counts only when it is this route's answer: `parse` returns null for a body without the route's own field,
+ * and a body that is not JSON at all (the Worker answers plain text on a path it does not know, so a 200 proves
+ * nothing on its own) is 'unavailable' too, never an empty answer that would blame the person's input.
  */
 async function premiumCall<T>(path: string, body: unknown, parse: (data: unknown) => T | null): Promise<PremiumResult<T>> {
   const cred = await premiumHeaders();
   if (!cred) return { ok: false, miss: isOffline() ? 'unavailable' : 'not_confirmed' };
-  let res: Response;
-  try {
-    res = await fetch(`${AI_URL}${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...cred.headers },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, miss: 'unavailable' };
-  }
+  const post = async (): Promise<Response | null> => {
+    try {
+      return await fetch(`${AI_URL}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...cred.headers },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      return null;
+    }
+  };
+  let res = await post();
+  if (res?.status === 403 && cred.kind === 'account' && (await healAccountPremium())) res = await post();
+  if (!res) return { ok: false, miss: 'unavailable' };
   if (!res.ok) return { ok: false, miss: premiumMiss(res.status) };
   let data: unknown;
   try {

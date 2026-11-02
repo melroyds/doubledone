@@ -11783,3 +11783,47 @@ Cloudflare's log.
 - **The traps the server half recorded for the client are the next commit**: iOS waits for configure, the reconcile
   runs only after a `logIn` that worked and after a Restore while signed in, and a signed-in refusal while the store
   still shows Premium mends itself once.
+
+## 2026-11-03: signing in never switches Premium off: the iPhone waits for its store, and the reconcile runs when it can attach
+
+Option 1 made Premium work on an iPhone without an account, and that made an old gap visible: signing in could switch
+Scan, Chart a course, Plan my day and Reflect on this week off while the phone still showed Premium. The server half
+recorded the traps for the app, and the Apple review and the security review named the same ones. This closes them.
+Not pushed, not built. The iOS part rides the 16 to 22 Nov store build.
+
+**Decided:**
+- **The iPhone waits for configure, as Android always has** (`ready()`, one remembered attempt that every store call
+  awaits). The old flag made every call return early while configure was still in flight, so a session found in the
+  first moments of a launch skipped `logIn` silently, and the reconcile behind it asked RevenueCat about an account it
+  had never linked. That lookup makes a bare customer with no anonymous alias, which is the shape RevenueCat merges a
+  stranger's made-up id into. The store check refuses that attack, but the app should never make the shape. It also
+  left a signed-in buyer whose purchase still sat on the anonymous id refused by the server while the phone said
+  Premium.
+- **`identifyPurchaser` says whether RevenueCat's customer is the account afterwards**, on all three platforms (the
+  web always says no), and the root layout reconciles only when it is.
+- **A Restore while signed in reconciles, then re-reads.** RevenueCat moves no anonymous purchase onto an account that
+  has signed in on a phone before, so Premium seems to vanish at sign-in, and a Restore is how it comes back. Until now
+  the Restore only re-read, so the four features refused the restored purchase until a relaunch reran the reconcile.
+- **A signed-in refusal while the phone's store still shows Premium mends itself once**: link the store, reconcile,
+  ask once more, without a word on screen. It also covers a reconcile that has not landed yet and a webhook that lags a
+  purchase. At most once a minute per app run, only for an account's credential, only after a 403, and never on the
+  web. If nothing attaches, the refusal stands and the screen rechecks, as before.
+
+**Decided against:**
+- **A silent `syncPurchases()` or restore straight after `logIn`** (the Apple review's "consider"). RevenueCat warns
+  against `syncPurchases` in an app that buys through `purchasePackage`, and a restore can ask for the Apple ID password.
+  A Restore stays a tap the person chooses.
+- **Mending the purchase door.** A phone without an account has no account to attach to. Its refusal comes from the
+  store check, and the screen's recheck reads the store fresh instead.
+- **Mending a 401 or a 5xx.** Only a 403 means the server checked and found no Premium.
+- **A manual case that forces the mend's state.** It would need a write to production entitlements, so PREM-80 checks
+  the promise (the first tap straight after a signed-in purchase works) and the mechanism is unit-tested, each rule
+  mutation-checked.
+
+**Accepted edges:**
+- **A signed-in TestFlight tester who is not on `SANDBOX_GRANT_UIDS` keeps meeting the refusal**, with a reconcile a
+  minute at most, because the reconcile refuses sandbox for everyone else by design.
+- **Every iPhone store call now waits for configure**, a few milliseconds at launch, and a configure that failed is
+  remembered for the run, as Android's always was. A sign-out known at launch now always reaches RevenueCat's `logOut`,
+  as on Android, where before it depended on which finished first. An id that is already anonymous stays, because
+  RevenueCat refuses to log it out.
