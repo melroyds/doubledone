@@ -6,6 +6,7 @@ import {
   Easing,
   InputAccessoryView,
   Keyboard,
+  type LayoutChangeEvent,
   Modal,
   Platform,
   Pressable,
@@ -67,6 +68,11 @@ type Props = {
   onDraftChange?: (has: boolean) => void;
   /** The field took or let go of focus (on an iPhone, that is the keyboard coming and going). */
   onFocusChange?: (focused: boolean) => void;
+  /**
+   * The heading, the hint seat, the tools, When and Add, as they really measure, added up, so the sheet's floor
+   * can follow a row that wraps past its design height. Reported on a change only.
+   */
+  onRowsHeight?: (height: number) => void;
   today: Date;
   // OCR (premium): open the photo-capture modal. The parent premium-gates the tap; this just shows
   // the button as the upsell surface. Absent hides it.
@@ -124,7 +130,7 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
  * the field is tapped, so opening the panel never throws a keyboard at you.
  */
 export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
-  { onCapture, onBiteElephant, onSort, heading, onRequestClose, onDraftChange, onFocusChange, today, onCamera, allowSteps = true, whenDefault = 'today', whenNote },
+  { onCapture, onBiteElephant, onSort, heading, onRequestClose, onDraftChange, onFocusChange, onRowsHeight, today, onCamera, allowSteps = true, whenDefault = 'today', whenNote },
   ref,
 ) {
   const [value, setValue] = useState('');
@@ -268,6 +274,22 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
     lastDraft.current = hasText;
     onDraftChange?.(hasText);
   }, [hasText, onDraftChange]);
+
+  // The fixed rows as they really measure, for the sheet's floor (bug sweep #26). At 360 pt the AI note runs to
+  // three lines in German, French and Spanish, the German tools wrap at Large text, and a repeat's days take Add to
+  // a third or fourth line, so a floor that assumed the design heights pushed When and Add past the panel's foot
+  // with the keyboard up. A row that is off screen (the hint seat and the tools while When is open) keeps its last
+  // height, so opening When never moves the panel. Reported on a change only, like the draft.
+  const rowHeights = useRef({ head: 0, hint: 0, tools: 0, foot: 0 });
+  const lastRowsH = useRef(0);
+  function onRowLayout(row: 'head' | 'hint' | 'tools' | 'foot', e: LayoutChangeEvent) {
+    const heights = rowHeights.current;
+    heights[row] = e.nativeEvent.layout.height;
+    const sum = Math.ceil(heights.head + heights.hint + heights.tools + heights.foot);
+    if (sum === lastRowsH.current) return;
+    lastRowsH.current = sum;
+    onRowsHeight?.(sum);
+  }
 
   // When opens in the field's place with a 180ms fade and a 4px settle; reduced motion is a 90ms fade.
 
@@ -517,7 +539,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
       )}
 
       {/* HEADER: where a screen reader lands when the panel opens (the keyboard stays down). */}
-      <View style={styles.head}>
+      <View style={styles.head} onLayout={(e) => onRowLayout('head', e)}>
         <Text ref={headRef} style={styles.heading} accessibilityRole="header" numberOfLines={1}>
           {heading}
         </Text>
@@ -709,7 +731,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
           </View>
 
           {/* ONE hint seat, always the same place: an error, the Tidy offer, or the AI note, in that order. */}
-          <View style={styles.hintSeat}>
+          <View style={styles.hintSeat} onLayout={(e) => onRowLayout('hint', e)}>
             {error ? (
               <Text style={styles.error}>{error}</Text>
             ) : showTidy ? (
@@ -730,7 +752,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
 
           {/* TOOLS: Speak and Scan on the left, the one AI slot on the right (or, on the shared list, the
               line that says what a day means there). */}
-          <View style={styles.tools}>
+          <View style={styles.tools} onLayout={(e) => onRowLayout('tools', e)}>
             {canDictate && (
               <Pressable
                 onPress={toggleDictation}
@@ -778,7 +800,7 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
       )}
 
       {/* WHEN AND ADD: the chip that opens and closes the choices, and the button that names its consequence. */}
-      <View style={styles.bottomRow}>
+      <View style={styles.bottomRow} onLayout={(e) => onRowLayout('foot', e)}>
         <Pressable onPress={toggleDoor} accessibilityRole="button" aria-expanded={doorOpen} accessibilityLabel={doorA11y} hitSlop={4} style={({ pressed }) => [styles.whenChip, pressed && styles.pressed]}>
           <Text style={styles.whenOverline}>{t('capture.rowWhen')}</Text>
           <Text style={styles.whenValue} numberOfLines={1}>
@@ -795,7 +817,10 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
           hitSlop={4}
           style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
         >
-          <Text style={styles.addText} numberOfLines={2}>
+          {/* Up to four lines, so a repeat's days are never cut off (bug sweep #26). At 360 pt "Hinzufügen · Wöchentlich
+              am Mo, Mi" takes three, and "Ajouter · Chaque semaine : Lun, Mer" three, or four at Large text. The button
+              grows only for a label that needs it, and the sheet's floor follows the row, so When and Add stay in view. */}
+          <Text style={styles.addText} numberOfLines={4}>
             {addLabel}
           </Text>
         </Pressable>
@@ -873,7 +898,7 @@ const makeStyles = (t: Theme) => {
     liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
     busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     note: { flexShrink: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body, textAlign: 'right' },
-    // When and Add, one row, 48 tall.
+    // When and Add, one row, 48 tall, and taller only when Add's label needs a third or fourth line.
     bottomRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     whenChip: {
       flex: 1,

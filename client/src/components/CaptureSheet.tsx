@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { layout, rgba, type Theme } from '@/constants/theme';
+import { panelFloor } from '@/lib/capture-panel';
 import { t } from '@/lib/locale';
 import { hasSafariKeyboardAddressBar, SAFARI_KEYBOARD_ADDRESS_CLEAR } from '@/lib/safari-chrome';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -28,7 +29,7 @@ import { BrainDump, type BrainDumpHandle } from './BrainDump';
 
 type BrainDumpProps = ComponentProps<typeof BrainDump>;
 
-type Props = Omit<BrainDumpProps, 'onRequestClose' | 'onDraftChange' | 'onFocusChange'> & {
+type Props = Omit<BrainDumpProps, 'onRequestClose' | 'onDraftChange' | 'onFocusChange' | 'onRowsHeight'> & {
   /** Select mode, a held card, a closed day, an archived list: no pill, and the panel is shut. The words are kept. */
   hidden?: boolean;
   /** The panel opened or closed (the parent clears its just-added tint on close). Reported on a change. */
@@ -102,6 +103,9 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   // may meet the keyboard by pushing the whole page up itself, and then the viewport sum below reads about
   // zero (Melroy's iPhone, 2026-09-27: the page's header had gone off the top and the clearance never came).
   const [fieldFocused, setFieldFocused] = useState(false);
+  // The panel's fixed rows (the heading, the hint seat, the tools, When and Add), as BrainDump measured them, for
+  // the floor below. 0 until they are measured.
+  const [rowsH, setRowsH] = useState(0);
   // iPhone Safari in a tab floats its address label over the page's foot while the keyboard is up, right
   // where When and Add sit, so the foot keeps clear of it (see lib/safari-chrome). Asked once.
   const [safariBar] = useState(
@@ -324,10 +328,12 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
   const safariPad = safariBar && (webKbUp || fieldFocused);
   const kbUp = kbH > 0 || webKbUp || safariPad;
   // The fixed rows grow with the app's text size and the phone's, and the field is the part that gives,
-  // so the floor they need is scaled with the text rather than read off the design at 100%.
+  // so the floor they need is scaled with the text rather than read off the design at 100%. Where a row
+  // wraps past even that (a German AI note, a long Add label), the floor follows the rows as measured, so
+  // When and Add are never pushed past the panel's foot (lib/capture-panel, bug sweep #26).
   const textScale = Math.max(1, PixelRatio.getFontScale() * theme.scale);
   const padBottom = kbUp ? 8 + (safariPad ? SAFARI_KEYBOARD_ADDRESS_CLEAR : 0) : Math.max(insets.bottom, 12);
-  const minH = 8 + 56 + 6 * 4 + padBottom + (48 + 36 + 44 + 48) * textScale;
+  const minH = panelFloor(padBottom, textScale, rowsH);
   // The web lift is not counted here: where the page does not resize, the window height already follows
   // the visual viewport on react-native-web, so subtracting it again would count the keyboard twice.
   const room = winH - (kbH > 0 ? kbH + navInset : 0) - insets.top - 24;
@@ -409,7 +415,7 @@ export const CaptureSheet = forwardRef<CaptureSheetHandle, Props>(function Captu
           aria-hidden={!shown}
           {...webInert(!shown)}
         >
-          <BrainDump ref={dumpRef} {...composer} onRequestClose={closeSheet} onDraftChange={setDraft} onFocusChange={setFieldFocused} />
+          <BrainDump ref={dumpRef} {...composer} onRequestClose={closeSheet} onDraftChange={setDraft} onFocusChange={setFieldFocused} onRowsHeight={setRowsH} />
         </Animated.View>
       </Animated.View>
     </View>
