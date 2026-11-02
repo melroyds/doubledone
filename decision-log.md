@@ -11328,7 +11328,9 @@ list decided what waits.
 - **The add panel's stacked hint seat waits for Melroy's look.** It overflowed the panel at its keyboard-up floor on
   the web (CaptureSheet budgets the seat at one line), and it is a visible change to a frozen screen. The seat is
   back to one line (an error, Tidy, or the note), so the note still leaves while Tidy is offered, the gap the sweep
-  named (#4). Its two Tidy-aware strings are out until then.
+  named (#4). Its two Tidy-aware strings are out until then. *(Melroy decided on 2026-11-02: Path B. The offer
+  names its AI on its face and the seat stays one line, so the stacked seat is not coming back. See that day's
+  entry.)*
 - **The select bar's plural ships.** "Segna come grosse", "Marquer comme gros morceaux", "Marcar que son mucho": each
   plural is at most one character longer than its singular, so the bar cannot reflow, and the singular for one
   ("1 sélectionnée") is a grammar fix.
@@ -11343,3 +11345,89 @@ list decided what waits.
 **Decided against, for now (parked with the review's wording):** a QuotaExceededError line of its own (a full
 browser store is not a blocked one), the paywall's privacy and Google Play link names, a leading number on the
 month-day chips' spoken names, and tightening the catalogue-key test's section filter.
+
+## 2026-11-02: Tidy says it uses AI, the web hears which option is picked, Space works on the web, the Add label fits, and two contrast fixes wait for Melroy's look
+
+Melroy: "Fix it with B" (the add panel's Tidy, sweep #4) and "fix #33 and #37 yourself". Six lanes fixed #33, #37,
+#4, #26, #35 and #36 on main, one after another (beed91b, a42213c, 97b41f5, bed4f4b, a1f0f3f, c2b0e50). A review
+then found nine gaps in them, two skeptics read each one, and a last lane fixed them (1cd3292, 0044328, b96e16c,
+a8df1c4, 277681b, 00e73b3, 0fa93ef, and the docs in the commit that carries this entry). Nothing is pushed. #33 and
+#37 are done. #4, #26, #35 and #36 change how a frozen screen or Settle looks, so they wait for Melroy's look.
+
+**Decided:**
+- **Tidy names its AI on its face (#4, Melroy's Path B).** Its label is now what its spoken name already said, in
+  all five languages: "Tidy this into tasks with AI", "Mit KI Aufgaben draus machen", "Ranger ça en tâches avec
+  l’IA", "Organizar esto en tareas con IA" and "Riordina in attività con l'AI". One key, `capture.tidy`, holds it
+  (`capture.tidyA11y` is gone), so the button's words and the name a screen reader or Voice Control uses cannot
+  drift apart again, as they had in German. The hint seat stays one line: the longest label, the Spanish, takes 212
+  pt of the 280 the seat has at 320 pt wide, and 250 at Large text. tidy-label.test.ts fails if a copy pass drops
+  the AI from any language.
+- **The web hears which option is picked (#33).** One helper, `lib/picked.ts`: `picked(on)` says aria-pressed on
+  the web and keeps aria-selected on the phones, at all 18 role=button toggle sites, every role unchanged. ARIA
+  gives a button no selected state, and React Native has no pressed one (its types reject the prop), so the helper
+  rides a cast object, like PRESS_NOW. It says the pick and nothing else, never an accessibilityState object, so
+  nothing a control already says can be overwritten. Since the review, `picked.test.ts` also reads every call site:
+  aria-selected anywhere but a tab, accessibilitySelected, or an accessibilityState naming selected fails.
+- **Space works on the web (#37 and its review).** Every Pressable that is not a button and should answer Space
+  spreads the row door with the very handler its onPress runs: Today's rows (every branch, select mode included),
+  and since the review the Repeating room's ticks, a routine's steps, Break it down's and Chart a course's steps,
+  and the Today · Ours words. Space ticks as the key comes up, as a native checkbox does. With Tuck on, Today moves
+  the focus to the Done today line after some ticks, and a tick on the way down let the rest of a held Space click
+  that line, so the list opened or shut by itself. The Energy pills and the welcome's Keep or Tuck (named by its
+  heading) are WAI-ARIA radio groups on the web: one tab stop on the choice, Space picks once, the arrows move the
+  choice and the focus. The key decisions are pure lib functions with tests (rowSpace, rowSpaceUp, ownsSpace,
+  radioKey), and the doors stay thin.
+- **A row that cannot be ticked says "unavailable" on the web too.** react-native-web's Pressable writes its own
+  aria-disabled, from `disabled`, after every other prop, so an inert row's aria-disabled never reached the page.
+  On the web it now also passes accessibilityDisabled, the one spelling Pressable leaves alone, and the tab stop
+  stays.
+- **The Add label keeps a repeat's days whole (#26 and its review).** Up to seven lines. The lane's four still cut
+  French on five weekdays at 320 pt, and at 360 and 375 pt with Large text. Seven holds every label at the app's
+  three text sizes on a screen 320 pt or wider, the longest being French weekly on every day of a twelve-line dump
+  at 320 pt and Large text. The button's radius is 24, half its 48 least height, so one or two lines are the same
+  pill and a taller label sits in a box with round corners: a pill's round ends had cut into the first and last
+  lines from the fourth line on. The panel's floor follows its fixed rows as BrainDump measures them, and keeps the
+  old budget (48 + 36 + 44 + 48, scaled with the text) wherever they fit it.
+- **Quiet's rows read clearly on the light sky (#35).** Their grey words take skyInk and their accent words
+  skyAccent, the roles every other word on the sky uses, which equal inkSoft and accentText in dark, so dark is
+  unchanged. The check and select rings take a new `quiet.ring` (inkSoft in light, 3.12 to 3.24:1, and inkFaint in
+  dark). CheckCircle takes it only through an onSky the row passes, because the Repeating room and Break it down
+  draw theirs on a card. A held task's closing line gets a solid band, `quiet.doneBand`, and `quiet.nOfM` is
+  retired. Since the review, colour-sites.test.ts holds where TaskRow draws them, by a list of the styles known to
+  sit on the sky rather than by guessing surfaces, so the 2026-10-19 call against a general sky scan stands.
+- **Settle's words read clearly in light mode (#36).** A new role, `accentsText`: each dot's hue and saturation,
+  with its lightness solved to 4.6:1 on the darkest light paper, so 4.60 to 4.81:1 everywhere. Dark keeps the dots,
+  6.06:1 and up. The Menu's ✦ beside Chart a course reads a new `premiumMark`, #B48C40, 3.10:1 on its white card
+  (#C19A4F was 2.62:1). Both contrast tests hold the words and the ✦, so a regression fails in CI.
+
+**Decided against:**
+- **For #4:** Path A, the AI note stacked under Tidy with the panel growing to fit (it touches the panel's keyboard
+  sizing on a frozen screen, and the box would jump a line at the sixth word), and Path C, leaving it (a button that
+  sends your words to an AI without saying so, with AI on by default). Also two keys with the same value, because
+  two copies are what let the German name drift.
+- **For #33:** retyping chips and segments as radio groups (new native behaviour and Space handling across frozen
+  screens), a DatePicker grid with aria-selected (a rebuild for a bug fix), and a platform-split file pair (two
+  halves to keep in step). DayHeading's tabs keep aria-selected, which is right for a tab.
+- **For #37:** ticking on the way down with a guard for the repeats (the lane's choice, and what let a held Space
+  reach the Done today line), reading defaultPrevented to tell when react-native-web already answered Space (a
+  role=button is a real <button> that clicks without it, so a step would have advanced twice), handling Enter in
+  the doors (the press responder presses on Enter for any role), refs in Today to move the focus, and the full tabs
+  pattern for Today · Ours (each word opens a page, so an arrow would navigate on a stray key). Also `disabled` for
+  an inert row: it drops the row from the Tab order and switches off its card door.
+- **For #26:** no cap (the phone's own font size at its top would push When and Add out of the panel), a range for
+  a run of days (new wording on a frozen screen needs the native read, and it does not help Lun, Mer, Ven), and a
+  wider button or smaller type (both change the panel's design). Parked in the Backlog: with the phone's font size
+  turned up, a long weekly label can still reach its seventh line.
+- **For #35:** seven solved near-duplicate ring greys (each within 4 RGB steps of its theme's inkSoft, a fourth
+  grey on a three-step ladder), and parking the new dark gaps in OPEN_IN_DARK, whose 14 pairs are Melroy's call.
+  Quiet's tip line on Today is not a row, and stays as it is.
+- **For #36:** the room's own grey (the changing colour is part of the breath), a shade per theme (35 colours for
+  papers under 4% apart), solving to exactly 4.5:1 (no margin after hex rounding), recolouring the gold dot (it
+  would change the task dots and four other ✦s), moving premiumMark to the other four ✦s now (two sit on frozen
+  screens, and the others on surfaces it is not solved for), and OKLCH (the house method is HSL, with hue and
+  saturation held).
+
+**Waiting on Melroy's look**, then the push to main, which is the web deploy: #4 (the Tidy line in Spanish at 320 pt
+and at Large text), #26 (CAP-21), #35 (A11Y-19) and #36 (A11Y-20, where rose is the real taste call, with a dustier
+fallback already solved). The app is 1.10.4, so open web tabs are offered the reload. The phones get all of it with
+the store build in the week of 16 to 22 Nov.

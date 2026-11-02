@@ -42,13 +42,24 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE 2 NOV FIX BATCH: COMMITTED ON MAIN, NOT PUSHED (2026-11-02).** Melroy's "Fix it with B" and "fix #33 and
+#37 yourself", in six lanes (beed91b, a42213c, 97b41f5, bed4f4b, a1f0f3f, c2b0e50), then the review's nine
+findings (1cd3292, 0044328, b96e16c, a8df1c4, 277681b, 00e73b3, 0fa93ef and the docs commit), and app 1.10.4 so
+open web tabs are offered the reload (decision log, same day). **Done:** #33 (the web hears which chip, segment and swatch
+is picked) and #37 (Space and the arrows on the web, now also on the other checklists, the Today · Ours words and
+the welcome's Keep or Tuck, and Space ticks as the key comes up). **Waiting on Melroy's look at pictures before the
+push:** #4 as Path B (the Tidy offer reads "Tidy this into tasks with AI"), #26 (CAP-21: the Add label whole on up
+to seven lines, in a box with round corners from three), #35 (A11Y-19: Quiet's rows on the light sky) and #36
+(A11Y-20: Settle's words and the Menu's ✦). The push to main is the web deploy, on Melroy's word. The phones get
+all of it with the store build in the week of 16 to 22 Nov. **Still open from the sweep:** #24 (an agent naming its
+own day, a Worker change) and #27 (the store listings).
+
 **THE STRIPE GUARD, THE COPY BATCH AND THE LOW FIX: BUILT AND REVIEWED (2026-11-02, overnight, on Melroy's "run
 whatever needs running").** a4573db and 78410dd (the Stripe webhook writes the live subscription; an ending never
 waits on the read; a stale id heals; a failed read emails the owner), 0fbe199 and its review fixes (the copy batch
-in five languages), and the Low reset, as app 1.10.3. **LIVE 2026-11-02 morning: Melroy deployed Worker `6d50a3eb` (rollback `7139f696`; bindings identical, /health 200, `info.version` 1.3.1, the webhook answers 400 bad signature, money routes 401 JSON), then main was pushed as web 1.10.3. The Stripe proof is the next real delivery's reply in Stripe's dashboard (`"live":`). The plan as it stood overnight:** the overnight production deploy was refused by the session permission layer, so Melroy runs, in order: (1) the Worker deploy from server/ on main (rollback target 7139f696), (2) the push to main, which ships web 1.10.3. The Worker goes first, because the privacy page now says the I-also-did-that count has stopped, which only the new Worker makes true for older phones.** **Waiting on Melroy's look:** the add panel's stacked
-hint seat (#4, reverted after it overflowed the panel), plus the parked review items in the decision log. Still
-open from the sweep: #24 (an agent naming its day), #26 (the Add label in German), #27 (the store listings), #33 and
-#37 (the web a11y pair), #35 and #36 (contrast).
+in five languages), and the Low reset, as app 1.10.3. **LIVE 2026-11-02 morning: Melroy deployed Worker `6d50a3eb` (rollback `7139f696`; bindings identical, /health 200, `info.version` 1.3.1, the webhook answers 400 bad signature, money routes 401 JSON), then main was pushed as web 1.10.3. The Stripe proof is the next real delivery's reply in Stripe's dashboard (`"live":`). The plan as it stood overnight:** the overnight production deploy was refused by the session permission layer, so Melroy runs, in order: (1) the Worker deploy from server/ on main (rollback target 7139f696), (2) the push to main, which ships web 1.10.3. The Worker goes first, because the privacy page now says the I-also-did-that count has stopped, which only the new Worker makes true for older phones.** *(What this paragraph listed as open is settled by the 2 Nov fix batch above: the stacked hint seat
+(#4) is out, decided as Path B, and #26, #33, #35, #36 and #37 are fixed on main. Still open: #24 and #27, plus the
+parked review items in the decision log.)*
 
 **THE 1 NOV BUG SWEEP: 24 FIXED, LIVE ON THE WEB AND THE WORKER (2026-11-01 evening).** Melroy deployed Worker `7139f696` from main `586b2de` (rollback `636a1611`; bindings identical, `info.version` 1.3.1, money routes 401 JSON), then the web went out as 1.10.2 (deploy-web and CI green; the live bundle carries the fixes, sw.js renotifies and takes over at once). Still to run: PREM-62 (a real card, then cancel), and the phones get the client fixes with the store build in the week of 16 to 22 Nov. *(The plan as written before the deploy follows.)* **Was: 24 FIXED ON MAIN, NOTHING PUSHED OR DEPLOYED.** 40 bugs confirmed besides R8;
 the full report with every file and fix is the sweep's own (decision-log, same day). Fixed and tested, in lanes
@@ -409,7 +420,9 @@ the ladder is fixed and readable, never randomised.
 - **What the 2026-11-01 native copy pass found beyond its brief (parked 2026-11-01).** Ten native agents (a writer and
   an adversarial reviewer per language) fixed the screenshot-QA list and flagged these, none of which was in it.
   Most urgent first:
-  1. **A disclosure gap, not just copy.** The add panel's hint seat shows the Tidy offer INSTEAD of the AI note
+  1. ~~**A disclosure gap, not just copy.**~~ **FIXED 2026-11-02 (97b41f5, Melroy's Path B):** the offer names its
+     AI on its face, "Tidy this into tasks with AI" in all five languages, from one key, and the seat stays one
+     line. *(The original item follows.)* The add panel's hint seat shows the Tidy offer INSTEAD of the AI note
      (BrainDump.tsx), and no note names "Tidy this into tasks", which is an AI call too (`showTidy` needs the
      shapers). So while Tidy is offered, the panel does not say where your words go. Fix the seat so the note is
      never displaced, or name Tidy in it, under the panel's own rule (BrainDump.tsx 491-495, OUR-77).
@@ -417,9 +430,17 @@ the ladder is fixed and readable, never randomised.
      era demasiado", "Falla minuscola" and four more Italian phrases). Both Italian descriptions sit at 3991 and 3992
      of 4000 characters, so pasting the new wording overflows: the listing pass needs a trim. Then add `/era
      demasiado/` to the Spanish `BANNED_BY_LANG` in `scripts/check-listings.mjs` (not before, or the gate fails).
-  3. **The add panel's Add label is capped at two lines** (BrainDump.tsx, `numberOfLines={2}` in 55% width), and
-     German "Hinzufügen · Wöchentlich am Mo, Mi" needs three at every phone width, so it is cut off today. Three
-     lines, or a button that grows, needs a device look in German.
+  3. ~~**The add panel's Add label is capped at two lines**~~ **FIXED 2026-11-02 (bed4f4b, then 277681b after the
+     review):** up to seven lines, which holds every label at the app's three text sizes on a screen 320 pt or
+     wider, in a box with round corners from three lines, and the panel's floor follows its rows as measured.
+     CAP-21 is the look. **What is left, parked:** with the phone's own font size turned up, a long weekly label
+     can still reach the seventh line and end in "…" (French on five or more days at 320 pt is the likeliest). The
+     fix would be shorter wording, a run of days as a range (Monday to Friday as one item) in all five languages,
+     natively read, on a frozen screen. Trigger: a report from somebody with a large phone font, the next copy
+     batch that touches `capture.weeklyOn`, or the next change to the Add label. *(The original item follows.)*
+     (BrainDump.tsx, `numberOfLines={2}` in 55% width), and German "Hinzufügen · Wöchentlich am Mo, Mi" needs three
+     at every phone width, so it is cut off today. Three lines, or a button that grows, needs a device look in
+     German.
   4. **The select bar's "a lot" pair is singular** in Italian, French and Spanish ("Segna come grossa") when several
      tasks are selected: plural keys chosen when `selected.length > 1`.
   5. **The same garden path, unflagged:** `welcome.capturePrivacyAi` (English, Spanish), Italian `settings.aiStatusOn`,
@@ -503,7 +524,10 @@ the ladder is fixed and readable, never randomised.
   still flat 60 days after the asks begin (TEL-03 shows `review.asked.*` counting).
 - **The accessibility Tier 3 (parked 2026-10-19, with slice 2 of `store-1.9`).** Four smaller gaps the a11y scout
   found (`docs/design-source/store-1.9/a11y.md`). Two were fixed on 2026-11-02 (bug sweep #37): Space ticks a task
-  row (K5), and Energy's Low / Normal / High move with the arrow keys as one radio group. Still open: the floatNote
+  row (K5), and Energy's Low / Normal / High move with the arrow keys as one radio group. The review carried both
+  further the same day: Space ticks as the key comes up, and also works on the other checklists and the Today · Ours
+  words (A11Y-21), the welcome's Keep or Tuck is a radio group too (A11Y-22), and a row that cannot be ticked says
+  "unavailable" on the web (A11Y-23). Still open: the floatNote
   (the sort summary and the affirmation) briefly lies over the lowest rows, and the gold ✦ (C8), a symbol that needs
   3:1. **The Menu's ✦ was solved on 2026-11-02 (bug sweep #36):** beside Chart a course it reads `premiumMark`,
   #B48C40, 3.10:1 on its white card (it was #C19A4F, 2.62:1). It is a token of its own, so the dots keep their gold
@@ -522,7 +546,9 @@ the ladder is fixed and readable, never randomised.
   a task row sits straight on the sky.** Quiet drops the row's card, so its words and its check ring are drawn on
   the living sky. **Light mode's rows were fixed on 2026-11-02 (bug sweep #35):** their grey words take `skyInk`,
   their accent words `skyAccent`, the check and select rings `quiet.ring` (inkSoft, 3.1 to 3.2:1 on the sky, from
-  2.1 to 2.3), and a held row's closing line gets a solid band (`quiet.doneBand`), all held by the test. Still
+  2.1 to 2.3), and a held row's closing line gets a solid band (`quiet.doneBand`). Their values are held by
+  palette.test.ts, and where TaskRow draws them by colour-sites.test.ts (0fa93ef, after the review found nothing
+  held the use sites). Still
   open: Quiet's tip line above the list (the hold tip and its Got it), which is Today's and not a row, still
   `quiet.secondary` and `accentText` at 3.1 to 3.2:1 on the light sky. And in dark mode the Quiet rings stay
   inkFaint, 2.2 to 2.5:1 on the dark sky, and the closing band 3.7 to 3.9:1, so their two rows in the test are
