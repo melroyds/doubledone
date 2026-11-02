@@ -139,7 +139,7 @@ describe('the monthly lines, as they render', () => {
       const lines = [
         translate('it', 'capture.monthlyOn', { day: ordinalDay('it', d) }),
         monthly(d),
-        translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', d) }),
+        translate('it', 'capture.repeatOnMonthDayA11y', { n: d, day: ordinalDay('it', d) }),
       ];
       for (const line of lines) {
         expect(line, `day ${d}: ${line}`).not.toMatch(/il l'|il il|l'il/i);
@@ -153,8 +153,8 @@ describe('the monthly lines, as they render', () => {
     expect(monthly(11)).toBe("L'11 di ogni mese");
     expect(monthly(1)).toBe('Il 1º di ogni mese');
     expect(monthly(15)).toBe('Il 15 di ogni mese');
-    expect(translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', 15) })).toBe('Ripeti il 15 di ogni mese');
-    expect(translate('it', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('it', 8) })).toBe("Ripeti l'8 di ogni mese");
+    expect(translate('it', 'capture.repeatOnMonthDayA11y', { n: 15, day: ordinalDay('it', 15) })).toBe('15, ripeti il 15 di ogni mese');
+    expect(translate('it', 'capture.repeatOnMonthDayA11y', { n: 8, day: ordinalDay('it', 8) })).toBe("8, ripeti l'8 di ogni mese");
   });
 
   it('French says the first as "1er"', () => {
@@ -162,13 +162,13 @@ describe('the monthly lines, as they render', () => {
     expect(monthly(1)).toBe('Le 1er de chaque mois');
     expect(monthly(15)).toBe('Le 15 de chaque mois');
     expect(translate('fr', 'capture.monthlyOn', { day: ordinalDay('fr', 1) })).toBe('Mensuel : le 1er');
-    expect(translate('fr', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('fr', 1) })).toBe('Répéter le 1er de chaque mois');
+    expect(translate('fr', 'capture.repeatOnMonthDayA11y', { n: 1, day: ordinalDay('fr', 1) })).toBe('1, répéter le 1er de chaque mois');
   });
 
-  it('the month-day chips speak a whole sentence in every language, not "Repeat on 15th"', () => {
-    expect(translate('en', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('en', 15) })).toBe('Repeat on the 15th of each month');
-    expect(translate('de', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('de', 15) })).toBe('Am 15. jedes Monats wiederholen');
-    expect(translate('es', 'capture.repeatOnMonthDayA11y', { day: ordinalDay('es', 15) })).toBe('Repetir el día 15 de cada mes');
+  it('the month-day chips say their own number, then a whole sentence, in every language, not "Repeat on 15th"', () => {
+    expect(translate('en', 'capture.repeatOnMonthDayA11y', { n: 15, day: ordinalDay('en', 15) })).toBe('15, repeat on the 15th of each month');
+    expect(translate('de', 'capture.repeatOnMonthDayA11y', { n: 15, day: ordinalDay('de', 15) })).toBe('15, am 15. jedes Monats wiederholen');
+    expect(translate('es', 'capture.repeatOnMonthDayA11y', { n: 15, day: ordinalDay('es', 15) })).toBe('15, repetir el día 15 de cada mes');
   });
 
   it('English keeps its lines, capital and all', () => {

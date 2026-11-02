@@ -641,7 +641,8 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
                         hitSlop={4}
                         accessibilityRole="button"
                         {...picked(monthDayEff === d)}
-                        accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
+                        // The bare number first, as the chip shows it, so a voice command finds it (#34).
+                        accessibilityLabel={t('capture.repeatOnMonthDayA11y', { n: d, day: ordinalDay(d) })}
                       >
                         <Text style={[styles.dayText, monthDayEff === d && styles.dayTextOn]}>{d}</Text>
                       </Pressable>

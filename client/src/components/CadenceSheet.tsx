@@ -370,7 +370,8 @@ export function CadenceSheet({ visible, onClose, today, sheetTitle, title, recur
                 hitSlop={4}
                 accessibilityRole="button"
                 {...picked(monthDay === d)}
-                accessibilityLabel={t('capture.repeatOnMonthDayA11y', { day: ordinalDay(d) })}
+                // The bare number first, as the chip shows it, so a voice command finds it (#34).
+                accessibilityLabel={t('capture.repeatOnMonthDayA11y', { n: d, day: ordinalDay(d) })}
               >
                 <Text style={[styles.monthDayText, monthDay === d && styles.dayTextOn]}>{d}</Text>
               </Pressable>

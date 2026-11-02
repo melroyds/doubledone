@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SUPPORTED, translate } from './i18n';
+import { ordinalDay, SUPPORTED, translate } from './i18n';
 
 // Label in name (WCAG 2.5.3, bug sweep 2026-11-01 #34). Voice Control and Voice Access find a button by the words
 // on it, so its spoken name must START with those words, in every language. Until the copy batch, "Mark as a lot"
@@ -54,6 +54,10 @@ const PAYWALL: Row[] = [
   ['premium.paymentAttentionLink', 'premium.paymentAttentionLinkA11y'],
   ['premium.restorePurchases', 'premium.restorePurchasesA11y'],
   ['premium.termsLink', 'premium.termsLinkA11y'],
+  // The store block's privacy link and Android's Google Play link (the 2 Nov read, #34): each name used to open
+  // with a verb ("Read the privacy policy", "Open your subscriptions..."), so "Tap Privacy policy" pressed nothing.
+  ['premium.privacyLink', 'premium.privacyLinkA11y'],
+  ['premium.googleSubscriptionsLink', 'premium.googleSubscriptionsLinkA11y'],
   ['premium.billedViaStripe', 'premium.billedViaStripeA11y'],
   ['premium.trialLink', 'premium.trialLinkA11y'],
   ['premium.trialLinkPlain', 'premium.trialLinkPlainA11y'],
@@ -113,5 +117,29 @@ describe('label in name: every spoken name starts with the words on its control'
   it('a name that only shares a first word with its label is not a match', () => {
     expect(startsWithWords(heard('Doneness of the task'), heard('Done'))).toBe(false);
     expect(startsWithWords(heard('Mark this task as a lot'), heard('Mark as a lot'))).toBe(false);
+  });
+});
+
+// The Monthly grid's chips, in the add panel and the When sheet (the 2 Nov read, #34). Each shows a bare number,
+// the same in every language, so the visible words are the number itself, not a key. The name used to be only the
+// sentence ("Repeat on the 15th of each month"), so "Tap 15" pressed nothing. Now the number comes first, exactly
+// as the chip shows it, and the sentence follows for a screen reader.
+describe('label in name: every month-day chip starts with its own number', () => {
+  for (const loc of SUPPORTED) {
+    it(`days 1 to 31, ${loc}`, () => {
+      const wrong: string[] = [];
+      for (let d = 1; d <= 31; d++) {
+        const said = translate(loc, 'capture.repeatOnMonthDayA11y', { n: d, day: ordinalDay(loc, d) });
+        if (!startsWithWords(heard(said), heard(String(d)))) wrong.push(`day ${d}: "${heard(said)}" does not start with "${d}"`);
+        // Both placeholders are filled at the call site, so no brace is ever spoken.
+        expect(said, `${loc} day ${d}`).not.toMatch(/\{\w+\}/);
+      }
+      expect(wrong).toEqual([]);
+    });
+  }
+
+  it('the number is heard as a word of its own, so day 1 is never taken for day 15', () => {
+    expect(startsWithWords(heard('15, repeat on the 15th of each month'), heard('1'))).toBe(false);
+    expect(startsWithWords(heard('1, repeat on the 1st of each month'), heard('1'))).toBe(true);
   });
 });
