@@ -74,7 +74,9 @@ const light = {
   accents: ['#9B6A7D', '#4E8C86', '#C19A4F', '#6E72A0', '#BE7F84'], // mauve, teal, gold, periwinkle, rose
   // On the paper the dots run 2.4:1 (gold) to 4.3:1 (periwinkle), under the 4.5 words need (#36). Each word shade keeps
   // its dot's hue and saturation, with the lightness solved to clear 4.6:1 on all seven themes' paper (palette.test.ts).
-  accentsText: ['#906073', '#427671', '#876930', '#666A9B', '#A7555C'],
+  // Rose alone is also dustier (saturation 0.25 for its dot's 0.33): kept as saturated, it sat 8.9 away from danger,
+  // the red that Remove wears, and a breathing word should never read as a warning (Melroy's call, 2026-11-02).
+  accentsText: ['#906073', '#427671', '#876930', '#666A9B', '#9A5C61'],
   // The gold dot is 2.6:1 on a white card. This is its lightness solved to 3.1:1 there, hue and saturation kept: the
   // Menu's ✦ (#36). The other ✦s still wear accents[2] (colour-sites.test.ts lists them). It is solved for white only,
   // and on the page it is 2.8:1, so a ✦ that moves onto paper adds the page to its palette.test.ts row and is re-solved.

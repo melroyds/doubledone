@@ -260,15 +260,44 @@ describe("Settle's words on the page, all 14 palettes (#36)", () => {
 
   it('deepens each dot in light mode and keeps its hue', () => {
     // The changing colour is the breath, so a word shade is its own dot made darker, never a grey or another hue.
+    // Rose (the fifth) may also be a little dustier, which is what keeps it clear of the warning red (next test).
     const { accents, accentsText } = Colors.light;
     accentsText.forEach((word, i) => {
       const [h0, s0, l0] = hsl(accents[i]);
       const [h1, s1, l1] = hsl(word);
       const turn = Math.abs(h1 - h0);
       expect(Math.min(turn, 360 - turn), `${word}'s hue against ${accents[i]}`).toBeLessThan(2);
-      expect(Math.abs(s1 - s0), `${word}'s saturation against ${accents[i]}`).toBeLessThan(0.02);
+      if (i === 4) {
+        expect(s0 - s1, `${word} is a dustier ${accents[i]}, never a grey`).toBeGreaterThan(0);
+        expect(s0 - s1, `${word} is a dustier ${accents[i]}, never a grey`).toBeLessThan(0.08);
+      } else {
+        expect(Math.abs(s1 - s0), `${word}'s saturation against ${accents[i]}`).toBeLessThan(0.02);
+      }
       expect(l1, `${word} is deeper than ${accents[i]}`).toBeLessThan(l0);
     });
+  });
+
+  it('never reads as the warning red that Remove wears', () => {
+    // CIE76 distance in Lab. The saturated rose shade (#A7555C) was 8.9 from danger, close enough to read as a
+    // warning in a room built to calm; every word now sits at least 12 away.
+    const lab = (color: string): [number, number, number] => {
+      const lin = (v: number) => {
+        const s = v / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      };
+      const [r, g, b] = parse(color).rgb.map(lin);
+      const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+      const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+      const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+      const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+      return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+    };
+    const { accentsText, danger } = Colors.light;
+    const d = lab(danger);
+    for (const word of accentsText) {
+      const w = lab(word);
+      expect(Math.hypot(w[0] - d[0], w[1] - d[1], w[2] - d[2]), `${word} against danger ${danger}`).toBeGreaterThan(12);
+    }
   });
 });
 
