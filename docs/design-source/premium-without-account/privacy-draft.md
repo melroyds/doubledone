@@ -2,7 +2,7 @@
 
 *Drafted 2026-11-03 against the server and the app as built (`server/src/store-premium.ts`, `server/src/purchaser.ts`,
 `client/src/lib/ai.ts`, the purchases split), and corrected the same day by the batch's review: the list of refused ids
-covers every phone, says how long it is kept and names the block by hand, and there is now one PRV-03 text. Nothing
+covers every device the app runs on, says how long it is kept and names the block by hand, and there is now one PRV-03 text. Nothing
 here is in `client/public/privacy.html` or `client/src/app/privacy.tsx` yet: legal text waits for Melroy's yes. This
 file is the copy to work from. A session's scratchpad may hold the same text as `privacy-line.md`.*
 
@@ -36,11 +36,11 @@ clause stays true. Only a decision to ship with the id showing would need the ot
 > of the last check. To stop one purchase being overused, it also counts how often that purchase was used in the
 > current hour, under the same scrambled form, and deletes that count within two hours (a test purchase made
 > through Apple's TestFlight or App Review is also counted for its day, and that count is deleted the next day).
-> RevenueCat gives the app such an id on every phone, Android included. Whenever the store's notices show that one
-> of these ids belongs to an account, we keep its scrambled form, with no account attached, for as long as we keep
-> billing records, so that it works only through that account. We can also block one purchase's scrambled id by
-> hand if it is being misused, until we lift the block. We also count how many of these checks ran each day and how
-> they came out, as plain numbers. Our hosting provider's short-lived backups (up to 30 days) can hold any of these
+> RevenueCat gives the app such an id on every iPhone, iPad and Android phone. Whenever the store's notices show
+> that one of these ids belongs to an account, we keep its scrambled form, with no account attached, for as long as
+> we keep billing records, so that it works only through that account. We can also block one purchase's scrambled
+> id by hand if it is being misused, until we lift the block. We also count how many of these checks ran each day
+> and how they came out, as plain numbers. Our hosting provider's short-lived backups (up to 30 days) can hold any of these
 > for that long, and its request log (up to a week) can include the network address the request came from. Once you
 > sign in, the app stops sending the id and we check your account instead. The Android app and the website never
 > send an id for this check.
@@ -120,7 +120,7 @@ with Apple or Google Play that a purchase is genuine", "so your subscription can
 | deleted within two hours of the last check | a row lives an hour at most (a no, a minute), and the `:00` purge (`purgeStorePremium`) deletes every row past its expiry |
 | hourly count under the scrambled form, within two hours | `store_premium_counts` kind `served:<id_hash>`, one slot per hour, purged at the first `:00` after its hour |
 | test purchases counted for the day | kind `sandbox:<id_hash>`, one slot per UTC day, purged at the first `:00` of the next UTC day |
-| every phone has such an id | both platform files configure RevenueCat with no App User ID at launch, so it starts anonymous (`purchases.ios.ts`, `purchases.android.ts`) |
+| every iPhone, iPad and Android phone has such an id | both platform files configure RevenueCat with no App User ID at launch, so it starts anonymous (`purchases.ios.ts`, `purchases.android.ts`) |
 | an id the notices tie to an account is kept scrambled, no account attached | the webhook calls `refuseForAccount` (`purchaser.ts`) for every verified delivery that resolves to an account, from any store, with every anonymous id it lists (`anonIdsOf`: `app_user_id`, `original_app_user_id`, `aliases`). `store_premium_refused` holds `id_hash`, `why` and `at`, nothing else |
 | for as long as we keep billing records | nothing deletes `store_premium_refused` (`purgeStorePremium` touches only the cache and the counts, and `store-premium.test.ts` holds a 400-day-old refusal), the same as `rc_events`, the billing record "Payment events" describes |
 | blocked by hand, until lifted | `why = 'blocked'`, added and deleted by hand (`docs/operations.md`, "Blocking one purchase") |
