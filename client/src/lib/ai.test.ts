@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  chart,
   clarify,
   decompose,
   defaultQuestions,
   dropAiConnectors,
+  lookbackSummary,
   makeScrapbook,
   ocr,
   parsePlan,
@@ -13,19 +15,27 @@ import {
   parseSteps,
   parseTriage,
   plan,
+  premiumHeaders,
+  type PremiumResult,
+  PURCHASER_HEADER,
   PURGE_BATCH,
   PURGE_RETRY_MS,
   purgeScrapbookImages,
+  sequence,
   split,
   strategise,
   tiny,
   triage,
 } from './ai';
 
+import { purchaserProof } from './purchases';
 import { authHeader } from './supabase';
 
 vi.mock('./supabase', () => ({ authHeader: vi.fn(), supabase: null, isSyncConfigured: false }));
 const authHeaderMock = vi.mocked(authHeader);
+// The device's purchase proof (lib/purchases): on an iPhone without an account, its anonymous RevenueCat id.
+vi.mock('./purchases', () => ({ purchaserProof: vi.fn(async () => null) }));
+const proofMock = vi.mocked(purchaserProof);
 
 describe('parseSteps', () => {
   it('keeps well-formed steps', () => {
@@ -360,51 +370,208 @@ describe('tiny', () => {
   });
 });
 
-describe('ocr', () => {
+// Premium without an account (2026-11-03). The four Premium AI calls carry ONE credential: the session's bearer
+// whenever there is one, else an iPhone's anonymous purchase id, and they say why they missed instead of handing the
+// screen an empty value that read as the AI's answer ("Try rephrasing the goal?" to a request that never left).
+const ANON = '$RCAnonymousID:0123456789abcdef0123456789abcdef';
+
+type Init = { method: string; headers: Record<string, string>; body: string };
+const reply = (status: number, body: unknown) =>
+  vi.fn(async (_url: string, _init: Init) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response);
+
+type PremiumCase = {
+  name: string;
+  path: string;
+  run: () => Promise<PremiumResult<unknown>>;
+  sent: Record<string, unknown>;
+  answer: unknown;
+  value: unknown;
+  empty: unknown;
+  emptyValue: unknown;
+};
+
+const PREMIUM_CALLS: PremiumCase[] = [
+  {
+    name: 'ocr (Scan)',
+    path: '/ocr',
+    run: () => ocr('BASE64IMG', 'image/jpeg', 'en'),
+    sent: { image: 'BASE64IMG', mediaType: 'image/jpeg', language: 'en' },
+    answer: { tasks: ['  Buy milk ', '', 'Call mum'] },
+    value: ['Buy milk', 'Call mum'], // trimmed, blanks dropped
+    empty: { tasks: [] },
+    emptyValue: [],
+  },
+  {
+    name: 'lookbackSummary (Reflect on this week)',
+    path: '/lookback-summary',
+    run: () => lookbackSummary(['Ran', 'Read'], 'en'),
+    sent: { titles: ['Ran', 'Read'], language: 'en' },
+    answer: { summary: '  A steady week.  ' },
+    value: 'A steady week.',
+    empty: { summary: '' },
+    emptyValue: '',
+  },
+  {
+    name: 'chart (Chart a course)',
+    path: '/chart',
+    run: () => chart('run a 10k', { dueDate: '2027-03-01' }, 'en'),
+    sent: { goal: 'run a 10k', context: { dueDate: '2027-03-01' }, language: 'en' },
+    answer: { course: { heading: 'Toward a 10k', steps: [{ title: 'Walk for 20 minutes', minutes: 20 }] } },
+    value: { heading: 'Toward a 10k', steps: [{ title: 'Walk for 20 minutes', minutes: 20 }] },
+    empty: { course: { heading: '', steps: [] } },
+    emptyValue: { heading: '', steps: [] },
+  },
+  {
+    name: 'sequence (Plan my day)',
+    path: '/sequence',
+    run: () => sequence([{ id: 'a', title: 'Email' }], 'low', 'en', 'work', 'indoors'),
+    sent: { tasks: [{ id: 'a', title: 'Email' }], energy: 'low', language: 'en', day: 'work', setting: 'indoors' },
+    answer: { order: [{ id: 'a', reason: 'A small one first.' }] },
+    value: [{ id: 'a', reason: 'A small one first.' }],
+    empty: { order: [] },
+    emptyValue: [],
+  },
+];
+
+describe.each(PREMIUM_CALLS)('$name, a Premium AI call', (c) => {
   afterEach(() => {
     vi.unstubAllGlobals();
     authHeaderMock.mockReset();
+    proofMock.mockReset();
   });
 
-  it('POSTs the image with the Bearer token and returns the parsed task titles (mocked, no live call)', async () => {
+  it('signed in: sends the bearer and never the purchase header, even when the phone holds a proof', async () => {
     authHeaderMock.mockResolvedValue({ Authorization: 'Bearer test-token' });
-    const fetchMock = vi.fn(
-      async (_url: string, _init: { method: string; headers: Record<string, string>; body: string }) =>
-        ({ ok: true, json: async () => ({ tasks: ['  Buy milk ', '', 'Call mum'] }) }) as unknown as Response,
-    );
-    vi.stubGlobal('fetch', fetchMock);
-
-    const tasks = await ocr('BASE64IMG', 'image/jpeg', 'en');
-    expect(tasks).toEqual(['Buy milk', 'Call mum']); // trimmed, blanks dropped
-
-    const url = fetchMock.mock.calls[0][0];
-    const init = fetchMock.mock.calls[0][1];
-    expect(url).toContain('/ocr');
+    proofMock.mockResolvedValue(ANON);
+    const f = reply(200, c.answer);
+    vi.stubGlobal('fetch', f);
+    expect(await c.run()).toEqual({ ok: true, value: c.value });
+    const [url, init] = f.mock.calls[0];
+    expect(url.endsWith(c.path)).toBe(true);
     expect(init.method).toBe('POST');
-    expect(init.headers.Authorization).toBe('Bearer test-token');
-    expect(JSON.parse(init.body)).toEqual({ image: 'BASE64IMG', mediaType: 'image/jpeg', language: 'en' });
+    expect(init.headers).toEqual({ 'content-type': 'application/json', Authorization: 'Bearer test-token' });
+    expect(JSON.parse(init.body)).toEqual(c.sent);
+    expect(proofMock).not.toHaveBeenCalled(); // a session decides before the proof is even read
   });
 
-  it('returns [] without calling fetch when signed out (no token)', async () => {
+  it('signed out on an iPhone with a purchase: sends the purchase header and no Authorization', async () => {
     authHeaderMock.mockResolvedValue(null);
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    expect(await ocr('IMG')).toEqual([]);
-    expect(fetchMock).not.toHaveBeenCalled();
+    proofMock.mockResolvedValue(ANON);
+    const f = reply(200, c.answer);
+    vi.stubGlobal('fetch', f);
+    expect(await c.run()).toEqual({ ok: true, value: c.value });
+    const init = f.mock.calls[0][1];
+    expect(init.headers).toEqual({ 'content-type': 'application/json', [PURCHASER_HEADER]: ANON });
+    expect(JSON.parse(init.body)).toEqual(c.sent); // the id rides the header only, never the body
   });
 
-  it('returns [] on a non-ok response (a calm fail, never a throw)', async () => {
-    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 }) as unknown as Response));
-    expect(await ocr('IMG')).toEqual([]);
+  it('neither: no request at all, and not_confirmed', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    proofMock.mockResolvedValue(null);
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    expect(await c.run()).toEqual({ ok: false, miss: 'not_confirmed' });
+    expect(f).not.toHaveBeenCalled();
   });
 
-  it('returns [] on a network throw', async () => {
+  it('neither, in a browser that is offline: unavailable, so the screen can say offline', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    proofMock.mockResolvedValue(null);
+    vi.stubGlobal('navigator', { onLine: false });
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    expect(await c.run()).toEqual({ ok: false, miss: 'unavailable' });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, 'not_confirmed'],
+    [403, 'not_active'],
+    [429, 'unavailable'],
+    [500, 'unavailable'],
+    [502, 'unavailable'],
+    [503, 'unavailable'],
+  ])('a %i says %s, whichever credential it carried', async (status, miss) => {
+    for (const signedIn of [true, false]) {
+      authHeaderMock.mockResolvedValue(signedIn ? { Authorization: 'Bearer t' } : null);
+      proofMock.mockResolvedValue(ANON);
+      vi.stubGlobal('fetch', reply(status, { error: 'premium required' }));
+      expect(await c.run()).toEqual({ ok: false, miss });
+    }
+  });
+
+  it('a network throw is unavailable, never a throw', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    proofMock.mockResolvedValue(ANON);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network');
+      }),
+    );
+    expect(await c.run()).toEqual({ ok: false, miss: 'unavailable' });
+  });
+
+  it('a 200 that is not JSON (the Worker answers plain text on a path it does not know) is unavailable, not an empty answer', async () => {
     authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('network');
-    }));
-    expect(await ocr('IMG')).toEqual([]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError('Unexpected token d in JSON');
+        },
+      }) as unknown as Response),
+    );
+    expect(await c.run()).toEqual({ ok: false, miss: 'unavailable' });
+  });
+
+  it("a 200 without the route's own field is unavailable too", async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
+    for (const body of [{}, null, 'doubledone-ai', { error: 'x' }]) {
+      vi.stubGlobal('fetch', reply(200, body));
+      expect(await c.run()).toEqual({ ok: false, miss: 'unavailable' });
+    }
+  });
+
+  it("the AI's own empty answer is an answer, for the screen's own empty line (Chart's is the only rephrase)", async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer t' });
+    vi.stubGlobal('fetch', reply(200, c.empty));
+    expect(await c.run()).toEqual({ ok: true, value: c.emptyValue });
+  });
+});
+
+describe('premiumHeaders: one credential, never both', () => {
+  afterEach(() => {
+    authHeaderMock.mockReset();
+    proofMock.mockReset();
+  });
+
+  it('is the account whenever there is a session, the purchase only without one, and null with neither', async () => {
+    authHeaderMock.mockResolvedValue({ Authorization: 'Bearer me' });
+    proofMock.mockResolvedValue(ANON);
+    expect(await premiumHeaders()).toEqual({ kind: 'account', headers: { Authorization: 'Bearer me' } });
+    authHeaderMock.mockResolvedValue(null);
+    expect(await premiumHeaders()).toEqual({ kind: 'purchase', headers: { 'X-Purchaser-Token': ANON } });
+    proofMock.mockResolvedValue(null);
+    expect(await premiumHeaders()).toBeNull();
+  });
+
+  it('names the header so that Cloudflare logs its value as REDACTED (the name contains "token")', () => {
+    expect(PURCHASER_HEADER).toBe('X-Purchaser-Token');
+    expect(PURCHASER_HEADER.toLowerCase()).toContain('token');
+  });
+
+  it('never sends the purchase id from a call that is not one of the four Premium routes', async () => {
+    authHeaderMock.mockResolvedValue(null);
+    proofMock.mockResolvedValue(ANON);
+    const f = reply(200, { image: 'data:image/jpeg;base64,AA', caption: '' });
+    vi.stubGlobal('fetch', f);
+    await makeScrapbook(['Did the thing']);
+    expect(f.mock.calls[0][1].headers).toEqual({ 'content-type': 'application/json' });
+    expect(proofMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });
 

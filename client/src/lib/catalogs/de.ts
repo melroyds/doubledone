@@ -179,6 +179,8 @@ export const de: Catalog = {
     goalPlaceholder: 'z. B. fit werden für einen 10-km-Lauf, drei einfache Gerichte kochen lernen',
     intro: 'Nenn etwas, worauf du hinarbeitest. Du bekommst eine ruhige Liste der nächsten Schritte, und du kannst sie nehmen oder lassen.',
     mapError: 'Ich konnte daraus gerade keinen Kurs machen. Magst du das Ziel anders formulieren?',
+    // English until the native read (2026-11-03, Premium without an account).
+    mapRetry: "I couldn't map that out just now. Your goal is still here, so try again in a moment.",
     pickAStep: 'Such dir einen Schritt aus',
     spreadNote: 'Der erste Schritt landet auf Heute, der Rest verteilt sich sanft {spreadHint}. Sie werden ganz normale Aufgaben.',
     spreadNoteOverNextDays: 'über die nächsten Tage',
@@ -597,6 +599,9 @@ export const de: Catalog = {
     },
   },
   premium: {
+    // English until the native read (2026-11-03, Premium without an account).
+    aiNotActive: "We couldn't find an active Premium for you just now, so nothing went to the AI. If you've only just bought or restored it, give it a minute and try again.",
+    aiNotConfirmed: "We couldn't confirm your Premium just now, so nothing went to the AI. Try again in a moment.",
     appleManageElsewhere: 'Dieses Abo wurde auf einem iPhone oder iPad gekauft, deshalb verwaltet Apple es. Öffne auf dem Gerät die Einstellungen, tippe auf deinen Namen und dann auf Abonnements.',
     googleManageElsewhere: 'Dieses Abo wurde über Google Play gekauft, deshalb verwaltet Google es. Öffne auf deinem Android-Handy den Play Store, tippe auf dein Profilbild, dann auf Zahlungen und Abos und dann auf Abos.',
     iapUnavailableGoogle: 'Google Play antwortet gerade nicht. Mit deinem Konto ist alles in Ordnung. Versuch es gleich noch mal.',

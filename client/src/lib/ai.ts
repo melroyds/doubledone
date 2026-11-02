@@ -3,12 +3,77 @@
 // hardcoded fallback keeps the deployed build working; EXPO_PUBLIC_AI_URL
 // overrides it for local dev.
 
+import { isOffline, type PremiumMiss, premiumMiss } from './connection';
 import { t } from './i18n-active';
 import type { DayType, Setting } from './plan-day';
+import { purchaserProof } from './purchases';
 import { keepsakeKey } from './scrapbook';
 import { authHeader } from './supabase';
 
 const AI_URL = process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app';
+
+/** The header an iPhone that bought Premium without an account proves it with. The same name as
+ *  server/src/store-premium.ts PURCHASER_HEADER (purchases-split.test.ts reads it there). It contains "token", so
+ *  Cloudflare's request log shows its value as REDACTED, never the id. */
+export const PURCHASER_HEADER = 'X-Purchaser-Token';
+
+/** The one credential a Premium AI call carries: an account's token, or an iPhone's anonymous purchase id. */
+export type PremiumCredential = { kind: 'account' | 'purchase'; headers: Record<string, string> };
+
+/**
+ * The session's bearer whenever there is one, else, on an iPhone that bought Premium without an account, its
+ * anonymous purchase id (lib/purchases purchaserProof). Never both: the server reads the purchase header only when
+ * a request has no Authorization header at all, and a signed-in iPhone's RevenueCat id is its Supabase uuid, which
+ * purchaserProof refuses, so an account can never be lent through the header. Null when there is neither (signed out
+ * on the web or on Android, or before the iPhone's store has configured). Never throws.
+ */
+export async function premiumHeaders(): Promise<PremiumCredential | null> {
+  const auth = await authHeader();
+  if (auth) return { kind: 'account', headers: auth };
+  const proof = await purchaserProof();
+  return proof ? { kind: 'purchase', headers: { [PURCHASER_HEADER]: proof } } : null;
+}
+
+/** What a Premium AI call came back with: the route's answer (which may be empty: an empty read is still an answer),
+ *  or the reason there was none (lib/connection PremiumMiss), for the screen to say honestly. */
+export type PremiumResult<T> = { ok: true; value: T } | { ok: false; miss: PremiumMiss };
+
+/**
+ * One Premium AI call, the four of them (Scan, Reflect on this week, Chart a course, Plan my day). Never throws.
+ * No credential means no request at all: 'not_confirmed', or 'unavailable' when the web can tell it is offline (a
+ * session whose refresh failed offline looks the same). A refusal is read from its status (lib/connection
+ * premiumMiss). A 200 counts only when it is this route's answer: `parse` returns null for a body without the route's
+ * own field, and a body that is not JSON at all (the Worker answers plain text on a path it does not know, so a 200
+ * proves nothing on its own) is 'unavailable' too, never an empty answer that would blame the person's input.
+ */
+async function premiumCall<T>(path: string, body: unknown, parse: (data: unknown) => T | null): Promise<PremiumResult<T>> {
+  const cred = await premiumHeaders();
+  if (!cred) return { ok: false, miss: isOffline() ? 'unavailable' : 'not_confirmed' };
+  let res: Response;
+  try {
+    res = await fetch(`${AI_URL}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...cred.headers },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, miss: 'unavailable' };
+  }
+  if (!res.ok) return { ok: false, miss: premiumMiss(res.status) };
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return { ok: false, miss: 'unavailable' };
+  }
+  const value = parse(data);
+  return value === null ? { ok: false, miss: 'unavailable' } : { ok: true, value };
+}
+
+/** The route's own field, or undefined when the body is not an object or lacks it. */
+function field(data: unknown, name: string): unknown {
+  return data !== null && typeof data === 'object' ? (data as Record<string, unknown>)[name] : undefined;
+}
 
 export type DecomposedStep = { title: string; minutes: number };
 
@@ -223,47 +288,27 @@ export async function split(text: string): Promise<string[]> {
     : [];
 }
 
-/** OCR photo capture (PREMIUM): send a base64 photo of a list to the backend and get back the task
- *  titles it read, for the brain-dump box to review. The first client AI call that sends the user's
- *  token (the /ocr route is premium-gated server-side). Returns [] on any failure, an empty read, or
- *  when signed out, so the caller shows one calm line and never a raw error. */
-export async function ocr(imageBase64: string, mediaType?: string, language?: string): Promise<string[]> {
-  const auth = await authHeader();
-  if (!auth) return []; // signed out: no token to gate with, so nothing to send
-  try {
-    const res = await fetch(`${AI_URL}/ocr`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...auth },
-      body: JSON.stringify({ image: imageBase64, mediaType, language }),
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { tasks?: unknown };
-    return Array.isArray(data.tasks)
-      ? data.tasks.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
-      : [];
-  } catch {
-    return [];
-  }
+/** OCR photo capture (PREMIUM): send a base64 photo of a list to the backend and get back the task titles it read,
+ *  for the brain-dump box to review. /ocr is Premium-gated on the server, so the call carries the session's token, or
+ *  an iPhone's purchase proof when there is no account (premiumHeaders). An empty read is `{ ok: true, value: [] }`,
+ *  and anything that is not an answer says why, so the caller never blames a photo for a refusal. Never throws. */
+export async function ocr(imageBase64: string, mediaType?: string, language?: string): Promise<PremiumResult<string[]>> {
+  return premiumCall('/ocr', { image: imageBase64, mediaType, language }, (data) => {
+    const tasks = field(data, 'tasks');
+    return Array.isArray(tasks)
+      ? tasks.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())
+      : null;
+  });
 }
 
-/** Lookback weekly summary (PREMIUM): a finished week's titles in, one warm paragraph out, for the
- *  Lookback to display. Sends the user's token (the /lookback-summary route is premium-gated). Returns
- *  '' on any failure, an empty read, or when signed out, so the caller shows one calm line. */
-export async function lookbackSummary(titles: string[], language?: string): Promise<string> {
-  const auth = await authHeader();
-  if (!auth) return ''; // signed out: no token to gate with
-  try {
-    const res = await fetch(`${AI_URL}/lookback-summary`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...auth },
-      body: JSON.stringify({ titles, language }),
-    });
-    if (!res.ok) return '';
-    const data = (await res.json()) as { summary?: unknown };
-    return typeof data.summary === 'string' ? data.summary.trim() : '';
-  } catch {
-    return '';
-  }
+/** Lookback weekly summary (PREMIUM): a finished week's titles in, one warm paragraph out, for the Lookback to
+ *  display. Premium-gated on the server like /ocr (premiumCall). An empty paragraph is `{ ok: true, value: '' }`.
+ *  Never throws. */
+export async function lookbackSummary(titles: string[], language?: string): Promise<PremiumResult<string>> {
+  return premiumCall('/lookback-summary', { titles, language }, (data) => {
+    const summary = field(data, 'summary');
+    return typeof summary === 'string' ? summary.trim() : null;
+  });
 }
 
 export type CourseStep = { title: string; minutes: number };
@@ -284,23 +329,11 @@ export function parseCourse(data: unknown): Course {
   return { heading, steps };
 }
 
-/** Chart a course (PREMIUM): a goal in, a calm ordered list of next steps toward it out, for the user to
- *  review and accept. Sends the user's token (the /chart route is premium-gated). Returns an empty course on
- *  any failure or when signed out, so the screen shows one calm line and never a raw error. */
-export async function chart(goal: string, context?: { dueDate?: string | null }, language?: string): Promise<Course> {
-  const auth = await authHeader();
-  if (!auth) return { heading: '', steps: [] };
-  try {
-    const res = await fetch(`${AI_URL}/chart`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...auth },
-      body: JSON.stringify({ goal, context, language }),
-    });
-    if (!res.ok) return { heading: '', steps: [] };
-    return parseCourse(await res.json());
-  } catch {
-    return { heading: '', steps: [] };
-  }
+/** Chart a course (PREMIUM): a goal in, a calm ordered list of next steps toward it out, for the user to review and
+ *  accept. Premium-gated on the server (premiumCall). A course with no steps is the AI's own empty answer, the one
+ *  case where the screen may suggest rephrasing the goal. A refusal or a dropped call says why instead. Never throws. */
+export async function chart(goal: string, context?: { dueDate?: string | null }, language?: string): Promise<PremiumResult<Course>> {
+  return premiumCall('/chart', { goal, context, language }, (data) => (field(data, 'course') === undefined ? null : parseCourse(data)));
 }
 
 export type Energy = 'low' | 'medium' | 'good';
@@ -318,29 +351,19 @@ export function parseOrder(data: unknown): OrderItem[] {
     .map((o) => ({ id: o.id, reason: o.reason }));
 }
 
-/** Plan my order (PREMIUM): today's tasks in, a calm suggested order out, optionally matched to an energy
- *  level. Sends the user's token (the /sequence route is premium-gated). Returns [] on any failure or when
- *  signed out, so the caller shows one calm line and never reorders on an error. */
+/** Plan my order (PREMIUM): today's tasks in, a calm suggested order out, optionally matched to an energy level.
+ *  Premium-gated on the server (premiumCall). An empty order is `{ ok: true, value: [] }`, and a miss says why, so the
+ *  caller shows one calm line and never reorders on an error. Never throws. */
 export async function sequence(
   tasks: { id: string; title: string }[],
   energy?: Energy,
   language?: string,
   day?: DayType,
   setting?: Setting,
-): Promise<OrderItem[]> {
-  const auth = await authHeader();
-  if (!auth) return [];
-  try {
-    const res = await fetch(`${AI_URL}/sequence`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...auth },
-      body: JSON.stringify({ tasks, energy, language, day, setting }),
-    });
-    if (!res.ok) return [];
-    return parseOrder(await res.json());
-  } catch {
-    return [];
-  }
+): Promise<PremiumResult<OrderItem[]>> {
+  return premiumCall('/sequence', { tasks, energy, language, day, setting }, (data) =>
+    Array.isArray(field(data, 'order')) ? parseOrder(data) : null,
+  );
 }
 
 /** Energy matching: today's open tasks plus how much the person has right now, ONE pick back

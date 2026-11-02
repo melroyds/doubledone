@@ -55,8 +55,18 @@ export async function restore(_uid?: string | null): Promise<RestoreResult> {
 // is running on: RevenueCat entitlements are cross-store, so an Apple subscription shows on Android too.
 export type LocalEntitlement = Pick<Entitlement, 'since' | 'currentPeriodEnd' | 'cancelAtPeriodEnd' | 'source'>;
 
-/** The device's own store entitlement, or null. Always null on the web. */
-export async function localPremium(): Promise<LocalEntitlement | null> {
+/** The device's own store entitlement, or null. Always null on the web. `fresh` asks the store itself rather than
+ *  RevenueCat's cache on the device (the platform files say when, and what happens offline). */
+export async function localPremium(_opts?: { fresh?: boolean }): Promise<LocalEntitlement | null> {
+  return null;
+}
+
+/**
+ * The proof of Premium a device without an account sends with a Premium AI call (lib/ai premiumHeaders): its
+ * anonymous RevenueCat App User ID, which the Worker checks (server/src/store-premium.ts). Only the iPhone has one
+ * to send. Always null on the web, which sells through Stripe to accounts only.
+ */
+export async function purchaserProof(): Promise<string | null> {
   return null;
 }
 

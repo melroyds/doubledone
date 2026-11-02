@@ -1,13 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useSessionState } from './auth';
 import { correctedNow } from './clock';
+import type { PremiumMiss } from './connection';
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
 import { stepMonthEnd } from './month-end';
 import { type DevPremium, entitlementOwnerKey, gateEntitlement } from './premium-flag';
 import { localPremium } from './purchases';
 import { loadDevPremium, loadMonthEnd, saveDevPremium, saveMonthEnd } from './storage';
 import { loadEntitlementChecked } from './stripe';
+import { track } from './telemetry';
 
 // The dev premium override is honoured only in a local dev or preview build, never production, so
 // it is inert once `premium` merges to main. __DEV__ covers `npm run dev`; the env flag (set only
@@ -24,6 +26,10 @@ type PremiumValue = {
   devAllowed: boolean; // whether the dev override is usable in this build (false in production)
   setDevOverride: (v: DevPremium) => void;
   refresh: () => void; // re-read the server entitlement, e.g. after returning from checkout
+  // Re-read after the server has REFUSED a Premium call (a 403): the same load, with the device's store answer read
+  // fresh rather than from RevenueCat's cache, so the screen agrees with the server after one refusal instead of
+  // offering a feature the server keeps saying no to (2026-11-03).
+  recheck: () => void;
 };
 
 const PremiumContext = createContext<PremiumValue | null>(null);
@@ -40,6 +46,7 @@ const OUTSIDE_PROVIDER: PremiumValue = {
   devAllowed: false,
   setDevOverride: () => {},
   refresh: () => {},
+  recheck: () => {},
 };
 
 // Holds the premium entitlement plus the dev override, and exposes the resolved `premium` flag and a
@@ -52,6 +59,8 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [devOverride, setDevOverrideState] = useState<DevPremium>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Set by recheck, read and cleared by the next load, so only that one load asks the store fresh.
+  const freshStore = useRef(false);
   // Whose entitlement this is. The load below runs again when it changes, so signing in, signing out or switching
   // accounts re-reads at once, from any screen; a token refresh keeps the same id and costs nothing. Null until the
   // session is known, so the hydrating moment (a signed-in person reads as signed out) starts no read.
@@ -71,7 +80,9 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (owner === null) return; // the session is still being found out: read once it is known
     let active = true;
-    void Promise.all([loadEntitlementChecked(), localPremium(), loadMonthEnd()]).then(([read, storeLocal, monthMem]) => {
+    const fresh = freshStore.current;
+    freshStore.current = false;
+    void Promise.all([loadEntitlementChecked(), localPremium({ fresh }), loadMonthEnd()]).then(([read, storeLocal, monthMem]) => {
       if (!active) return;
       const e = read.ok ? read.entitlement : FREE_ENTITLEMENT;
       // Merge the device's FIELDS, not just its yes. Spreading only `e` (the FREE entitlement here)
@@ -103,6 +114,10 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const recheck = useCallback(() => {
+    freshStore.current = true;
+    setReloadKey((k) => k + 1);
+  }, []);
 
   const setDevOverride = useCallback((v: DevPremium) => {
     setDevOverrideState(v);
@@ -123,8 +138,9 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
       devAllowed: DEV_PREMIUM_ALLOWED,
       setDevOverride,
       refresh,
+      recheck,
     };
-  }, [entitlement, devOverride, loading, setDevOverride, refresh]);
+  }, [entitlement, devOverride, loading, setDevOverride, refresh, recheck]);
 
   return <PremiumContext.Provider value={value}>{children}</PremiumContext.Provider>;
 }
@@ -136,4 +152,24 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
  */
 export function usePremium(): PremiumValue {
   return useContext(PremiumContext) ?? OUTSIDE_PROVIDER;
+}
+
+/** The four Premium AI features, as the after-miss note names them. */
+export type PremiumAiFeature = 'scan' | 'chart' | 'sequence' | 'reflect';
+
+/**
+ * What a Premium AI screen does after a miss, beside showing lib/connection premiumMissLine: notes it on the device's
+ * console only (never beaconed, and never with any id), and after a refusal ('not_active') rechecks Premium, so a
+ * lapsed or refunded subscriber is shown the way back to Premium on the next tap rather than the same refusal all
+ * session. One hook, so the four screens can never drift apart on it.
+ */
+export function usePremiumMiss(): (feature: PremiumAiFeature, miss: PremiumMiss) => void {
+  const { recheck } = usePremium();
+  return useCallback(
+    (feature: PremiumAiFeature, miss: PremiumMiss) => {
+      track('premium.ai_miss', { feature, miss });
+      if (miss === 'not_active') recheck();
+    },
+    [recheck],
+  );
 }

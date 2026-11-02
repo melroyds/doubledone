@@ -53,7 +53,7 @@ import { fetchMonthAnswer, onOfferRetired } from '@/lib/note';
 import { shouldShowOfferCard } from '@/lib/offer-card';
 import { celebrationTier, doneAffirmation, finishContext } from '@/lib/celebrate';
 import { combineTasks, eligibleForCombine } from '@/lib/combine';
-import { aiErrorLine } from '@/lib/connection';
+import { aiErrorLine, premiumMissLine } from '@/lib/connection';
 import { ageInDays, isBigWin } from '@/lib/reward';
 import { phaseGreeting } from '@/lib/phase';
 import { addDaysISO, daysBetween, formatTodayLabel, friendlyDate, fromISODate, isMorningClose, isReentry, presetDate, toISODate } from '@/lib/day';
@@ -105,7 +105,7 @@ import { completeOnDay, makeId, nowMs, parseDump, rebaseOnLatest, sweepElapsedNu
 import { summarizeAdded, summaryLine, triageToTasks } from '@/lib/triage';
 import { track } from '@/lib/telemetry';
 import { useReducedMotion, useSettings, useTheme, useThemedStyles } from '@/lib/theme-provider';
-import { usePremium } from '@/lib/premium-provider';
+import { usePremium, usePremiumMiss } from '@/lib/premium-provider';
 import { applyManualOrder, deferTo, groupLater, hasActiveTinyChild, laterFoldKey, healStuckParents, holdSecond, isDoneOn, isRecurring, pinFirst, renameTask, setBig, setLeftOff, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, tuckFinished, UNDO_REMOVE_MS, upcomingTasks } from '@/lib/today';
 
 import closeDayArt from '../../assets/images/closeday.jpg';
@@ -448,6 +448,7 @@ export default function TodayScreen() {
   // `entitlement` is the RAW server one, deliberately: the dev override must never conjure a
   // renewal notice about money that is not moving.
   const { premium, loading: premiumLoading, entitlement } = usePremium(); // gates Pin; a dev override drives it locally
+  const notePremiumMiss = usePremiumMiss(); // after a Plan my day miss: the note, and a recheck after a refusal
   const sheetRef = useRef<CaptureSheetHandle>(null);
   const listEndRef = useRef(0); // where today's rows end, in the scroll content (see revealListEnd)
   // A card's editor near the bottom: the keyboard's top edge, the list's offset and the field waiting for
@@ -2576,7 +2577,11 @@ export default function TodayScreen() {
       // The SHAPE of the ask only (which questions got answered), never what they answered about
       // themselves beyond the three values, and never any task text.
       track('sequence.requested', { count: spreadable.length, tailored: hasContext(context) });
-      if (result.length > 0) setOrder(result);
+      if (!result.ok) {
+        // Refused or dropped before any AI saw the day: the line says which (lib/connection premiumMissLine).
+        setOrderError(premiumMissLine(result.miss, t('today.sequenceError')));
+        notePremiumMiss('sequence', result.miss);
+      } else if (result.value.length > 0) setOrder(result.value);
       else setOrderError(aiErrorLine(t('today.sequenceError')));
     } catch {
       setOrderError(aiErrorLine(t('today.sequenceError')));

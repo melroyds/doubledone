@@ -3,8 +3,11 @@
 // viewfinder). The captured image is downscaled, sent to the backend's /ocr (Claude vision) via the
 // ocr() seam, and the titles it reads are handed back to the brain-dump box to review and edit.
 // Nothing is auto-added to Today, and the photo is never stored: it is sent to the AI to read, then
-// discarded. The caller premium-gates the entry point, so this only opens for an entitled, signed-in
-// user. Camera capture cannot be exercised in the web preview (no device camera); it is device-tested.
+// discarded. The caller premium-gates the entry point, so this only opens for an entitled user: signed
+// in, or an iPhone that bought Premium without an account (lib/ai premiumHeaders sends its purchase
+// proof). A refusal or a dropped call says what happened (lib/connection premiumMissLine), and only an
+// empty read blames the photo. Camera capture cannot be exercised in the web preview (no device camera);
+// it is device-tested.
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -15,8 +18,9 @@ import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View }
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
-import { aiErrorLine } from '@/lib/connection';
+import { aiErrorLine, premiumMissLine } from '@/lib/connection';
 import { t } from '@/lib/locale';
+import { usePremiumMiss } from '@/lib/premium-provider';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
 
@@ -41,6 +45,7 @@ export function CameraCapture({ visible, onClose, onTasks, onDismiss, language }
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const noteMiss = usePremiumMiss();
 
   // Downscale to <=1080px wide and re-encode to JPEG q0.6 (base64), so the upload and the vision-token
   // cost stay small. The manipulator reads the file URI, so takePictureAsync need not return base64.
@@ -54,13 +59,19 @@ export function CameraCapture({ visible, onClose, onTasks, onDismiss, language }
         setError(t('capture.errorPrepareImage'));
         return;
       }
-      const tasks = await ocr(out.base64, 'image/jpeg', language);
-      if (tasks.length === 0) {
-        setError(t('capture.errorNoTasksRead'));
+      const r = await ocr(out.base64, 'image/jpeg', language);
+      if (!r.ok) {
+        // Refused or dropped before any AI saw the photo: say that, never "couldn't read any tasks".
+        setError(premiumMissLine(r.miss, t('capture.errorReadPhoto')));
+        noteMiss('scan', r.miss);
         return;
       }
-      track('ocr.captured', { count: tasks.length });
-      onTasks(tasks);
+      if (r.value.length === 0) {
+        setError(t('capture.errorNoTasksRead')); // the AI read the photo and found no list in it
+        return;
+      }
+      track('ocr.captured', { count: r.value.length });
+      onTasks(r.value);
     } catch {
       setError(aiErrorLine(t('capture.errorReadPhoto')));
     } finally {

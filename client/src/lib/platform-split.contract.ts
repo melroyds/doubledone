@@ -9,6 +9,10 @@
 //
 // Literal flag types are widened first (`true` and `false` are both boolean), so the switches may differ
 // in VALUE per platform but never in kind.
+//
+// The newest member of the purchases pair is `purchaserProof` (2026-11-03, Premium without an account): the
+// iPhone's anonymous RevenueCat id, null on the web and on Android. Nothing here names it: the whole namespaces
+// are compared, so a platform file without it fails this check like any other name.
 
 // ESLint's resolver picks the `.android.ts` file for a bare './purchases' (as Metro does on Android), so it
 // reads these pairs as one module imported twice. tsc, which is what checks this file, reads the base file.

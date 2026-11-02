@@ -11712,3 +11712,74 @@ sends the header and fixes the misleading lines, is its own commit. Neither is d
 - **Rotating `RC_SECRET_KEY` re-scrambles every id**: blocks and account refusals lapse until re-added or re-recorded.
 - **After a rollback past this change, clear `store_premium_cache` and `store_premium_counts` by hand**, because the
   older Worker has no purge (docs/operations.md).
+
+## 2026-11-03: Premium without an account, the app half: an iPhone with no account sends its purchase id, and every Premium miss says what happened
+
+Melroy: "Please go on Option 1." The server half (`c99309c`) lets a request with no Authorization header prove a
+store purchase in `X-Purchaser-Token`. This is the app half: the iPhone sends it, and the four Premium AI screens
+(Scan, Chart a course, Plan my day, Reflect on this week) stop telling people to rephrase a goal or retake a photo
+the server refused. Not pushed, not built. The web gets only the honest lines (it never has a proof to send), and the
+iPhone gets the proof with the 16 to 22 Nov store build, which waits for PREM-74 to show the header as REDACTED in
+Cloudflare's log.
+
+**Decided:**
+- **One credential per call, the bearer first.** `premiumHeaders()` sends the session's bearer whenever there is one,
+  and the anonymous purchase id only without one. The server reads the header only when there is no Authorization at
+  all, and a signed-in iPhone's RevenueCat id is its Supabase uuid, which the strict form refuses, so the app cannot
+  lend an account's Premium even by mistake.
+- **`purchaserProof()` on the purchases split, the iPhone only.** The web base and Android return null: the web sells
+  through Stripe to accounts, and Android sells only to accounts, so a signed-out Android id never holds a purchase.
+  The iPhone returns `Purchases.getAppUserID()` only in the strict anonymous form, and null before configure, once
+  signed in, and on any error. The pattern sits in `iap.ts` (`ANON_PURCHASER_RE`), the same text as the server's, and
+  `purchases-split.test.ts` reads both server constants (the pattern and the header name) as text, so the phone can
+  never send a header nobody reads or a proof the server refuses.
+- **The four calls return why they missed.** `{ ok: true, value }` or `{ ok: false, miss }`: `not_confirmed` (a 401,
+  or no credential at all), `not_active` (a 403), and `unavailable` (a 429, a 5xx, a timeout, no network, or a body
+  that is not the route's answer). A 200 counts only when it carries the route's own field, so the Worker's plain-text
+  catch-all can never read as the AI's empty answer. No credential means no request at all, as before.
+- **Only the AI's own empty answer may blame the input.** "Try rephrasing the goal?" and "couldn't read any tasks" now
+  show only when an AI read the goal or the photo and came back empty. Chart gets a retry line of its own
+  (`chart.mapRetry`, in its "I" voice), the other three reuse their existing "just now, try again" lines, and a throw
+  in Chart is the retry line too.
+- **Two Premium lines, in the premium namespace's "we" voice, with the check as the subject.** The Apple review's
+  point: everyone who can read them is looking at a screen that says Premium, so "Premium isn't showing as active"
+  would be false. `premium.aiNotActive` (403): "We couldn't find an active Premium for you just now, so nothing went to
+  the AI. If you've only just bought or restored it, give it a minute and try again." The minute matches the store
+  check's minute-long no. `premium.aiNotConfirmed` (401). "Nothing went to the AI" is true of both, because the server
+  refuses before any AI call.
+- **After a refusal the screen rechecks Premium, with a fresh store read.** One hook, `usePremiumMiss`, calls the
+  provider's new `recheck()`, which reloads with `localPremium({ fresh: true })`: RevenueCat is asked again instead of
+  trusting its cache on the device. So a lapsed or refunded subscriber is shown the way back to Premium on the next tap,
+  not the same refusal all session, which is the retry spiral lib/connection exists to prevent. The Apple review moved
+  this from "should" to "must". The cached answer stands if the store cannot be reached on that read.
+- **Offline with no credential is `unavailable`**, so the web shows the offline line when a session refresh that failed
+  offline is the real reason, rather than "couldn't confirm your Premium".
+- **A miss is noted on the device's console only** (`premium.ai_miss`, the feature and the miss), never beaconed and
+  never with an id.
+- **The screens' wiring is held in their source** (`connection.test.ts`, the `settings.test.ts` precedent), because the
+  harness renders no screen: the miss lines, the single rephrase and no-tasks lines in their empty-answer branches, and
+  the note.
+
+**Decided against:**
+- **Inventing translations.** The three new keys (`chart.mapRetry`, `premium.aiNotActive`, `premium.aiNotConfirmed`)
+  are English in de, fr, es and it until the native read, which the catalogue type requires, with typographic
+  apostrophes in the French file, which its typography test requires.
+- **The proof on any other call.** Scrapbooks and energy matching are not gated on the server, and the free calls need
+  no credential.
+- **A recheck after a 401.** A token the server could not verify, or no credential, is not mended by re-reading Premium.
+- **A fresh store read on every load.** Only after a refusal, so the cache keeps doing its job offline.
+- **Editing the privacy pages.** They are legal text. The section the server half needs is drafted for Melroy's yes,
+  and the app half adds no fact to it. PRV-03 goes in with that edit.
+
+**Accepted edges:**
+- **A fresh read that fails offline clears RevenueCat's cache until its next good read.** That read keeps the cached
+  answer, but an app reopened offline straight after could show free until the store answers. It needs a refusal,
+  which needed the network a moment before.
+- **A tap within seconds of a production purchase can be refused**, because the store check honours production Premium
+  only once our webhook has logged the purchase. The line says to give it a minute. Sandbox (App Review, TestFlight)
+  needs no logged row.
+- **A purchase id refused for good** (one that arrived beside an account) keeps the phone showing Premium while the
+  server says no. That needs an attack or a rare merge, and the line stays calm and true.
+- **The traps the server half recorded for the client are the next commit**: iOS waits for configure, the reconcile
+  runs only after a `logIn` that worked and after a Restore while signed in, and a signed-in refusal while the store
+  still shows Premium mends itself once.

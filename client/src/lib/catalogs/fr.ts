@@ -175,6 +175,8 @@ export const fr: Catalog = {
     goalPlaceholder: 'ex. me préparer pour un 10 km, apprendre trois recettes simples',
     intro: 'Nomme quelque chose vers quoi tu avances. Tu recevras une liste tranquille des prochaines étapes, à prendre ou à laisser.',
     mapError: "Je n’ai pas réussi à tracer la route cette fois. Reformuler l’objectif ?",
+    // English until the native read (2026-11-03, Premium without an account). Typographic apostrophes, as this file needs.
+    mapRetry: "I couldn’t map that out just now. Your goal is still here, so try again in a moment.",
     pickAStep: 'Choisis une étape à ajouter',
     spreadNote: "La première étape se pose sur Aujourd’hui, les autres s’étalent en douceur {spreadHint}. Elles deviennent des tâches comme les autres.",
     spreadNoteOverNextDays: 'sur les prochains jours',
@@ -593,6 +595,9 @@ export const fr: Catalog = {
     },
   },
   premium: {
+    // English until the native read (2026-11-03, Premium without an account). Typographic apostrophes, as this file needs.
+    aiNotActive: "We couldn’t find an active Premium for you just now, so nothing went to the AI. If you’ve only just bought or restored it, give it a minute and try again.",
+    aiNotConfirmed: "We couldn’t confirm your Premium just now, so nothing went to the AI. Try again in a moment.",
     appleManageElsewhere: "Cet abonnement a été acheté sur un iPhone ou un iPad, c’est donc Apple qui le gère. Sur cet appareil-là, ouvre Réglages, touche ton nom, puis Abonnements.",
     googleManageElsewhere: "Cet abonnement a été acheté sur Google Play, c’est donc Google qui le gère. Sur ton téléphone Android, ouvre le Play Store, touche ta photo de profil, puis Paiements et abonnements, puis Abonnements.",
     iapUnavailableGoogle: "Google Play ne répond pas pour le moment. Il n’y a aucun problème avec ton compte. Réessaie dans un instant.",

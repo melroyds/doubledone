@@ -175,6 +175,8 @@ export const es: Catalog = {
     goalPlaceholder: 'p. ej. prepararme para una carrera de 10 km, aprender tres recetas fáciles',
     intro: 'Escribe algo hacia lo que estés avanzando. Recibirás una lista tranquila con los próximos pasos, para tomarlos o dejarlos.',
     mapError: 'No pude trazar el plan ahora mismo. ¿Quieres plantear la meta de otra forma?',
+    // English until the native read (2026-11-03, Premium without an account).
+    mapRetry: "I couldn't map that out just now. Your goal is still here, so try again in a moment.",
     pickAStep: 'Elige un paso para añadir',
     spreadNote: 'El primer paso cae en Hoy, y el resto se reparte con calma {spreadHint}. Se convierten en tareas normales.',
     spreadNoteOverNextDays: 'en los próximos días',
@@ -593,6 +595,9 @@ export const es: Catalog = {
     },
   },
   premium: {
+    // English until the native read (2026-11-03, Premium without an account).
+    aiNotActive: "We couldn't find an active Premium for you just now, so nothing went to the AI. If you've only just bought or restored it, give it a minute and try again.",
+    aiNotConfirmed: "We couldn't confirm your Premium just now, so nothing went to the AI. Try again in a moment.",
     appleManageElsewhere: 'Esta suscripción se compró en un iPhone o iPad, así que la gestiona Apple. Abre Ajustes en ese dispositivo, toca tu nombre y luego Suscripciones.',
     googleManageElsewhere: 'Esta suscripción se compró en Google Play, así que la gestiona Google. En tu móvil Android, abre Play Store, toca tu foto de perfil, luego Pagos y suscripciones y después Suscripciones.',
     iapUnavailableGoogle: 'Google Play no responde ahora mismo. Tu cuenta está bien. Inténtalo de nuevo en un momento.',

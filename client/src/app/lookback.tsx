@@ -12,14 +12,14 @@ import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } f
 import { lookbackSummary, makeScrapbook, purgeScrapbookImages } from '@/lib/ai';
 import { useSession } from '@/lib/auth';
 import { addMonths, canAddToDay, completionsByDay, monthLabel, monthMatrix, scheduledByDay, WEEKDAY_LABELS } from '@/lib/calendar';
-import { aiErrorLine } from '@/lib/connection';
+import { aiErrorLine, premiumMissLine } from '@/lib/connection';
 import { formatTodayLabel, fromISODate, toISODate } from '@/lib/day';
 import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
 import { captureKeepsakeCard } from '@/lib/keepsake-capture';
 import { lookbackStats } from '@/lib/insights';
 import { fmt, t } from '@/lib/locale';
-import { usePremium } from '@/lib/premium-provider';
+import { usePremium, usePremiumMiss } from '@/lib/premium-provider';
 import { findScrapbook, remakeScrapbook, type Scrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { retireReplacedKeepsake } from '@/lib/scrapbook-sync';
 import { shareScrapbook } from '@/lib/share';
@@ -67,6 +67,7 @@ export default function LookbackScreen() {
   // The premium flag's gate-ready entitlement: real tenure, premium resolved through the dev
   // override, so the scrapbook cadence below is exactly what the Settings override drives.
   const { effectiveEntitlement, premium, loading: premiumLoading } = usePremium();
+  const notePremiumMiss = usePremiumMiss();
   const session = useSession(); // a remade keepsake goes to the account before the old picture is retired
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
@@ -207,8 +208,9 @@ export default function LookbackScreen() {
   }
 
   // The premium weekly reflection: the selected week's finished titles in, one warm paragraph out.
-  // Display-only, it changes no tasks, so there is no propose-then-accept. lookbackSummary never throws
-  // (returns '' on any failure), so an empty result is the one calm error path.
+  // Display-only, it changes no tasks, so there is no propose-then-accept. lookbackSummary never throws:
+  // a refusal or a dropped call says what happened (lib/connection premiumMissLine), and an empty
+  // paragraph keeps the feature's own calm line.
   async function reflectOnWeek() {
     const titles = weekList.map((c) => c.title);
     if (summaryBusy || titles.length === 0) return;
@@ -216,9 +218,12 @@ export default function LookbackScreen() {
     setSummaryError(null);
     setSummaryWeek(weekStart);
     try {
-      const text = await lookbackSummary(titles);
-      if (text) {
-        setSummary(text);
+      const r = await lookbackSummary(titles);
+      if (!r.ok) {
+        setSummaryError(premiumMissLine(r.miss, t('lookback.reflectError')));
+        notePremiumMiss('reflect', r.miss);
+      } else if (r.value) {
+        setSummary(r.value);
         track('lookback.summary.made', { titles: titles.length });
       } else {
         setSummaryError(aiErrorLine(t('lookback.reflectError')));

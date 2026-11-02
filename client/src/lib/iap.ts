@@ -204,6 +204,23 @@ export function localEntitlement(info: unknown): Pick<Entitlement, 'since' | 'cu
   };
 }
 
+/**
+ * RevenueCat's anonymous App User ID exactly as its SDKs make it: `$RCAnonymousID:` and a uuid's 32 hex digits with
+ * the dashes taken out, lowercase. 47 characters. The SAME pattern as server/src/purchaser.ts ANON_PURCHASER_RE: keep
+ * the two identical (purchases-split.test.ts reads the server's copy and fails if they drift).
+ *
+ * It is the proof an iPhone that bought Premium without an account sends with a Premium AI call (lib/ai). The one
+ * thing it rules out matters most: an account. Once signed in, RevenueCat's App User ID IS the Supabase uuid, which
+ * this refuses, so a phone can never lend an account's Premium through the header. What ties an id to a purchase is
+ * the server's own webhook log, never this pattern.
+ */
+export const ANON_PURCHASER_RE = /^\$RCAnonymousID:[0-9a-f]{32}$/;
+
+/** The id when it is RevenueCat's anonymous form, else null. Never throws. */
+export function anonymousPurchaserId(id: unknown): string | null {
+  return typeof id === 'string' && ANON_PURCHASER_RE.test(id) ? id : null;
+}
+
 /** RevenueCat's `store` as our entitlement source: Apple, Google Play, or no store we bill through. */
 export function storeOf(store: unknown): 'apple' | 'google' | null {
   if (store === 'APP_STORE' || store === 'MAC_APP_STORE') return 'apple';

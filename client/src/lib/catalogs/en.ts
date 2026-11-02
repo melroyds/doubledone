@@ -182,6 +182,9 @@ export const en = {
     goalPlaceholder: 'e.g. get fit for a 10k, learn three easy meals',
     intro: 'Name something you are working toward. You will get a calm list of the next few steps, yours to take or leave.',
     mapError: "I couldn't map that out just now. Try rephrasing the goal?",
+    // A call that never reached an answer (the server or the AI could not do it just now). mapError above is only
+    // for the AI's own empty answer, the one case where the goal itself may be the problem (2026-11-03).
+    mapRetry: "I couldn't map that out just now. Your goal is still here, so try again in a moment.",
     pickAStep: 'Pick a step to add',
     spreadNote: 'The first step lands on Today, the rest spread gently {spreadHint}. They become ordinary tasks.',
     spreadNoteOverNextDays: 'over the next days',
@@ -600,6 +603,11 @@ export const en = {
     },
   },
   premium: {
+    // A Premium AI call the server refused before any AI saw it (lib/connection premiumMissLine): Scan, Chart a course,
+    // Plan my day, Reflect on this week. The check is the subject, in this namespace's "we" voice, because the person
+    // reading it is looking at a screen that says Premium (2026-11-03). aiNotActive is the 403, aiNotConfirmed the 401.
+    aiNotActive: "We couldn't find an active Premium for you just now, so nothing went to the AI. If you've only just bought or restored it, give it a minute and try again.",
+    aiNotConfirmed: "We couldn't confirm your Premium just now, so nothing went to the AI. Try again in a moment.",
     appleManageElsewhere: 'This subscription was bought on an iPhone or iPad, so Apple handles it. Open Settings on that device, tap your name, then Subscriptions.',
     googleManageElsewhere: 'This subscription was bought through Google Play, so Google handles it. On your Android phone, open the Play Store, tap your profile picture, then Payments and subscriptions, then Subscriptions.',
     iapUnavailableGoogle: 'Google Play is not answering right now. Nothing is wrong with your account. Try again in a moment.',

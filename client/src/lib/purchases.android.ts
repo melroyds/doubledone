@@ -80,11 +80,20 @@ export async function identifyPurchaser(userId: string): Promise<void> {
 
 // The device's own answer for the current customer, as the fields our model uses. On Android a customer
 // is always a signed-in account (we never sell to an anonymous id), so this mostly bridges the moments
-// between a purchase and its webhook. The SDK serves a cached CustomerInfo offline.
-export async function localPremium(): Promise<LocalEntitlement | null> {
+// between a purchase and its webhook. The SDK serves a cached CustomerInfo offline. `fresh` asks RevenueCat
+// itself after the server has refused a Premium call, with the cached answer standing if it cannot be reached
+// (the iOS file says why).
+export async function localPremium(opts?: { fresh?: boolean }): Promise<LocalEntitlement | null> {
   if (!(await ready())) return null;
   try {
-    return localEntitlement(await Purchases.getCustomerInfo());
+    const cached = await Purchases.getCustomerInfo();
+    if (!opts?.fresh) return localEntitlement(cached);
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      return localEntitlement(await Purchases.getCustomerInfo());
+    } catch {
+      return localEntitlement(cached); // the store did not answer: the last answer stands
+    }
   } catch {
     return null; // store unreachable and no cache: fail free, never crash the provider
   }
@@ -185,6 +194,13 @@ export async function openStoreSubscriptions(): Promise<void> {
   } catch {
     // no browser or Play Store to open: nothing to recover
   }
+}
+
+// No proof to send, ever. Android sells only to accounts (buy() refuses without one), so a signed-out phone's
+// anonymous RevenueCat id never holds a purchase, and every Premium AI call here goes with the account's token
+// (lib/ai premiumHeaders). Kept so every platform file exports the same names (platform-split.contract.ts).
+export async function purchaserProof(): Promise<string | null> {
+  return null;
 }
 
 // Android resolves `@/lib/purchases` to THIS file, so the flag is true here.

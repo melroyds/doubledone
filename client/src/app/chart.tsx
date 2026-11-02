@@ -12,11 +12,11 @@ import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/compone
 import { rowDoor } from '@/components/row-door';
 import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
-import { aiErrorLine } from '@/lib/connection';
+import { aiErrorLine, premiumMissLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
 import { hasPendingInbound, setInbound } from '@/lib/inbound';
 import { fmt, t } from '@/lib/locale';
-import { usePremium } from '@/lib/premium-provider';
+import { usePremium, usePremiumMiss } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
 import { loadTasks, saveTasks } from '@/lib/storage';
 import { type Task } from '@/lib/tasks';
@@ -80,6 +80,7 @@ export default function ChartScreen() {
   const theme = useTheme();
   const aiEnabled = useSettings().settings.aiEnabled;
   const { premium, loading: premiumLoading } = usePremium();
+  const noteMiss = usePremiumMiss();
   const origin = useRoomOrigin();
   const entrance = useRoomEntrance();
   const today = useMemo(() => new Date(), []);
@@ -127,20 +128,28 @@ export default function ChartScreen() {
     setError(null);
     track('chart.requested');
     try {
-      const course = await chart(g, dueDate ? { dueDate } : undefined);
-      if (course.steps.length === 0) {
+      const r = await chart(g, dueDate ? { dueDate } : undefined);
+      if (!r.ok) {
+        // Refused or dropped before any AI read the goal, so the line says what happened and never asks for a
+        // rephrase (it did, to a paying iPhone with no account whose request never left the phone, 2026-11-03).
+        setError(premiumMissLine(r.miss, t('chart.mapRetry')));
+        noteMiss('chart', r.miss);
+        setSteps([]);
+        setHeading('');
+      } else if (r.value.steps.length === 0) {
+        // The AI's own empty answer: the one case where the goal itself may be the problem.
         setError(aiErrorLine(t('chart.mapError')));
         setSteps([]);
         setHeading('');
       } else {
-        setHeading(course.heading);
-        setSteps(course.steps.map((s) => ({ ...s, checked: true, removed: false, original: s.title })));
+        setHeading(r.value.heading);
+        setSteps(r.value.steps.map((s) => ({ ...s, checked: true, removed: false, original: s.title })));
         setEditing(null);
       }
     } catch {
-      // chart() swallows its own errors today, but decouple this screen from that
-      // implicit never-throws contract: show the same calm empty-course line.
-      setError(aiErrorLine(t('chart.mapError')));
+      // chart() never throws, but this screen does not lean on that. A throw is not the AI's answer, so it is the
+      // retry line, never the rephrase one.
+      setError(aiErrorLine(t('chart.mapRetry')));
       setSteps([]);
       setHeading('');
     } finally {

@@ -2,7 +2,54 @@ import { describe, expect, it } from 'vitest';
 
 import { weeklyAllowance } from './entitlement';
 import { FREE_ENTITLEMENT, type Entitlement } from './entitlement';
-import { buyCheck, heldSubscription, localEntitlement, needsBillingFix, packagesToOffers, purchaseGate, purchaseOutcome, storeOf } from './iap';
+import {
+  ANON_PURCHASER_RE,
+  anonymousPurchaserId,
+  buyCheck,
+  heldSubscription,
+  localEntitlement,
+  needsBillingFix,
+  packagesToOffers,
+  purchaseGate,
+  purchaseOutcome,
+  storeOf,
+} from './iap';
+
+// The proof an iPhone without an account sends (2026-11-03). The same accept and reject table as the Worker's
+// purchaserFrom (server/src/store-premium.test.ts), so the phone never sends what the server would refuse, and never
+// lends an account. purchases-split.test.ts checks the two patterns are the same text.
+describe("anonymousPurchaserId: only RevenueCat's anonymous form is a proof", () => {
+  const HEX = '0123456789abcdef0123456789abcdef';
+  const ID = `$RCAnonymousID:${HEX}`;
+  const UID = '11111111-2222-3333-4444-555555555555';
+
+  it('accepts the anonymous form exactly, 47 characters', () => {
+    expect(ID).toHaveLength(47);
+    expect(anonymousPurchaserId(ID)).toBe(ID);
+    expect(ANON_PURCHASER_RE.test(ID)).toBe(true);
+  });
+
+  it('refuses an account, a near miss, an encoding, a pair, and anything that is not a string', () => {
+    for (const v of [
+      UID, // a signed-in phone's RevenueCat id IS its Supabase uuid: never a proof
+      UID.replace(/-/g, ''),
+      `$RCAnonymousID:${HEX.toUpperCase()}`,
+      `$RCAnonymousID:${HEX.slice(1)}`, // 31 hex
+      `$RCAnonymousID:${HEX}0`, // 33 hex
+      `$RCAnonymousID:${HEX.slice(0, 31)}g`, // a letter past f
+      `%24RCAnonymousID%3A${HEX}`,
+      `$RCAnonymousID:${HEX}x`,
+      `$rcanonymousid:${HEX}`,
+      ` ${ID}`,
+      `${ID}, ${ID}`,
+      HEX,
+      '',
+    ]) {
+      expect(anonymousPurchaserId(v), v).toBeNull();
+    }
+    for (const v of [null, undefined, 47, {}, [ID]]) expect(anonymousPurchaserId(v)).toBeNull();
+  });
+});
 
 describe('purchaseOutcome (thrown SDK purchase error -> one calm outcome)', () => {
   it('reads userCancelled first, before any code', () => {

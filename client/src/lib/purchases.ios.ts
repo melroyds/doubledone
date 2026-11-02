@@ -9,7 +9,7 @@
 
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
-import { localEntitlement, packagesToOffers, purchaseOutcome } from './iap';
+import { anonymousPurchaserId, localEntitlement, packagesToOffers, purchaseOutcome } from './iap';
 import type { BuyResult, LocalEntitlement, RestoreResult, StoreOffer } from './purchases';
 import { track } from './telemetry';
 
@@ -70,10 +70,23 @@ export async function identifyPurchaser(userId: string): Promise<void> {
 // entitlement row until they sign in and the alias lands, so the provider merges this local
 // read over the server's answer. The SDK serves a cached CustomerInfo when offline, so a
 // paid-up user is never locked out by a dead connection.
-export async function localPremium(): Promise<LocalEntitlement | null> {
+//
+// `fresh` (2026-11-03) is for the moment the server has just refused a Premium call (lib/premium-provider
+// recheck): ask RevenueCat itself, because its cache on the device can hold an active Premium long after a
+// refund or a lapse, and the screen then keeps offering what the server keeps refusing. The cached answer is
+// read first and stands when the store cannot be reached, so a fresh read never turns a dead connection into
+// "free" on this call (invalidating does clear the SDK's cache until its next successful read).
+export async function localPremium(opts?: { fresh?: boolean }): Promise<LocalEntitlement | null> {
   if (!configured) return null;
   try {
-    return localEntitlement(await Purchases.getCustomerInfo());
+    const cached = await Purchases.getCustomerInfo();
+    if (!opts?.fresh) return localEntitlement(cached);
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      return localEntitlement(await Purchases.getCustomerInfo());
+    } catch {
+      return localEntitlement(cached); // the store did not answer: the last answer stands
+    }
   } catch {
     return null; // store unreachable and no cache: fail free, never crash the provider
   }
@@ -154,10 +167,26 @@ export async function openAppleSubscriptions(): Promise<void> {
 export const IAP_AVAILABLE = true;
 export type { StoreOffer, BuyResult, RestoreResult } from './purchases';
 
-// Added with Path A (2026-10), additive only: nothing above this line changed, so the live iOS money path
-// is the same code. The shared seam names the store and opens its own subscription screen on every
+// Added with Path A (2026-10), additive only: nothing above this line changed with Path A, so the iOS money
+// path stayed the same code. The shared seam names the store and opens its own subscription screen on every
 // platform; on iOS that is Apple and Apple's sheet.
 export const STORE_SOURCE: 'apple' | 'google' | null = 'apple';
 export async function openStoreSubscriptions(): Promise<void> {
   return openAppleSubscriptions();
+}
+
+// Added with Premium without an account (2026-11-03), beside localPremium's fresh read above. The one proof of
+// Premium an iPhone without an account has: its anonymous RevenueCat App User ID, sent by lib/ai with a Premium AI
+// call when there is no session, and checked by the Worker against our webhook log and RevenueCat
+// (server/src/store-premium.ts). Null once signed in (the id is then the Supabase uuid, which anonymousPurchaserId
+// refuses, so a phone can never lend an account), before configure has finished, and on any error. Never logged,
+// never stored by the app: it lives in RevenueCat's own cache on the device, which only a reinstall, or signing in
+// and out again, replaces.
+export async function purchaserProof(): Promise<string | null> {
+  if (!configured) return null;
+  try {
+    return anonymousPurchaserId(await Purchases.getAppUserID());
+  } catch {
+    return null;
+  }
 }
