@@ -11531,6 +11531,12 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
 **Accepted edges:**
 - Two devices in different zones on one account trade the zone back and forth, the one opened last winning. The
   device in your hand is the better guess.
+- **One zone under two names** (review find, 2026-11-02). A Windows browser in Melbourne often reports
+  Australia/Sydney while an iPhone reports Australia/Melbourne, so two such devices trade the name after each hourly
+  refresh, each writing its own on its next open. The day is identical, so it is harmless churn: at most one write
+  per device per session refresh, and since the refresh asks the account first, only while the account still keeps
+  a zone. Treating names with the same day as equal would need a table of zone rules in the app, for a write nobody
+  sees.
 - A browser with scripts off sends no zone, so that connection keeps the UTC day until the person taps Copy my
   token or connects again. The app keeps a zone current but never creates one.
 - The zone in a token is as old as the token. After a flight, the agent catches up within about an hour: the app

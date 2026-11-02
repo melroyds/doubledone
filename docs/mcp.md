@@ -481,7 +481,7 @@ names on a write still wins.
   (from the browser you sign in on). The app keeps it current when you open Today in a new zone,
   but never creates one by itself, and Disconnect AI connectors clears it. Supabase puts it in
   every access token (`user_metadata.tz`), and the Worker reads it from the token it has just
-  verified, so there is no extra read and nothing new is stored on our side.
+  verified, so there is no extra read and no new table.
 - **Without a zone it is the UTC day,** as before: an account that has not connected since the
   change, a token copied before it, or a zone that does not validate. In Melbourne the UTC day is
   still yesterday's date until 10 am, or 11 am during daylight saving. Copy the token again, or
