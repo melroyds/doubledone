@@ -2206,6 +2206,15 @@ CASES = [
      "On the store build before this fix, hold a task, then Break it down (or Remove it and let the Undo close). Confirm a knock still arrives at 09:30 the next morning. Update to the new build and open the app once before the next 09:30.",
      "From that first open, no knock about the old task arrives again, with nothing else to do. If one more arrives the next morning, note it in Findings and open the app again: the second open must end it.",
      "iOS + Android"),
+    # A web browser that keeps nothing (the 1 Nov bug sweep, #31): lib/storage-probe's write-then-read probe, decided
+    # at Today's first paint. Sign-in's half of the same browser is AUTH-12.
+    ("WEB-07",
+     "Web",
+     "P2",
+     "A browser that keeps nothing says so on Today, once per page load",
+     "PREREQ: the web after the next push to main. In Chrome, block site data for doubledone.app (AUTH-12's path: Settings > Privacy and security > Site settings > On-device site data), then open doubledone.app/today. Read the top of the list, add a task, and tap 'Got it'. Open Settings and come back to Today. Reload. Then allow site data again and reload. Look once at 360 px wide, at the default and the Large text size, in light and dark. Also: on an iPhone, turn on Safari's Block All Cookies and open doubledone.app/today in Safari, then turn it off again. Open doubledone.app/today in a private window. Open the iPhone and Android apps.",
+     "First among the cards above the list, a calm line in the free month's end-line shape reads: 'This browser isn't letting DoubleDone save anything, so what you add here won't be kept after you close or reload this page. In the browser's site settings, allow doubledone.app to save data, then reload.' with 'Got it' beside it, and a screen reader hears 'Got it'. No red, no warning, no exclamation mark, and it is there at first paint, never pushing the day down after it. The added task shows. 'Got it' hides the line, and it stays hidden after Settings and back. A reload brings it back, and the added task is gone, which is what the line said. With site data allowed and a reload, the line is gone. Safari with Block All Cookies shows it too. A private window does not, because it saves for the session. The iPhone and Android apps never show it. While it shows, the 'A month on us' card and the free month's end line wait.",
+     "Web"),
 ]
 
 # A case id is how a tester records a pass or a fail, so two rows sharing one makes the

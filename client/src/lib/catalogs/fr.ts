@@ -1277,6 +1277,7 @@ export const fr: Catalog = {
     stepBackLabel: "Reculer {title} d’une étape",
     steps: 'Étapes',
     stepsCount: '{count} étapes',
+    storageBlocked: 'Ce navigateur empêche DoubleDone d’enregistrer quoi que ce soit, donc ce que tu ajoutes ici ne sera pas gardé une fois cette page fermée ou rechargée. Dans les réglages du site du navigateur, autorise {site} à stocker des données, puis recharge la page.',
     strategiseError: "Pas réussi à alléger ta journée pour l’instant. Réessaie.",
     subtitle: "Juste aujourd’hui. Le reste peut attendre.",
     syncPending: 'Enregistré sur cet appareil. Ça se synchronisera dès que ton compte sera accessible.',

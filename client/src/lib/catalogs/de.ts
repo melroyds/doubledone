@@ -1272,6 +1272,7 @@ export const de: Catalog = {
     stepBackLabel: '{title} einen Schritt zurücknehmen',
     steps: 'Schritte',
     stepsCount: '{count} Schritte',
+    storageBlocked: 'Dieser Browser lässt DoubleDone nichts speichern. Was du hier hinzufügst, bleibt deshalb nicht erhalten, wenn du diese Seite schließt oder neu lädst. Erlaube in den Website-Einstellungen des Browsers, dass {site} Daten speichert, und lade die Seite dann neu.',
     strategiseError: 'Heute ließ sich gerade nicht leichter machen. Versuch es noch mal.',
     subtitle: 'Nur heute. Der Rest kann warten.',
     syncPending: 'Auf diesem Gerät gespeichert. Es wird synchronisiert, sobald dein Konto erreichbar ist.',

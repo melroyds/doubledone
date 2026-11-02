@@ -1277,6 +1277,7 @@ export const es: Catalog = {
     stepBackLabel: 'Retroceder un paso en {title}',
     steps: 'Pasos',
     stepsCount: '{count} pasos',
+    storageBlocked: 'Este navegador no deja que DoubleDone guarde nada, así que lo que añadas aquí no se conservará al cerrar o recargar esta página. En los ajustes del sitio del navegador, permite que {site} guarde datos y luego recarga la página.',
     strategiseError: 'No pude aligerar el día ahora mismo. Prueba otra vez.',
     subtitle: 'Solo hoy. Lo demás puede esperar.',
     syncPending: 'Guardado en este dispositivo. Se sincronizará cuando pueda conectar con tu cuenta.',

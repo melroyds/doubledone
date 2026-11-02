@@ -84,6 +84,7 @@ import { spreadDueDates } from '@/lib/spread';
 import { decideRenewalNotice } from '@/lib/renewal';
 import { type HoldContract, holdOutcome, holdRequiresSwap, holdStepAt } from '@/lib/hold';
 import { loadClosedDate, loadDayEnergy, loadGiftOffer, loadMonthEnd, loadOfferCardRetired, retireOfferCard, saveGiftOffer, saveMonthEnd, stampFirstSeen, loadEnergyUses, loadHold, loadHoldHintSeen, loadLastOpen, loadLastSyncOk, loadLowDayDate, loadOnboarded, loadOursMine, loadOursSeen, loadOursTasks, loadReminderHour, loadRenewalMemory, loadReviewMemory, loadReviewQuietDate, loadUpdateMentioned, noteOursMine, loadReminderOfferMade, loadReminderOn, loadScrapbookOfferMade, loadScrapbooks, loadSyncedOwner, loadTasks, loadWhatsNewSeen, saveClosedDate, saveDayEnergy, saveEnergyUses, saveHold, saveHoldHintSeen, saveLastOpen, saveLastSyncOk, saveLowDayDate, saveOursTasks, saveReminderOfferMade, saveRenewalMemory, saveReviewMemory, saveReviewQuietDate, saveUpdateMentioned, saveReminderOn, saveScrapbookOfferMade, saveSyncedOwner, saveTasks, saveWhatsNewSeen, wipeLocalData, loadWidgetOfferMade, saveWidgetOfferMade } from '@/lib/storage';
+import { hideStorageLine, storageLineDue, storageSite, webStorageBlocked } from '@/lib/storage-probe';
 import { restedOffer } from '@/lib/offers';
 import { countClose, markAsked, REVIEW_DELAY_MS, shouldAskForReview, stillTheNightToAsk } from '@/lib/review';
 import { REVIEW_SUPPORTED, requestReviewCard, reviewCardAvailable } from '@/lib/store-review';
@@ -314,7 +315,9 @@ async function settleSharedCopies(
  * first paint. The free month's end line goes first; both wait while any other one-time card has the moment (What's
  * New, a hold hint never dismissed, a return after time away, and for the offer the end line). The last open is
  * read here, issued before the focus effect re-stamps it, so it is the previous visit's. Premium is checked live in
- * the render, and can only ever take a card away.
+ * the render, and can only ever take a card away. A web browser that keeps nothing (lib/storage-probe, #31) holds
+ * both back for the whole page load, "Got it" or not: the offer leads to a note and a sign-in, and such a browser can
+ * keep neither.
  */
 async function readOneTimeCards(today: Date): Promise<{ offer: boolean; end: boolean }> {
   const now = Date.now();
@@ -330,7 +333,8 @@ async function readOneTimeCards(today: Date): Promise<{ offer: boolean; end: boo
     loadLastOpen(),
   ]);
   const isClosed = closed === toISODate(today);
-  const otherCard = shouldShowWhatsNew(wnSeen, onboarded) || !hintSeen || isReentry(lastOpen, today, REENTRY_GAP_DAYS);
+  const keepsNothing = Platform.OS === 'web' && webStorageBlocked();
+  const otherCard = keepsNothing || shouldShowWhatsNew(wnSeen, onboarded) || !hintSeen || isReentry(lastOpen, today, REENTRY_GAP_DAYS);
   const end = !isClosed && !otherCard && monthEndDue(monthMem);
   const offer = shouldShowOfferCard({ now, isClosed, premium: false, retired, firstSeenAt, cachedAnswer, otherCardThisVisit: otherCard || end });
   return { offer, end };
@@ -541,6 +545,9 @@ export default function TodayScreen() {
   const [scrapbookOfferMade, setScrapbookOfferMade] = useState(true); // default true: never flash the ask
   const [scrapbookMade, setScrapbookMade] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false); // default false: never flash the card
+  // A web browser that keeps nothing (the 1 Nov bug sweep, #31): decided at first paint, synchronously, so it never
+  // arrives late or pushes the day down. Never on a phone, where AsyncStorage is not localStorage.
+  const [storageLine, setStorageLine] = useState(() => Platform.OS === 'web' && storageLineDue());
   // "A month on us" (2026-10-25): the thank-you offer card and the free month's end line. Both are decided ONCE,
   // with the first load of the day's tasks, from what this device already knew, so neither is ever inserted above
   // a day already on screen (the first-paint rule). Default false: never flash either.
@@ -2451,6 +2458,13 @@ export default function TodayScreen() {
     });
   }
 
+  // "Got it" on the storage line: hidden until the page reloads. Held in lib/storage-probe and never saved, because
+  // this browser can keep nothing. A reload really does start from nothing, so it brings the line back.
+  function dismissStorageLine() {
+    setStorageLine(false);
+    hideStorageLine();
+  }
+
   function dismissWhatsNew() {
     setShowWhatsNew(false);
     void saveWhatsNewSeen(WHATS_NEW.id);
@@ -3871,6 +3885,23 @@ export default function TodayScreen() {
         {/* What's New: content-keyed (never build-keyed), shown once per announcement id, a calm
             dismissible card in the hold-hint's shape. NEVER a modal: a launch popup would steal
             the open-to-capture moment. Fresh installs never see it (onboarding stamps the id). */}
+        {/* A web browser that keeps nothing says so first (#31), in the end line's calm shape. It shows only when
+            saving fails, so no post ever shows it, and it comes back on every reload because every reload really does
+            start from nothing. */}
+        {storageLine && (
+          <View style={styles.holdHint}>
+            <Text style={styles.holdHintText}>{t('today.storageBlocked', { site: storageSite() })}</Text>
+            <Pressable
+              onPress={dismissStorageLine}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.gotIt')}
+              hitSlop={8}
+              style={({ pressed }) => [styles.endGotIt, pressed && styles.pressed]}
+            >
+              <Text style={styles.holdHintDismiss}>{t('common.gotIt')}</Text>
+            </Pressable>
+          </View>
+        )}
         {/* "A month on us": the thank-you card and the free month's end line, in What's New's slot under the
             one-card rule. Both were decided at this visit's first paint, so neither ever arrives late. */}
         {offerCard && !premium && !reentry && (

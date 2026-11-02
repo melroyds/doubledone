@@ -1287,6 +1287,8 @@ export const en = {
     stepBackLabel: 'Step {title} back one',
     steps: 'Steps',
     stepsCount: '{count} steps',
+    // Web only, when this browser keeps nothing (lib/storage-probe, the 1 Nov bug sweep #31). {site} is the page's host.
+    storageBlocked: "This browser isn't letting DoubleDone save anything, so what you add here won't be kept after you close or reload this page. In the browser's site settings, allow {site} to save data, then reload.",
     strategiseError: 'Could not lighten today just now. Try again.',
     subtitle: 'Just today. The rest can wait.',
     syncPending: "Saved on this device. It'll sync when it can reach your account.",
