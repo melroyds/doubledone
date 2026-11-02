@@ -42,6 +42,18 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE 2 NOV FIX BATCH AND #24: LIVE (2026-11-02 afternoon, on Melroy's "Ship everything that makes sense").** Web
+1.10.4 (355af17: Tidy says it uses AI, #33 and #37 with their review's nine fixes, the Add label, Quiet's rows,
+Settle's words), then web 1.10.5 (59534b7: #24's app half, its review's eight fixes, and Settle's dustier rose), then
+Melroy deployed Worker `666a23d4` from main `59534b7` (rollback `6d50a3eb`; checked: bindings, secrets and handlers
+identical, /health 200, `info.version` 1.4.0, /mcp/disconnect and /entitlement 401 JSON, the Stripe webhook 400 bad
+signature). The look's four calls went the way the look page picked (decision log, same day). **Still to do:**
+Melroy reconnects his Claude connector once, because a connection made before today holds no zone and stays on the
+UTC day; the checks only the live systems can prove (MCP-31 and MCP-32: the zone lands in user_metadata and in the
+next token, `"tz": null` removes the key, the Worker's Intl in production, a new connection's first call refreshing
+custody, the copy on Safari); the phones get all of it with the store build in the week of 16 to 22 Nov, on Melroy's
+ask; and #27, the store listings, is the one sweep item left.
+
 **THE 2 NOV FIX BATCH: COMMITTED ON MAIN, NOT PUSHED (2026-11-02).** Melroy's "Fix it with B" and "fix #33 and
 #37 yourself", in six lanes (beed91b, a42213c, 97b41f5, bed4f4b, a1f0f3f, c2b0e50), then the review's nine
 findings (1cd3292, 0044328, b96e16c, a8df1c4, 277681b, 00e73b3, 0fa93ef and the docs commit), and app 1.10.4 so
@@ -340,6 +352,10 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **Two more light-mode pairs for the 3 Jan colour pass (found 2026-11-02 by the look's harness).** Honey's done tick
+  ring on Quiet's light sky measures 2.8:1 (the tick inside it still carries the state), and the small ✦ on Today's
+  Plan my day measures 2.3:1 (decorative, on a frozen screen). Neither was in #35 or #36. **Trigger:** the 3 Jan colour
+  pass, with the 14 parked dark-mode pairs and one look.
 - **"Set today aside", GATED (stress-tested 2026-11-01, Melroy: "Gate").** A calm door beside Close the day for a
   sick or flat morning: closing at 9am today runs the evening wrap ("Anything else you did?", "Goodnight"), which reads
   as an audit. Six reviewers rejected the first shape (a "Rest day" mode that went quiet, plus an "Away" mode): a

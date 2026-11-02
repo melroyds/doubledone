@@ -11545,3 +11545,23 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   takes a zone change on one device and a disconnect on another within the same second.
 - If both clears miss, the Worker's and the app's, the zone stays until the next disconnect, and the app keeps it
   current. They are two separate writes to Supabase with the person's own token, from two different places.
+
+## 2026-11-02: the look's four calls, the dustier rose, and shipping in two pushes
+
+Melroy: "I trust your judgement. Ship everything that makes sense." The look page put four calls to him (Tidy's label,
+the taller Add, Quiet's firmer rings, Settle's rose), each with a pick, and all four shipped as picked.
+
+**Decided:**
+- **Settle's rose word is the dustier #9A5C61**: its dot's hue, the saturation down from 0.33 to 0.25, 4.63 to 4.79:1
+  on all seven papers. The fully saturated #A7555C sat 8.9 (CIE76) from danger, the red that Remove wears, and a
+  breathing word should never read as a warning. palette.test.ts makes rose the one named exception to "the same hue
+  and saturation", and holds every Settle word more than 12 from danger, which the old rose fails.
+- **The store privacy forms keep Location: No.** The zone is a clock setting, kept only for people who connect an
+  assistant. A strict reading of Play's approximate location (an area of 3 km² or more) could count an IANA name,
+  which is named after a place, so the reasoning sits beside both forms. If a store disagrees, the fix is the form.
+- **Two pushes, then the Worker.** The reviewed batch went out first as web 1.10.4, so #24's own review never held it
+  up. #24, its review's eight fixes and the rose followed as 1.10.5, and the Worker (666a23d4) came last, so the
+  privacy page said the zone is kept before any connector could keep one.
+
+**Decided against, for now:** Honey's done tick ring in Quiet (2.8:1) and the ✦ on Today's Plan my day (2.3:1), parked
+for the 3 Jan colour pass (Backlog), because neither is in the fixes Melroy looked at and Today is frozen.
