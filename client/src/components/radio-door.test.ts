@@ -35,7 +35,7 @@ function group(count = 3, tagName = 'DIV') {
   return radios;
 }
 
-type KeyInit = Partial<{ target: unknown; defaultPrevented: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }>;
+type KeyInit = Partial<{ target: unknown; defaultPrevented: boolean; repeat: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }>;
 
 // A keydown on a radio, whose preventDefault records itself the way a real one does.
 function key(k: string, on: FakeRadio, init: KeyInit = {}) {
@@ -123,6 +123,37 @@ describe('radioDoor: the Energy pills as one radio group on the web (the 1 Nov b
     doors[1].onKeyDown?.(key('End', radios[1], { metaKey: true }));
     expect(pick).not.toHaveBeenCalled();
     for (const r of radios) expect(r.focus).not.toHaveBeenCalled();
+  });
+
+  it('picks once for a held Space, while its repeats keep the page still', () => {
+    // The welcome's pick records the choice too, so a held Space must not record it thirty times a second.
+    const { radios, pick, doors } = pills(1);
+    doors[1].onKeyDown?.(key(' ', radios[1]));
+    const repeats = [key(' ', radios[1], { repeat: true }), key(' ', radios[1], { repeat: true })];
+    for (const e of repeats) doors[1].onKeyDown?.(e);
+    expect(pick).toHaveBeenCalledTimes(1);
+    for (const e of repeats) expect(e.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps moving on a held arrow, as a radio group does', () => {
+    const { radios, pick, doors } = pills(0);
+    doors[0].onKeyDown?.(key('ArrowRight', radios[0], { repeat: true }));
+    expect(pick).toHaveBeenLastCalledWith(1);
+    expect(radios[1].focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a group of two, the welcome’s Keep and Tuck, the same way', () => {
+    const radios = group(2);
+    const pick = vi.fn();
+    const doors = radios.map((_, i) => radioDoor(i, 2, i === 0, pick) as Door);
+    expect(doors.map((d) => d.tabIndex)).toEqual([0, -1]);
+    doors[0].onKeyDown?.(key('ArrowRight', radios[0]));
+    expect(pick).toHaveBeenLastCalledWith(1);
+    expect(radios[1].focus).toHaveBeenCalledTimes(1);
+    doors[1].onKeyDown?.(key('ArrowRight', radios[1]));
+    expect(pick).toHaveBeenLastCalledWith(0); // Tuck wraps to Keep
+    doors[1].onKeyDown?.(key(' ', radios[1]));
+    expect(pick).toHaveBeenLastCalledWith(1);
   });
 
   it('leaves Space to a radio drawn as a button, which presses itself, so one Space never picks twice', () => {

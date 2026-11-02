@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { radioDoor } from '@/components/radio-door';
 import { border, fonts, radius, spacing, type Theme } from '@/constants/theme';
 import { triage } from '@/lib/ai';
 import { useSessionState } from '@/lib/auth';
@@ -397,21 +398,26 @@ export default function WelcomeScreen() {
           <View style={styles.block}>
             <Text style={styles.h1}>{t('welcome.finishedHeading')}</Text>
             <Text style={styles.lead}>{t('welcome.finishedLead')}</Text>
-            <View style={styles.choiceList} accessibilityRole="radiogroup">
-              {(['keep', 'tuck'] as const).map((opt) => {
+            {/* Named by the heading above it, so a screen reader says what the two radios choose. */}
+            <View style={styles.choiceList} accessibilityRole="radiogroup" accessibilityLabel={t('welcome.finishedHeading')}>
+              {(['keep', 'tuck'] as const).map((opt, i, opts) => {
                 const on = settings.finishedTasks === opt;
                 const name = opt === 'keep' ? t('settings.finishedKeep') : t('settings.finishedTuck');
                 const what = opt === 'keep' ? t('welcome.finishedKeepWhat') : t('welcome.finishedTuckWhat');
+                const choose = (pick: 'keep' | 'tuck') => {
+                  setSettings({ finishedTasks: pick });
+                  track('finished_tasks.set', { value: pick, via: 'welcome' });
+                };
                 return (
                   <Pressable
                     key={opt}
-                    onPress={() => {
-                      setSettings({ finishedTasks: opt });
-                      track('finished_tasks.set', { value: opt, via: 'welcome' });
-                    }}
+                    onPress={() => choose(opt)}
                     accessibilityRole="radio"
                     aria-checked={on}
                     accessibilityLabel={`${name}. ${what}`}
+                    // The web's radio group, as Energy's (#37's review): one tab stop, the chosen card; Space picks, the
+                    // arrows move the choice. Safe as one tab stop, because a choice is always made (Keep by default).
+                    {...radioDoor(i, opts.length, on, (n) => choose(opts[n]))}
                     style={({ pressed }) => [styles.choiceCard, on && styles.choiceCardOn, pressed && styles.choicePressed]}
                   >
                     {/* A small picture of each, drawn from the app's own marks rather than words. */}

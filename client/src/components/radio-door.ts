@@ -4,14 +4,16 @@ import { Platform } from 'react-native';
 import { radioKey, type RadioKeyEvent } from '../lib/radio-group';
 import { isSpaceKey, ownsSpace } from '../lib/row-options';
 
-// A radio group's keyboard on the web (the 1 Nov bug sweep, #37), for Today's Energy pills.
+// A radio group's keyboard on the web (the 1 Nov bug sweep, #37), for Today's Energy pills and the welcome's
+// finished-tasks choice.
 //
 // They were already a radiogroup of radios to a screen reader, on every platform. On the web they were also
-// three separate tab stops that ignored Space and the arrows, because RN-web's press responder lets Space press
+// separate tab stops that ignored Space and the arrows, because RN-web's press responder lets Space press
 // only a button. The keys themselves are decided in lib/radio-group.ts. Web only: native has no Tab order to
 // rove, and its roles and announcements stay exactly as they were.
 
 type RadioEvent = RadioKeyEvent & {
+  repeat?: boolean;
   defaultPrevented?: boolean;
   nativeEvent?: { defaultPrevented?: boolean };
   target?: unknown;
@@ -37,7 +39,10 @@ function focusRadio(from: unknown, index: number) {
  * The web gets one tab stop for the whole group, the checked radio (a roving tabindex), so Tab lands on the
  * choice and the next Tab leaves the group. Inside it, Space picks the focused radio, and the arrows, Home and
  * End move the choice and the focus together. Enter is left to the press responder, which presses any role on
- * Enter, so nothing is ever picked twice.
+ * Enter, so nothing is ever picked twice. A held Space picks once: its repeats only keep the page still, since a
+ * pick can do more than choose (the welcome's records the choice). A held arrow keeps moving, as it should.
+ *
+ * Only the checked radio is a tab stop, so a group must always have one checked, or Tab could never reach it.
  */
 export function radioDoor(index: number, count: number, checked: boolean, pick: (i: number) => void): object {
   if (Platform.OS !== 'web') return {};
@@ -52,6 +57,7 @@ export function radioDoor(index: number, count: number, checked: boolean, pick: 
       if (e.currentTarget != null && e.target !== e.currentTarget) return;
       if (isSpaceKey(e) && ownsSpace(e.target)) return;
       e.preventDefault(); // Space and the arrows would otherwise scroll the page
+      if (e.repeat === true && isSpaceKey(e)) return;
       pick(next);
       if (next !== index) focusRadio(e.currentTarget, next);
     },
