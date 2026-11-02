@@ -11431,3 +11431,65 @@ a8df1c4, 277681b, 00e73b3, 0fa93ef, and the docs in the commit that carries this
 and at Large text), #26 (CAP-21), #35 (A11Y-19) and #36 (A11Y-20, where rose is the real taste call, with a dustier
 fallback already solved). The app is 1.10.4, so open web tabs are offered the reload. The phones get all of it with
 the store build in the week of 16 to 22 Nov.
+
+## 2026-11-02: an agent's "today" is the user's own day, from a time zone kept only for people who connect one
+
+Melroy: "I trust your judgement on 24 as well as the privacy lines. Fix them too." Bug #24: both public surfaces took
+"today" from the UTC clock. East of Greenwich an agent worked on yesterday every morning (until 11am in Melbourne, 1pm
+in Auckland), and west of it on tomorrow every evening (from 4pm in California). Two of those errors were saved into
+tasks for good: an every_n_days repeat added on a Melbourne morning was anchored a day off, and "monthly" with no day
+took yesterday's date of the month. complete_task ticked the wrong day's occurrence.
+
+**Decided:**
+- **Option (b): the account keeps the device's IANA time-zone name, only for a person who connects an assistant.**
+  Connecting is tapping Copy my token in Settings, or Allow on a connector's sign-in page. Once a zone exists, the app
+  keeps it current, and it never creates one on its own. Disconnect AI connectors clears it, and deleting the account
+  removes it with the auth.users row. An account that never connects never gets one. UTC stays the fallback.
+- **It lives in Supabase `user_metadata.tz`, with no migration**, because Supabase puts user_metadata in every access
+  token. The Worker reads it from the SAME token it has just verified (zone.ts readZoneClaim, decoded only after
+  verifySub, as the email is), so there is no table, no route and no extra read per call. A person can write their own
+  user_metadata, so the value is validated like input (at most 64 characters, the tz database's character set, and a
+  name Intl accepts), and it only ever moves their own day.
+- **One "today" for both surfaces.** MCP's runTool and the REST handler take it from the zone (localDay, built from
+  the numeric parts of formatToParts, never from a formatted string). That covers list_today, list_upcoming and GET
+  /tasks, the default day of complete_task, update_task done and PATCH done, a repeat's start and every_n_days anchor,
+  monthly's default day, fetch's status line and the day a step's finish is dated to. A repeat set on a done task
+  keeps its finish on the day completed_at fell on in the zone. A `day` named on a write still wins, checked as
+  before. Anything odd is the UTC day, silently, never an error to the agent. This is the Worker's first use of Intl,
+  pinned by zone.test.ts across daylight saving and the half-hour, quarter-hour and date-line zones.
+- **Left on UTC on purpose:** the break_down hourly cap, the monitor, analytics, and the web reminder, which keeps its
+  own offset.
+- **The sign-in page posts the browser's zone with Allow**, filled in by one inline script, and the Worker keeps it
+  with the person's own token (PUT /auth/v1/user under the anon key, the write the app makes), best effort, bounded at
+  3 seconds and never logged. Only on Allow, never on Cancel. When it lands, custody stores the consent's access token
+  as already stale, so the first tool call refreshes through getAccessToken's own path and carries the zone. Without
+  that, the first hour of a new connection would still be the UTC day.
+- **Disconnect AI connectors clears it** with the caller's verified token, best effort, after the custody delete. A
+  failed clear never fails the disconnect.
+- **OpenAPI goes to 1.4.0**, since every "today" changes behaviour, and the tool descriptions say the day is the
+  user's own.
+
+**Decided against:**
+- **(a) Keeping the zone for everyone signed in.** It dilutes "your email is the only personal information we hold"
+  for the many people who never connect an assistant, to fix a bug only connected people can meet.
+- **The agent passing the day on the lists.** Agents know the date but rarely the zone, they drop optional fields, and
+  nothing errors when they are wrong, so most calls would stay wrong. `day` stays where it was, on the writes, and is
+  not added to list_today, list_upcoming or GET /tasks.
+- **Guessing from the request** (the IP's country, a header). Connector calls come from the AI provider's data
+  centres, not from the person.
+- **A D1 table of zones.** A route, a table, a read per call and a purge to remember, for what the token already
+  carries.
+- **An offset in minutes.** Wrong across daylight saving, as the web reminder was until 1 Nov.
+- **Writing the zone at the code step**, where the first design placed it. A person who then taps Cancel would keep a
+  zone without having connected anything.
+- **Refreshing the session inside the consent step**, so custody's first token carries the zone at once. A refresh
+  whose answer is lost on the way back spends the refresh token unseen, and the next refresh an hour later would read
+  as reuse and end the connection. The stale first token puts that refresh on the path that already handles it.
+- **Naming the date in the list replies** (optional in the design). It would change replies that agents and tests
+  read exactly, for little gain once the day is right.
+
+**Accepted edges:**
+- A browser with scripts off sends no zone, so that connection keeps the UTC day until the person taps Copy my
+  token or connects again. The app keeps a zone current but never creates one.
+- The zone in a token is as old as the token. After a flight, the agent catches up within about an hour: the app
+  writes on its next open, and custody's next refresh carries it.

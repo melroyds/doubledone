@@ -20,7 +20,7 @@ export const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'DoubleDone API',
-    version: '1.3.1',
+    version: '1.4.0',
     description:
       'A small REST API over your DoubleDone tasks. Authenticate with your own DoubleDone token ' +
       '(in the app: Settings → AI agent access (MCP) → Copy my token), which scopes every call to your own data through ' +
@@ -29,7 +29,8 @@ export const OPENAPI_SPEC = {
       'are mutually exclusive. A one-off can be tracked in parts (the app\'s "Track in steps"), counted with partsTotal and ' +
       'partsDone, and parts only go forward. A task can be broken into linked steps (the app\'s "Break it down"): the big ' +
       'task waits hidden behind them, and ticking the last step closes it. Listing supports search (q) and a look-ahead ' +
-      'window (upcoming).',
+      'window (upcoming). "Today" is your own calendar day: once you connect an assistant (Copy my token, or a connector\'s ' +
+      'sign-in), your account keeps your device\'s time zone and every call works on that day. Without one it is the UTC day.',
   },
   servers: [{ url: API_BASE, description: 'Production' }],
   security: [{ bearerAuth: [] }],
@@ -57,14 +58,14 @@ export const OPENAPI_SPEC = {
             in: 'query',
             required: false,
             description:
-              'Look ahead this many days (clamped 1-30, default 7): your future-dated one-off tasks plus the next occurrence of each repeating task within the window. Each returned task carries the day it next lands in `due`. Takes precedence over today. Days are counted from the UTC calendar day.',
+              'Look ahead this many days (clamped 1-30, default 7): your future-dated one-off tasks plus the next occurrence of each repeating task within the window. Each returned task carries the day it next lands in `due`. Takes precedence over today. Days are counted from your today (in the time zone your account keeps, else the UTC day).',
             schema: { type: 'integer', minimum: 1, maximum: 30, default: 7 },
           },
           {
             name: 'today',
             in: 'query',
             required: false,
-            description: 'When true, only open, non-recurring tasks due today or undated (a decomposed-task umbrella the app hides is excluded). Today is the UTC calendar day for now (a timezone option is planned), so early in an Australian morning it can still be the previous day, and repeating tasks are not included here (the MCP list_today includes them).',
+            description: 'When true, only open, non-recurring tasks due today or undated (a decomposed-task umbrella the app hides is excluded). Today is your own day in the time zone your account keeps for a connected assistant, else the UTC calendar day. Repeating tasks are not included here (the MCP list_today includes them).',
             schema: { type: 'boolean' },
           },
         ],
@@ -158,7 +159,7 @@ export const OPENAPI_SPEC = {
         tags: ['tasks'],
         summary: 'Update a task',
         description:
-          'Updates a task. Send any of title, done, due, repeat, partsTotal or partsDone, with at most one of done, partsTotal and partsDone. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it. `done: true` on a REPEATING task ticks it for one day (the UTC day unless you pass `day`) and leaves the series open, so the returned task still shows done:false with its repeats summary; `done: false` un-ticks that day on the server only (a device that already synced the tick brings it back, ticks are kept on purpose). A one-off closes and reopens as you would expect, and closing one that is already done changes nothing. ' +
+          'Updates a task. Send any of title, done, due, repeat, partsTotal or partsDone, with at most one of done, partsTotal and partsDone. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass either as null to clear it. `done: true` on a REPEATING task ticks it for one day (your today unless you pass `day`) and leaves the series open, so the returned task still shows done:false with its repeats summary; `done: false` un-ticks that day on the server only (a device that already synced the tick brings it back, ticks are kept on purpose). A one-off closes and reopens as you would expect, and closing one that is already done changes nothing. ' +
           'PARTS only go forward, because every device keeps the highest count it has seen: `partsDone` is absolute (lower than the current count is a 409, above partsTotal a 400, equal changes nothing), `done: true` on a task in parts fills every part, `done: false` on one is a 409, and `partsTotal` resizes (progress carries over, and a total at or below the parts done finishes it) or, as null, makes it one whole task again. ' +
           'A 409 means the task as it stands does not allow the change: a task in parts, waiting on its steps or a step cannot repeat; a repeating, done or waiting task cannot be tracked in parts; `done` on a task waiting on its steps is refused (tick its steps); or the task changed between our read and our write, so read it again. ' +
           'Closing a STEP (a task with a `parentId`) also closes its big task when that was the last open step, and the answer then lists it in `finished`. The big task is finished only when that is certain; anything else (a task made tiny, a single step) is left to the app, which sorts it out on its next open.',
@@ -323,11 +324,11 @@ export const OPENAPI_SPEC = {
       TaskPatch: {
         type: 'object',
         description:
-          'Any of the fields, with at most one of done, partsTotal and partsDone. On a one-off, done:true stamps completedAt and done:false clears it. On a REPEATING task, done ticks or un-ticks ONE day (`day`, default the UTC day) and never closes the series. On a task in parts, done:true fills every part and done:false is refused. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
+          'Any of the fields, with at most one of done, partsTotal and partsDone. On a one-off, done:true stamps completedAt and done:false clears it. On a REPEATING task, done ticks or un-ticks ONE day (`day`, default your today) and never closes the series. On a task in parts, done:true fills every part and done:false is refused. Setting a `due` day clears any repeat, and setting a `repeat` clears the due day; pass due:null or repeat:null to clear either.',
         properties: {
           title: { type: 'string' },
           done: { type: 'boolean' },
-          day: { type: 'string', description: "The user's local date ('YYYY-MM-DD'). With done on a repeating task: the calendar day to tick or un-tick (defaults to the UTC day). With a new repeat on a task that is already done, and no done: the day it was finished, so its finish is kept on that day (defaults to the UTC day it was finished)." },
+          day: { type: 'string', description: "A day in the user's calendar ('YYYY-MM-DD'). With done on a repeating task: the calendar day to tick or un-tick (defaults to the user's today: their account's time zone, else the UTC day). With a new repeat on a task that is already done, and no done: the day it was finished, so its finish is kept on that day (defaults to the day it was finished, read the same way)." },
           due: { type: ['string', 'null'], format: 'date' },
           repeat: { oneOf: [{ $ref: '#/components/schemas/Repeat' }, { type: 'null' }], description: 'A repeat to make the task recur, or null to stop it recurring.' },
           partsTotal: {

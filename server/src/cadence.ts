@@ -5,9 +5,12 @@
 // the user does: a recurring task appears when it is due today AND not yet done today AND
 // not skipped today. Pure and unit-tested; the tool does the fetch and formatting.
 //
-// Dates are ISO 'YYYY-MM-DD' strings, compared as UTC calendar days (the MCP server derives
-// "today" from `new Date().toISOString().slice(0,10)`, also UTC, so the two agree). This is
-// the same simplification the one-off `due` filter already uses.
+// Dates are ISO 'YYYY-MM-DD' calendar days, and the arithmetic on them is plain UTC calendar
+// math, so a day is a day whatever the zone. Which day is "today" is the caller's: the user's
+// own day when their account keeps a time zone for a connected assistant (zone.ts, #24), else
+// the UTC day. The one-off `due` filter compares against the same day.
+
+import { localDayOf } from './zone';
 
 export type Recurrence =
   | { kind: 'none' }
@@ -191,14 +194,6 @@ export function isValidIsoDay(s: string): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
 
-/** The UTC calendar day of a timestamp column (PostgREST sends timestamptz as an ISO string), or null when it is
- *  missing or does not parse. */
-function utcDayOf(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const ms = Date.parse(v);
-  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : null;
-}
-
 /**
  * What setting a repeat does to a task that is DONE (#23, 2026-11-01). The series row has to be open
  * (done=false, completed_at=null): left done, it vanished from every agent read and from the Calendar,
@@ -206,11 +201,11 @@ function utcDayOf(v: unknown): string | null {
  * Its finish is kept as a tick on the day it was finished, because a repeat's finishes live only in
  * completed_dates, and without it the finish would drop out of the Lookback.
  *
- * The day is the caller's `finishedOn` when it names one (the user's local date, which an agent knows and a UTC
- * day gets wrong for a morning finish east of Greenwich), else completed_at's, else updated_at's (the app's own
- * fallback for a row finished before completedAt existed), as a UTC day, the basis both surfaces use. When none
- * reads, no tick is invented: `dates` is null and completed_dates is left alone. Returns null for a task that is
- * not done, so there is nothing to reopen. Pure and shared, so REST and MCP write the same columns.
+ * The day is the caller's `finishedOn` when it names one (the user's local date, which an agent may know), else
+ * completed_at's, else updated_at's (the app's own fallback for a row finished before completedAt existed), read
+ * as a day in the account's `zone` when it keeps one (#24) and as a UTC day without, the basis both surfaces use.
+ * When none reads, no tick is invented: `dates` is null and completed_dates is left alone. Returns null for a task
+ * that is not done, so there is nothing to reopen. Pure and shared, so REST and MCP write the same columns.
  */
 export function reopenForRepeat(
   row: {
@@ -220,10 +215,11 @@ export function reopenForRepeat(
     completed_dates?: unknown;
   },
   finishedOn?: string,
+  zone?: string | null,
 ): { day: string | null; dates: string[] | null } | null {
   if (row.done !== true) return null;
   const named = typeof finishedOn === 'string' && isValidIsoDay(finishedOn) ? finishedOn : null;
-  const day = named ?? utcDayOf(row.completed_at) ?? utcDayOf(row.updated_at);
+  const day = named ?? localDayOf(row.completed_at, zone) ?? localDayOf(row.updated_at, zone);
   return { day, dates: day ? tickForDay(row.completed_dates, day, true).dates : null };
 }
 

@@ -8,9 +8,10 @@
 //
 // Recurrence, and the read-parity query params (?q, ?upcoming), are kept in lockstep
 // with the MCP server (mcp.ts): the SAME `repeat` vocabulary, translated by the ONE
-// cadence.buildRecurrence, and the SAME UTC-calendar-day basis. So a repeating task an
-// agent makes and one the app or this API makes are indistinguishable, and `?q` /
-// `?upcoming` return what MCP's search / list_upcoming would.
+// cadence.buildRecurrence, and the SAME "today": the user's own day in the time zone the
+// account keeps for a connected assistant, read from the verified token (zone.ts, #24),
+// else the UTC day. So a repeating task an agent makes and one the app or this API makes
+// are indistinguishable, and `?q` / `?upcoming` return what MCP's search / list_upcoming would.
 //
 // Parts (the app's "Track in steps") share their arithmetic and write guard with MCP too
 // (steps.ts). The one deliberate difference: this API's counts are ABSOLUTE (`partsDone: 4`),
@@ -62,6 +63,7 @@ import {
   wholeIn,
 } from './steps';
 import { defaultVerifySub, type SubVerifier } from './verify';
+import { localDay, readZoneClaim } from './zone';
 
 export type ApiEnv = { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string };
 
@@ -98,12 +100,6 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // its own kinds, and all four left out monthly, which the API takes.
 const REPEAT_KINDS = 'daily | weekly | every_n_days | monthly';
 const UNREADABLE_REPEAT = "couldn't read that repeat: use daily, weekly (with weekdays 0-6), every_n_days (with days), or monthly (with an optional day 1-31)";
-
-/** Today as an ISO 'YYYY-MM-DD' UTC calendar day. The same basis MCP and cadence.ts use, so
- *  a repeat's "next occurrence" is computed identically across the REST API and the agent. */
-function todayIsoUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -649,7 +645,7 @@ export type PatchPlan = { patch: UpdatePatch; guard: Record<string, string> } | 
  *  - `partsDone` is ABSOLUTE and forward-only: lower is a 409, above the total a 400, equal writes nothing, and
  *    on a task already done it writes nothing either (as MCP says "Already done.").
  *  Every parts write is pinned to the stored counts (steps.ts partsGuard). */
-export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIso: string): PatchPlan {
+export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIso: string, zone?: string | null): PatchPlan {
   const parts = cleanSlices(row.slices);
   const hidden = row.silent_parent === true;
   const isStep = typeof row.parent_id === 'string' && row.parent_id !== '';
@@ -669,7 +665,8 @@ export function planPatch(row: Row, body: UpdateBody, base: UpdatePatch, todayIs
     if (hidden) return { status: 409, error: 'that task is waiting on its steps, so it cannot repeat' };
     if (isStep) return { status: 409, error: 'that task is a step toward a bigger task, so it cannot repeat' };
     // With no `done` in the body, a `day` names the local day the task was finished (the kept tick lands on it).
-    const reopen = reopenForRepeat(row, body.done === undefined ? body.day : undefined);
+    // Without one, it is the day completed_at falls on, in the account's time zone when it keeps one.
+    const reopen = reopenForRepeat(row, body.done === undefined ? body.day : undefined, zone);
     if (reopen) {
       patch.done = false; // updateRequest sends completed_at: null with it
       if (reopen.dates) patch.completedDates = reopen.dates;
@@ -762,12 +759,12 @@ function bearer(request: Request): string {
 
 /** GET /tasks: pick the read mode from the query. Precedence, one mode at a time:
  *  ?q (search) beats ?upcoming beats ?today beats a plain list. Documented in the OpenAPI spec. */
-async function handleListTasks(request: Request, env: ApiEnv, token: string): Promise<Response> {
+async function handleListTasks(request: Request, env: ApiEnv, token: string, zone: string | null): Promise<Response> {
   const params = new URL(request.url).searchParams;
   const q = params.get('q');
   const upcoming = params.get('upcoming');
   const today = params.get('today') === 'true';
-  const todayIso = todayIsoUtc();
+  const todayIso = localDay(zone, Date.now());
 
   if (q !== null) {
     const { url, init } = searchRequest(env, token);
@@ -938,10 +935,13 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
   // audit). Now an expired token is the 401 the contract promises, before Supabase is even asked.
   const sub = await verifySub(token, env.SUPABASE_URL);
   if (!sub) return json({ error: TOKEN_EXPIRED }, 401);
+  // The user's time zone, from the token just verified (user_metadata.tz, kept only for a person who connected an
+  // assistant). Read AFTER the check, never before. Anything odd is null, which is the UTC day, never an error.
+  const zone = readZoneClaim(token);
 
   // Collection: /tasks
   if (path === '/tasks') {
-    if (request.method === 'GET') return handleListTasks(request, env, token);
+    if (request.method === 'GET') return handleListTasks(request, env, token, zone);
     if (request.method === 'POST') {
       let raw: unknown;
       try {
@@ -951,13 +951,15 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       }
       const parsed = parseCreate(raw);
       if ('error' in parsed) return json({ error: parsed.error }, 400);
-      const now = new Date().toISOString();
+      const nowMs = Date.now();
+      const now = new Date(nowMs).toISOString();
       if (parsed.body.steps) return createWithSteps(env, token, sub, parsed.body.title, parsed.body.steps, now);
       // Translate the agent-shaped repeat through the ONE shared cadence builder. A malformed
-      // repeat is a calm 400, never a 500 (buildRecurrence returns null, never throws).
+      // repeat is a calm 400, never a 500 (buildRecurrence returns null, never throws). Its start,
+      // its every_n_days anchor and monthly's default day are the user's today.
       let recurrence: Recurrence | null = null;
       if (parsed.body.repeat) {
-        recurrence = buildRecurrence(parsed.body.repeat, now.slice(0, 10));
+        recurrence = buildRecurrence(parsed.body.repeat, localDay(zone, nowMs));
         if (!recurrence) {
           return json({ error: UNREADABLE_REPEAT }, 400);
         }
@@ -1024,14 +1026,17 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       const parsed = parseUpdate(raw);
       if ('error' in parsed) return json({ error: parsed.error }, 400);
       const b = parsed.body;
-      const now = new Date().toISOString();
+      const nowMs = Date.now();
+      const now = new Date(nowMs).toISOString();
+      // The user's today. An explicit `day` in the body still wins wherever one is read.
+      const todayIso = localDay(zone, nowMs);
       // Translate a set-repeat through the shared cadence builder; a malformed repeat is a calm
       // 400, before any read. `repeat: null` (clear) stays null and reaches updateRequest as recurrence: null.
       let patch: UpdatePatch = { title: b.title, due: b.due };
       if (typeof b.repeat !== 'undefined') {
         if (b.repeat === null) patch.recurrence = null;
         else {
-          const recurrence = buildRecurrence(b.repeat, now.slice(0, 10));
+          const recurrence = buildRecurrence(b.repeat, todayIso);
           if (!recurrence) {
             return json({ error: `${UNREADABLE_REPEAT}, or null to stop it` }, 400);
           }
@@ -1052,7 +1057,7 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
         const srows = (await sr.json()) as unknown;
         srow = Array.isArray(srows) && srows[0] && typeof srows[0] === 'object' ? (srows[0] as Row) : null;
         if (!srow) return json({ error: 'not found' }, 404);
-        const plan = planPatch(srow, b, patch, todayIsoUtc());
+        const plan = planPatch(srow, b, patch, todayIso, zone);
         if ('error' in plan) return json({ error: plan.error }, plan.status);
         // Nothing to change (closing a task already done, a partsDone it already has): the task as it stands,
         // with no write, so a retry is harmless and never re-stamps completedAt.
@@ -1069,7 +1074,7 @@ async function handleApiInner(request: Request, env: ApiEnv, verifySub: SubVerif
       // task that finished, topmost last. A case the walk leaves (it only finishes when certain) is the app's.
       if (task && patch.done === true && srow && typeof srow.parent_id === 'string' && srow.parent_id) {
         const parentTitle = typeof srow.parent_title === 'string' && srow.parent_title ? srow.parent_title : null;
-        const walked = await planFinish(walkIo(env, token), { parentId: srow.parent_id, parentTitle, completedAt: now }, b.day ?? todayIsoUtc(), now);
+        const walked = await planFinish(walkIo(env, token), { parentId: srow.parent_id, parentTitle, completedAt: now }, b.day ?? todayIso, now);
         if (walked.finished.length > 0) return json({ task, finished: walked.finished.map((f) => toApiTask(f.row as Row)) });
       }
       if (task) return json({ task });

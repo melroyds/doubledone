@@ -603,6 +603,107 @@ describe('the /authorize flow (code + consent steps)', () => {
     expect(res.status).toBe(400);
     expect(calls.find((c) => c.sql.startsWith('INSERT INTO mcp_grants'))).toBeUndefined();
   });
+
+  // #24: connecting keeps the browser's time zone on the account, so the assistant works on the person's own day.
+  describe('#24: the time zone kept on Allow', () => {
+    /** Serves the shared JWKS and records every write to the account (PUT /auth/v1/user), answering it with
+     *  `user` (a status, or a network throw). Any other URL is a test failure. */
+    function zoneFetch(user: number | 'throw' = 200) {
+      const writes: { url: string; init: RequestInit }[] = [];
+      const fn = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/.well-known/jwks.json')) {
+          return new Response(JSON.stringify({ keys: [signPublicJwk] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }
+        if (u === 'https://proj.supabase.co/auth/v1/user') {
+          writes.push({ url: u, init: init ?? {} });
+          if (user === 'throw') throw new Error('network down');
+          return new Response('{}', { status: user });
+        }
+        throw new Error(`unexpected fetch: ${u}`);
+      });
+      vi.stubGlobal('fetch', fn);
+      return writes;
+    }
+
+    async function allow(tz: string | undefined) {
+      const sbAccess = await signAccess({ sub: 'user-77' });
+      const { db, calls } = fakeDb();
+      const env = authorizeEnv({ DB: db, MCP_GRANT_KEY: Buffer.from(new Uint8Array(32).fill(9)).toString('base64') } as Partial<Env>);
+      const fields: Record<string, string> = { step: 'consent', decision: 'allow', email: 'mel@example.com', sb_access: sbAccess, sb_refresh: 'rt-1' };
+      if (tz !== undefined) fields.tz = tz;
+      const res = await worker.fetch(formPost('/authorize' + AUTH_QS, fields), env, ctx);
+      const insert = calls.find((c) => c.sql.startsWith('INSERT INTO mcp_grants'));
+      return { res, sbAccess, accessExp: (insert?.params as unknown[] | undefined)?.[5] as number | undefined };
+    }
+
+    it('the consent form carries a tz field, filled in by an inline script from the browser', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ access_token: 'at-1', refresh_token: 'rt-1' }), { status: 200 })));
+      const res = await worker.fetch(formPost('/authorize' + AUTH_QS, { step: 'code', email: 'mel@example.com', code: '123456' }), authorizeEnv(), ctx);
+      const html = await res.text();
+      expect(html).toContain('<input type="hidden" name="tz" id="tz" value="">');
+      expect(html).toContain('Intl.DateTimeFormat().resolvedOptions().timeZone');
+      // Inline only: an auth page loads nothing from anywhere.
+      expect(html).not.toMatch(/<script[^>]+src=/);
+    });
+
+    it("Allow keeps a valid zone on the person's own account, and custody starts stale so the first call carries it", async () => {
+      const writes = zoneFetch(200);
+      const before = Math.floor(Date.now() / 1000);
+      const { res, sbAccess, accessExp } = await allow('Australia/Melbourne');
+      expect(res.status).toBe(302);
+      expect(new URL(res.headers.get('Location') ?? '').searchParams.get('code')).toBeTruthy();
+      expect(writes).toHaveLength(1);
+      expect(writes[0].init.method).toBe('PUT');
+      const h = writes[0].init.headers as Record<string, string>;
+      expect(h.apikey).toBe('anon-key');
+      expect(h.authorization).toBe(`Bearer ${sbAccess}`);
+      expect(JSON.parse(writes[0].init.body as string)).toEqual({ data: { tz: 'Australia/Melbourne' } });
+      // Stale on arrival: getAccessToken refreshes on the first tool call, and that token carries the zone.
+      expect(accessExp).toBeGreaterThanOrEqual(before);
+      expect(accessExp).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+    });
+
+    it('a zone that does not validate, or none at all, writes nothing and connects as before', async () => {
+      for (const tz of ['GMT+11:00', 'Mars/Olympus_Mons', '', undefined]) {
+        const writes = zoneFetch(200);
+        const { res, accessExp } = await allow(tz);
+        expect(res.status, String(tz)).toBe(302);
+        expect(writes, String(tz)).toHaveLength(0);
+        expect(accessExp, String(tz)).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3000); // the token's own hour
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('a write Supabase refuses, or a network throw, never fails the consent: it connects with the token as it is', async () => {
+      for (const user of [500, 'throw'] as const) {
+        const writes = zoneFetch(user);
+        const { res, accessExp } = await allow('Australia/Melbourne');
+        expect(res.status, String(user)).toBe(302);
+        expect(writes, String(user)).toHaveLength(1);
+        expect(accessExp, String(user)).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3000);
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('Cancel keeps nothing: no zone is written for a person who did not connect', async () => {
+      const seen: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: RequestInfo | URL) => {
+          seen.push(String(url));
+          return new Response(null, { status: 204 });
+        }),
+      );
+      const res = await worker.fetch(
+        formPost('/authorize' + AUTH_QS, { step: 'consent', decision: 'cancel', email: 'mel@example.com', sb_access: 'at-1', sb_refresh: 'rt-1', tz: 'Australia/Melbourne' }),
+        authorizeEnv(),
+        ctx,
+      );
+      expect(res.status).toBe(302);
+      expect(seen).toEqual(['https://proj.supabase.co/auth/v1/logout?scope=local']);
+    });
+  });
 });
 
 describe('POST /mcp/disconnect (the immediate kill switch)', () => {
@@ -652,6 +753,37 @@ describe('POST /mcp/disconnect (the immediate kill switch)', () => {
     const del = calls.find((c) => c.sql.startsWith('DELETE FROM mcp_grants WHERE user_id'));
     expect(del).toBeDefined();
     expect(del?.params).toEqual(['user-77']); // the VERIFIED sub, not anything client-supplied
+  });
+
+  it("#24: clears the account's time zone with the caller's own token, and a failed clear never fails the disconnect", async () => {
+    const token = await signAccess({ sub: 'user-77' });
+    for (const user of [200, 500, 'throw'] as const) {
+      const writes: RequestInit[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+          const u = String(url);
+          if (u.includes('/.well-known/jwks.json')) {
+            return new Response(JSON.stringify({ keys: [signPublicJwk] }), { status: 200, headers: { 'content-type': 'application/json' } });
+          }
+          if (u === 'https://proj.supabase.co/auth/v1/user') {
+            writes.push(init ?? {});
+            if (user === 'throw') throw new Error('network down');
+            return new Response('{}', { status: user });
+          }
+          throw new Error(`unexpected fetch: ${u}`);
+        }),
+      );
+      const { db } = killDb(1);
+      const res = await worker.fetch(disconnectReq(token), makeEnv({ DB: db } as Partial<Env>), ctx);
+      expect(res.status, String(user)).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, disconnected: 1 });
+      expect(writes, String(user)).toHaveLength(1);
+      expect(writes[0].method).toBe('PUT');
+      expect((writes[0].headers as Record<string, string>).authorization).toBe(`Bearer ${token}`);
+      expect(JSON.parse(writes[0].body as string)).toEqual({ data: { tz: null } });
+      vi.unstubAllGlobals();
+    }
   });
 
   it('401s with no token and deletes nothing', async () => {

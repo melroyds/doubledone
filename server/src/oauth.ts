@@ -28,6 +28,7 @@ import { decryptSecret, deleteGrant, deleteGrantsForUser, encryptSecret, getAcce
 import { decodeJwtEmail, handleMcp, type McpEnv } from './mcp';
 import { defaultVerifySub } from './premium';
 import { bearer } from './stripe';
+import { validZone } from './zone';
 
 // --- Env -----------------------------------------------------------------------
 
@@ -262,7 +263,12 @@ type ConsentCarry = { nonce: string } | { access: string; refresh: string };
  *  either way the Allow step re-verifies the access token's signature before anything is
  *  minted. The registered redirect host is shown so the user sees exactly WHERE their grant
  *  will be sent -- an unverified display name (e.g. "Claude") cannot by itself send a grant
- *  to an attacker's host without that host being visible here. */
+ *  to an attacker's host without that host being visible here.
+ *
+ *  The form also carries the browser's time-zone NAME (#24), filled in by the one inline
+ *  script (no external asset, nothing phoned): Allow keeps it on the account so the
+ *  assistant works on the person's own day. With scripts off the field stays empty, and the
+ *  agent keeps the UTC day until a zone is kept another way (Copy my token in the app). */
 function consentPage(view: View, s: { email: string; redirectHost: string; carry: ConsentCarry }): Response {
   const carryFields =
     'nonce' in s.carry
@@ -277,11 +283,13 @@ function consentPage(view: View, s: { email: string; redirectHost: string; carry
 <form method="post" action="/authorize${esc(view.search)}">
   <input type="hidden" name="step" value="consent">
   <input type="hidden" name="email" value="${esc(s.email)}">
+  <input type="hidden" name="tz" id="tz" value="">
   ${carryFields}
   <button type="submit" name="decision" value="allow">Allow</button>
   <button type="submit" name="decision" value="cancel" class="quiet">Cancel</button>
 </form>
-<p class="fine">Signed in as ${esc(s.email)}. To disconnect later, use Disconnect AI connectors in DoubleDone settings.</p>`,
+<p class="fine">Signed in as ${esc(s.email)}. To disconnect later, use Disconnect AI connectors in DoubleDone settings.</p>
+<script>try{var z=Intl.DateTimeFormat().resolvedOptions().timeZone;if(z)document.getElementById('tz').value=z}catch(e){}</script>`,
   );
 }
 
@@ -419,6 +427,28 @@ async function retireReplacedGrants(helpers: OAuthHelpers, env: GrantsEnv, userI
   }
 }
 
+/** How long the account's time-zone write may take before it is given up on: it must never hold up a consent or a
+ *  disconnect for long. */
+const ZONE_WRITE_TIMEOUT_MS = 3000;
+
+/** Keep the device's time zone on the person's OWN account (user_metadata.tz), or with null clear it, using their
+ *  own access token under the anon key, exactly the write the app's supabase.auth.updateUser makes. No elevated key.
+ *  Best effort and bounded: true only when Supabase said yes, never a throw. The zone is never logged. */
+async function writeAccountZone(env: OAuthEnv, accessToken: string, zone: string | null): Promise<boolean> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY || !accessToken) return false;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { apikey: env.SUPABASE_ANON_KEY, authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ data: { tz: zone } }),
+      signal: AbortSignal.timeout(ZONE_WRITE_TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRequest, form: FormData): Promise<Response> {
   const decision = String(form.get('decision') ?? '');
 
@@ -495,6 +525,13 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
     return plainErrorPage(400, 'This connection request is not valid any more. Go back to your AI assistant and connect again.');
   }
 
+  // Connecting is the moment the account keeps the device's time zone (#24), so the assistant works on the
+  // person's own day rather than the UTC one. Only on Allow, never on Cancel, and best effort: a zone that does not
+  // validate, or a write that fails, still connects, and the agent keeps the UTC day (the app keeps a zone current
+  // but never creates one, so until Copy my token or the next connection).
+  const zone = validZone(String(form.get('tz') ?? ''));
+  const zoneKept = zone ? await writeAccountZone(env, access, zone) : false;
+
   const nowSec = Math.floor(Date.now() / 1000);
   const ok = await putGrant(env, {
     grantId,
@@ -502,7 +539,11 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
     email,
     refreshToken: refresh,
     accessToken: access,
-    accessExp: jwtExp(access) ?? nowSec + 3600,
+    // A zone kept just now is in the NEXT token Supabase mints, not this one. So custody starts with this token
+    // already stale, and the first tool call refreshes through getAccessToken's own path (rotation persisted,
+    // races covered by the reuse window) and carries the zone. Without that, the first hour of a new connection
+    // would still be the UTC day. Without a kept zone, this token is good for its whole life, as before.
+    accessExp: zoneKept ? nowSec : (jwtExp(access) ?? nowSec + 3600),
   });
   if (!ok) {
     // Without custody the minted grant would 401 on every tool call forever. Better a
@@ -633,6 +674,11 @@ export async function handleMcpDisconnect(request: Request, env: OAuthEnv, cors:
 
   // The guaranteed half: sever the token bridge immediately.
   const removed = await deleteGrantsForUser(env, userId);
+
+  // The account keeps the device's time zone only while an assistant is connected (#24), and the privacy policy
+  // says it goes when you disconnect, so clear it with the caller's own verified token. Best effort: the app clears
+  // it as well if this did not land, and a failure here must never fail the disconnect.
+  await writeAccountZone(env, token, null);
 
   // Best-effort provider-side cleanup: revoke the library's own grant records too. This route is served
   // BEFORE provider.fetch, so the helpers are never injected here; until 2026-10-05 that meant the

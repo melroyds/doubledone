@@ -242,4 +242,15 @@ describe('reopenForRepeat (#23: a repeat set on a done task)', () => {
     expect(reopenForRepeat({ done: true, completed_at: null, updated_at: '2026-09-02T03:00:00+00:00' })).toEqual({ day: '2026-09-02', dates: ['2026-09-02'] });
     expect(reopenForRepeat({ done: true, completed_at: 'garbled', updated_at: 'also garbled' })).toEqual({ day: null, dates: null });
   });
+
+  it("#24: with the account's time zone, the finish lands on the day it was in that zone, and a named day still wins", () => {
+    // 21:30 UTC on Sun 1 Nov is 08:30 on Mon 2 Nov in Melbourne.
+    const row = { done: true, completed_at: '2026-11-01T21:30:00+00:00', updated_at: '2026-09-01T23:00:00+00:00', completed_dates: null };
+    expect(reopenForRepeat(row, undefined, 'Australia/Melbourne')).toEqual({ day: '2026-11-02', dates: ['2026-11-02'] });
+    expect(reopenForRepeat(row, '2026-11-01', 'Australia/Melbourne')?.day).toBe('2026-11-01');
+    expect(reopenForRepeat({ ...row, completed_at: null }, undefined, 'Australia/Melbourne')?.day).toBe('2026-09-02');
+    // No zone, or one that does not validate, is the UTC day as before.
+    expect(reopenForRepeat(row, undefined, null)?.day).toBe('2026-11-01');
+    expect(reopenForRepeat(row, undefined, 'Mars/Olympus_Mons')?.day).toBe('2026-11-01');
+  });
 });

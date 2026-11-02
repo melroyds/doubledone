@@ -1945,3 +1945,118 @@ describe('linked steps: add_steps writes a breakdown, and the last step closes t
     expect(JSON.parse(bound[0][2] as string)).toEqual({ task: 'Clean the garage', via: 'mcp' });
   });
 });
+
+// #24 (2026-11-02): an agent's "today" was the UTC day, so a Melbourne morning was still yesterday. It is now the
+// user's own day, from the time zone their VERIFIED token carries (user_metadata.tz, kept for a connected assistant).
+describe("#24: today is the user's own day, from the time zone the verified token carries", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  // 21:30 UTC on Sunday 1 Nov is 08:30 on Monday 2 Nov in Melbourne (UTC+11).
+  const NOW = '2026-11-01T21:30:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const tokenWith = (meta?: object) => `Bearer ${jwt({ sub: 'user-9', role: 'authenticated', ...(meta ? { user_metadata: meta } : {}) })}`;
+  const MELB = tokenWith({ tz: 'Australia/Melbourne' });
+  const text = (r: Awaited<ReturnType<typeof callTool>>) => r.result.content[0].text;
+  // Bins go out on Mondays, and the meds were ticked on Sunday.
+  const rows = () => [
+    { id: 'w1', title: 'Bins', recurrence: { kind: 'weekly', weekdays: [1] }, completed_dates: [], skipped_dates: [] },
+    { id: 'd1', title: 'Meds', recurrence: { kind: 'daily' }, completed_dates: ['2026-11-01'], skipped_dates: [] },
+  ];
+
+  it("list_today reads Monday in Melbourne: Monday's repeats, and the one-off filter on the 2nd", async () => {
+    freeze();
+    const calls = sequence(rows());
+    const r = await callTool('list_today', {}, MELB);
+    expect(new URL(calls[0].url).searchParams.get('or')).toContain('due.lte.2026-11-02');
+    expect(text(r)).toBe('• Bins  (repeats)  [w1]\n• Meds  (repeats)  [d1]');
+  });
+
+  it('without a zone, or with one that does not validate, it is the UTC day as before, silently', async () => {
+    for (const auth of [USER_JWT, tokenWith({}), tokenWith({ tz: 'GMT+11:00' }), tokenWith({ tz: 'Mars/Olympus_Mons' }), tokenWith({ tz: 42 })]) {
+      freeze();
+      const calls = sequence(rows());
+      const r = await callTool('list_today', {}, auth);
+      expect(r.result.isError).toBeUndefined();
+      expect(new URL(calls[0].url).searchParams.get('or')).toContain('due.lte.2026-11-01');
+      expect(text(r)).toBe('Nothing on today. Enjoy the quiet.');
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('west of Greenwich an evening stays today, where UTC had moved on to tomorrow', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-02T01:00:00.000Z')); // 17:00 on Sunday 1 Nov in California
+    const calls = sequence([]);
+    await callTool('list_today', {}, tokenWith({ tz: 'America/Los_Angeles' }));
+    expect(new URL(calls[0].url).searchParams.get('or')).toContain('due.lte.2026-11-01');
+  });
+
+  it('complete_task and update_task done tick the Melbourne day, and a day the agent names still wins', async () => {
+    freeze();
+    let calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    expect(text(await callTool('complete_task', { id: 'r1' }, MELB))).toBe('Ticked for 2026-11-02. It repeats, so it will be back on its next day.');
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-11-02']);
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    expect(text(await callTool('complete_task', { id: 'r1', day: '2026-11-01' }, MELB))).toContain('Ticked for 2026-11-01.');
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-11-01']);
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'r1', recurrence: { kind: 'daily' }, completed_dates: [] }], [{ id: 'r1' }]);
+    expect(text(await callTool('update_task', { id: 'r1', done: true }, MELB))).toContain('Ticked for 2026-11-02.');
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-11-02']);
+  });
+
+  it('an every_n_days repeat is anchored on the Melbourne day, and monthly with no day takes its date', async () => {
+    freeze();
+    let calls = sequence([{ id: 'x' }]);
+    await callTool('add_task', { title: 'Water the fern', repeat: { kind: 'every_n_days', days: 3 } }, MELB);
+    expect(bodyOf(calls[0]).recurrence).toEqual({ kind: 'interval', days: 3, anchor: '2026-11-02' });
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'x' }]);
+    await callTool('add_task', { title: 'Pay the rent', repeat: { kind: 'monthly' } }, MELB);
+    expect(bodyOf(calls[0]).recurrence).toEqual({ kind: 'monthly', day: 2, start: '2026-11-02' });
+    vi.unstubAllGlobals();
+    // With no zone, the UTC day as before: the 1st.
+    calls = sequence([{ id: 'x' }]);
+    await callTool('add_task', { title: 'Pay the rent', repeat: { kind: 'monthly' } });
+    expect(bodyOf(calls[0]).recurrence).toEqual({ kind: 'monthly', day: 1, start: '2026-11-01' });
+  });
+
+  it("a repeat set on a done task keeps its finish on the day it was in Melbourne, and starts on Melbourne's today", async () => {
+    freeze();
+    const done = {
+      id: 't1',
+      title: 'Water the plants',
+      done: true,
+      completed_at: '2026-10-30T21:15:00+00:00', // 08:15 on Saturday 31 Oct in Melbourne
+      updated_at: '2026-10-30T21:15:00+00:00',
+      recurrence: null,
+      completed_dates: null,
+      slices: null,
+      silent_parent: null,
+      parent_id: null,
+    };
+    const calls = sequence([done], [{ id: 't1' }]);
+    const r = await callTool('update_task', { id: 't1', repeat: { kind: 'every_n_days', days: 2 } }, MELB);
+    expect(text(r)).toBe('Updated. It was done, so it repeats now, with 2026-10-31 ticked as the day it was finished.');
+    expect(bodyOf(calls[1])).toMatchObject({ recurrence: { kind: 'interval', days: 2, anchor: '2026-11-02' }, completed_dates: ['2026-10-31'] });
+  });
+
+  it("list_upcoming counts its window from the Melbourne day, and fetch's status line agrees", async () => {
+    freeze();
+    let calls = sequence([]);
+    await callTool('list_upcoming', { days: 3 }, MELB);
+    const or = new URL(calls[0].url).searchParams.get('or') ?? '';
+    expect(or).toContain('due.gt.2026-11-02');
+    expect(or).toContain('due.lte.2026-11-05');
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 't1', title: 'Call the vet', done: false, due: '2026-11-02', recurrence: null }]);
+    const doc = JSON.parse(text(await callTool('fetch', { id: 't1' }, MELB))) as { text: string };
+    expect(doc.text).toContain('on today');
+  });
+});

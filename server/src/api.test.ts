@@ -817,7 +817,7 @@ describe('parts over REST: partsTotal / partsDone, absolute and forward-only', (
 
   // --- the contract and the parity with MCP ---------------------------------------------------
 
-  it('OpenAPI is 1.3.1 and documents the parts fields and the 409', async () => {
+  it('OpenAPI is 1.4.0 and documents the parts fields and the 409', async () => {
     const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
     type Schema = { properties: Record<string, unknown>; required?: string[] };
     const spec = (await res.json()) as {
@@ -825,7 +825,7 @@ describe('parts over REST: partsTotal / partsDone, absolute and forward-only', (
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
       components: { schemas: Record<string, Schema>; responses: Record<string, unknown> };
     };
-    expect(spec.info.version).toBe('1.3.1');
+    expect(spec.info.version).toBe('1.4.0');
     const { Task, TaskInput, TaskPatch } = spec.components.schemas;
     expect(Task.required).toEqual(expect.arrayContaining(['partsTotal', 'partsDone']));
     expect(TaskInput.properties).toHaveProperty('partsTotal');
@@ -1268,7 +1268,7 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
 
   // --- the contract -----------------------------------------------------------------------------------------------
 
-  it('OpenAPI 1.3.1 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
+  it('OpenAPI 1.4.0 documents the steps route, StepInput, StepsCreated and the new read fields', async () => {
     const res = await handleApi(req('GET', '/api/v1/openapi.json'), env, trust);
     type Schema = { properties: Record<string, unknown>; required?: string[] };
     const spec = (await res.json()) as {
@@ -1276,7 +1276,7 @@ describe('linked steps over REST: steps on create, POST /tasks/{id}/steps, and t
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
       components: { schemas: Record<string, Schema> };
     };
-    expect(spec.info.version).toBe('1.3.1');
+    expect(spec.info.version).toBe('1.4.0');
     expect(spec.paths['/tasks/{id}/steps'].post.responses).toMatchObject({
       '201': { content: { 'application/json': { schema: { $ref: '#/components/schemas/StepsCreated' } } } },
       '409': { $ref: '#/components/responses/Conflict' },
@@ -1528,5 +1528,103 @@ describe('#23 and #29 over REST: a repeat on a done task, the reads, and a bare 
     await patch({ repeat: { kind: 'weekly', weekdays: [1, 4] } });
     expect(bodyOf(viaRest[1])).toEqual(bodyOf(viaMcp[1]));
     expect(guardOf(viaRest[1])).toEqual(guardOf(viaMcp[1]));
+  });
+});
+
+// #24 (2026-11-02): the REST API's "today" is the user's own day, from the time zone the verified token carries, the
+// same day MCP uses. Without one it is the UTC day, as before.
+describe("#24 over REST: today is the user's own day, from the time zone the verified token carries", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  // 21:30 UTC on Sunday 1 Nov is 08:30 on Monday 2 Nov in Melbourne (UTC+11).
+  const NOW = '2026-11-01T21:30:00.000Z';
+  const freeze = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  };
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const tokenWith = (meta?: object) => `${b64({ alg: 'none' })}.${b64({ sub: 'u1', ...(meta ? { user_metadata: meta } : {}) })}.sig`;
+  const MELB = tokenWith({ tz: 'Australia/Melbourne' });
+  const call = (method: string, path: string, token: string, body?: unknown) => handleApi(req(method, path, { token, body }), env, trust);
+  const repeat = { id: 'r1', title: 'Meds', done: false, due: null, recurrence: { kind: 'daily' }, completed_dates: [], created_at: 'c', completed_at: null };
+
+  it('?today=true reads the Melbourne day, and no zone or a bad one reads the UTC day', async () => {
+    freeze();
+    let calls = sequence([]);
+    expect((await call('GET', '/api/v1/tasks?today=true', MELB)).status).toBe(200);
+    expect(paramsOf(calls[0]).or).toBe('(due.is.null,due.lte.2026-11-02)');
+    for (const token of [fakeJwt('u1'), tokenWith({ tz: 'GMT+11:00' }), tokenWith({ tz: 'Mars/Olympus_Mons' })]) {
+      vi.unstubAllGlobals();
+      calls = sequence([]);
+      expect((await call('GET', '/api/v1/tasks?today=true', token)).status).toBe(200);
+      expect(paramsOf(calls[0]).or).toBe('(due.is.null,due.lte.2026-11-01)');
+    }
+  });
+
+  it('?upcoming counts from the Melbourne day', async () => {
+    freeze();
+    const calls = sequence([]);
+    await call('GET', '/api/v1/tasks?upcoming=3', MELB);
+    expect(paramsOf(calls[0]).or).toContain('due.gt.2026-11-02');
+    expect(paramsOf(calls[0]).or).toContain('due.lte.2026-11-05');
+  });
+
+  it('POST anchors every_n_days on the Melbourne day, and monthly with no day takes its date', async () => {
+    freeze();
+    let calls = sequence([{ id: 'x', title: 'Water the fern', done: false }]);
+    expect((await call('POST', '/api/v1/tasks', MELB, { title: 'Water the fern', repeat: { kind: 'every_n_days', days: 3 } })).status).toBe(201);
+    expect(bodyOf(calls[0]).recurrence).toEqual({ kind: 'interval', days: 3, anchor: '2026-11-02' });
+    vi.unstubAllGlobals();
+    calls = sequence([{ id: 'x', title: 'Pay the rent', done: false }]);
+    await call('POST', '/api/v1/tasks', MELB, { title: 'Pay the rent', repeat: { kind: 'monthly' } });
+    expect(bodyOf(calls[0]).recurrence).toEqual({ kind: 'monthly', day: 2, start: '2026-11-02' });
+  });
+
+  it('PATCH done ticks the Melbourne day on a repeat, and a day in the body still wins', async () => {
+    freeze();
+    let calls = sequence([repeat], [repeat]);
+    expect((await call('PATCH', '/api/v1/tasks/r1', MELB, { done: true })).status).toBe(200);
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-11-02']);
+    vi.unstubAllGlobals();
+    calls = sequence([repeat], [repeat]);
+    await call('PATCH', '/api/v1/tasks/r1', MELB, { done: true, day: '2026-11-01' });
+    expect(bodyOf(calls[1]).completed_dates).toEqual(['2026-11-01']);
+  });
+
+  it("PATCH repeat on a done task keeps its finish on the day it was in Melbourne, and MCP writes the same", async () => {
+    freeze();
+    const done = {
+      id: 't1',
+      title: 'Water the plants',
+      done: true,
+      due: null,
+      recurrence: null,
+      completed_dates: null,
+      skipped_dates: null,
+      slices: null,
+      silent_parent: null,
+      parent_id: null,
+      created_at: '2026-10-01T00:00:00+00:00',
+      completed_at: '2026-10-30T21:15:00+00:00', // 08:15 on Saturday 31 Oct in Melbourne
+      updated_at: '2026-10-30T21:15:00+00:00',
+    };
+    const viaRest = sequence([done], [{ ...done, done: false }]);
+    expect((await call('PATCH', '/api/v1/tasks/t1', MELB, { repeat: { kind: 'every_n_days', days: 2 } })).status).toBe(200);
+    expect(bodyOf(viaRest[1])).toMatchObject({ recurrence: { kind: 'interval', days: 2, anchor: '2026-11-02' }, completed_dates: ['2026-10-31'] });
+    vi.unstubAllGlobals();
+    const viaMcp = sequence([done], [{ id: 't1' }]);
+    await handleMcp(
+      new Request('https://doubledone-ai.example/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${MELB}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'update_task', arguments: { id: 't1', repeat: { kind: 'every_n_days', days: 2 } } } }),
+      }),
+      env,
+      { kind: 'header' },
+      trust,
+    );
+    expect(bodyOf(viaRest[1])).toEqual(bodyOf(viaMcp[1]));
   });
 });

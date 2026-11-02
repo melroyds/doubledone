@@ -94,6 +94,7 @@ import {
 } from './steps';
 import { type D1LikeDatabase, logAiCall, type TelemetryEnv } from './telemetry';
 import { defaultVerifySub, type SubVerifier } from './verify';
+import { localDay, readZoneClaim } from './zone';
 
 // Widened past SUPABASE_* so break_down can reach Anthropic (ANTHROPIC_API_KEY), and count its
 // per-user hourly cap and log to the moat in D1 (DB, from TelemetryEnv). All optional and
@@ -169,7 +170,7 @@ export const TOOLS = [
   {
     name: 'list_today',
     description:
-      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. A task tracked in parts shows its progress, marked e.g. '(3/10 parts)'. A step of a bigger task is marked '(toward \"X\")', or '(a step)' when the big task's name is not known: ticking the last step closes X. The big task itself is not listed while it waits on its steps. Today is the UTC calendar day for now, so early in an Australian morning it can still be yesterday's. Returns each task's id for complete_task.",
+      "List the user's open tasks for today: one-offs undated or due today or earlier, plus any repeating task due today not yet ticked or skipped, marked '(repeats)'. A task tracked in parts shows its progress, marked e.g. '(3/10 parts)'. A step of a bigger task is marked '(toward \"X\")', or '(a step)' when the big task's name is not known: ticking the last step closes X. The big task itself is not listed while it waits on its steps. Today is the user's own day, in the time zone their account keeps for a connected assistant, or the UTC calendar day when it keeps none. Returns each task's id for complete_task.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -187,12 +188,12 @@ export const TOOLS = [
   {
     name: 'complete_task',
     description:
-      "Tick one of the user's tasks, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). A task TRACKED IN PARTS (marked e.g. '(3/10 parts)') moves forward ONE part, as one tap in the app does. Pass `count` to tick more, and the remaining count finishes it. A STEP (marked '(toward \"X\")') closes, and when it is the last open step, \"X\" closes as done too and the reply says so. The big task itself is not listed and can't be ticked directly: tick its steps. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it.",
+      "Tick one of the user's tasks, by the id from list_today. A one-off closes. A REPEATING task (marked '(repeats)' in list_today) is ticked for ONE day and comes back on its next day; completing never closes a repeat (to stop one, update_task with repeat: null). A task TRACKED IN PARTS (marked e.g. '(3/10 parts)') moves forward ONE part, as one tap in the app does. Pass `count` to tick more, and the remaining count finishes it. A STEP (marked '(toward \"X\")') closes, and when it is the last open step, \"X\" closes as done too and the reply says so. The big task itself is not listed and can't be ticked directly: tick its steps. The day defaults to the user's today, the same day list_today uses. Pass `day` only to tick a different day.",
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The task id from list_today.' },
-        day: { type: 'string', description: "Optional 'YYYY-MM-DD': the day to tick a repeating task for (the user's local date). Defaults to the UTC day. Ignored for a one-off." },
+        day: { type: 'string', description: "Optional 'YYYY-MM-DD': the day to tick a repeating task for, in the user's calendar. Defaults to the user's today, as list_today reads it. Ignored for a one-off." },
         count: {
           type: 'integer',
           minimum: 1,
@@ -207,7 +208,7 @@ export const TOOLS = [
   {
     name: 'update_task',
     description:
-      "Change one of the user's tasks: its title, its `due` day, its `repeat`, its `parts`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it exactly as complete_task does (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward ONE part; the last step of a bigger task closes the big task too); `done: false` reopens a one-off or a step (never the big task it closed), or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). Parts only go forward, so `done: false` on a task tracked in parts is refused. Change `parts` or `done`, one at a time. The day defaults to the UTC calendar day; pass `day` with the user's local date when you know it. At least one change is required.",
+      "Change one of the user's tasks: its title, its `due` day, its `repeat`, its `parts`, or `done`. Setting `due` clears any repeat and vice versa. Pass null to clear a field. `done: true` ticks it exactly as complete_task does (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward ONE part; the last step of a bigger task closes the big task too); `done: false` reopens a one-off or a step (never the big task it closed), or un-ticks a day on a repeat on the server only (a device that already synced the tick brings it back). Parts only go forward, so `done: false` on a task tracked in parts is refused. Change `parts` or `done`, one at a time. The day defaults to the user's today, the same day list_today uses. Pass `day` only for a different day. At least one change is required.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -223,7 +224,7 @@ export const TOOLS = [
             'Track this one-off in parts (2-50). Progress so far carries over, and a count at or below the parts already done finishes it. null makes it one whole task again. Not for a repeating task, or one waiting on its steps.',
         },
         done: { type: 'boolean', description: 'true ticks it (a repeating task is ticked for one day, never closed; a task tracked in parts moves forward one part); false reopens a one-off, or un-ticks a day on a repeat (server only: a device that already synced the tick brings it back). false is refused on a task tracked in parts.' },
-        day: { type: 'string', description: "Optional 'YYYY-MM-DD', the user's local date. With `done` on a repeating task: the day to tick or un-tick (defaults to the UTC day). With a new `repeat` on a task that is already done, and no `done`: the day it was finished, so its finish is kept on that day (defaults to the UTC day it was finished)." },
+        day: { type: 'string', description: "Optional 'YYYY-MM-DD', a day in the user's calendar. With `done` on a repeating task: the day to tick or un-tick (defaults to the user's today). With a new `repeat` on a task that is already done, and no `done`: the day it was finished, so its finish is kept on that day (defaults to the day it was finished, in the user's time zone when their account keeps one)." },
       },
       required: ['id'],
       additionalProperties: false,
@@ -980,8 +981,9 @@ export function planDone(row: TaskState, on: boolean, o: { count: number; day: s
   if (row.silent_parent === true) return { kind: 'refuse', text: waitingOnSteps(row) };
   if (o.repeats) {
     const tick = tickForDay(row.completed_dates, o.day, on);
-    // The day is NAMED in every answer: the default is the UTC day, which for an Australian morning is
-    // yesterday's date, and an agent that sees the date can pass `day` next time.
+    // The day is NAMED in every answer. The default is the user's today (zone.ts): the UTC day for an account that
+    // keeps no time zone, which for an Australian morning is yesterday's date, so an agent that sees the date can
+    // pass `day` next time.
     if (tick.already) {
       return { kind: 'say', text: on ? `Already ticked for ${o.day}. It repeats, so it will be back on its next day.` : `${o.day} was not ticked, so nothing to undo.` };
     }
@@ -1287,7 +1289,7 @@ async function runAddSteps(env: McpEnv, token: string, sub: string, args: Record
 }
 
 /** The optional `day` an agent names for a tick: a real calendar day, else null (a refusal); absent means
- *  the server's UTC day. */
+ *  `fallback`, the user's today (their account's time zone, else UTC). */
 function readDay(args: Record<string, unknown>, fallback: string): string | null {
   if (args.day === undefined) return fallback;
   return typeof args.day === 'string' && isValidIsoDay(args.day) ? args.day : null;
@@ -1295,11 +1297,24 @@ function readDay(args: Record<string, unknown>, fallback: string): string | null
 
 // --- Tool execution (I/O) --------------------------------------------------
 
-// The token has been VERIFIED by handleMcp before this runs; `sub` is the trusted user id from that check.
-// `ip` is set only on the pasted-token path (see McpEnv.AI_LIMITER).
-async function runTool(env: McpEnv, token: string, sub: string, name: string, args: Record<string, unknown>, ip?: string): Promise<ToolResult> {
-  const now = new Date().toISOString();
-  const todayIso = now.slice(0, 10);
+// The token has been VERIFIED by handleMcp before this runs; `sub` is the trusted user id from that check, and
+// `zone` the time zone read from the same verified token (null: the UTC day). `ip` is set only on the pasted-token
+// path (see McpEnv.AI_LIMITER).
+async function runTool(
+  env: McpEnv,
+  token: string,
+  sub: string,
+  zone: string | null,
+  name: string,
+  args: Record<string, unknown>,
+  ip?: string,
+): Promise<ToolResult> {
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  // The user's own day, in their account's time zone when it keeps one (#24), else the UTC day. Every "today" below
+  // comes from here: list_today, list_upcoming, the default day of a tick, a repeat's start and anchor, monthly's
+  // default day, fetch's status line, and the day a step's finish is dated to.
+  const todayIso = localDay(zone, nowMs);
 
   // Single entitlement gate for any future premium tool. Empty today, so this never fires;
   // when a paid tool is added it joins PREMIUM_TOOLS and this is the ONE place it's checked.
@@ -1464,8 +1479,9 @@ async function runTool(env: McpEnv, token: string, sub: string, name: string, ar
     // finished (cadence.ts reopenForRepeat), pinned to the row still being done. Left done, it vanished from every
     // read here and from the Calendar (#23). A `done` riding with it is decided on the row as reopened.
     // With no `done` riding along, a `day` names the local day the task was finished, so the kept tick lands on it.
-    // (`day` falls back to the UTC day, so only a day the agent actually NAMED dates the finish.)
-    const reopen = fields.recurrence != null ? reopenForRepeat(row, done === undefined && args.day !== undefined ? day ?? undefined : undefined) : null;
+    // (`day` falls back to today, so only a day the agent actually NAMED dates the finish. Without one it is the day
+    // completed_at falls on, in the account's time zone when it keeps one.)
+    const reopen = fields.recurrence != null ? reopenForRepeat(row, done === undefined && args.day !== undefined ? day ?? undefined : undefined, zone) : null;
     const reopened: TaskState = reopen ? { ...row, done: false, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : row;
     const reopenFields = reopen ? { done: false, completed_at: null, ...(reopen.dates ? { completed_dates: reopen.dates } : {}) } : {};
     const reopenNote = reopen
@@ -1732,8 +1748,12 @@ export async function handleMcp(
     const p = (body.params ?? {}) as { name?: unknown; arguments?: unknown };
     const name = typeof p.name === 'string' ? p.name : '';
     const args = (p.arguments && typeof p.arguments === 'object' ? p.arguments : {}) as Record<string, unknown>;
+    // The user's time zone rides the token just verified (user_metadata.tz, kept only for a person who connected an
+    // assistant). Read AFTER the check, like the email: a forged token never gets this far. Anything odd is null,
+    // which is the UTC day, never an error.
+    const zone = readZoneClaim(token);
     try {
-      return mcpJson(rpcResult(id, await runTool(env, token, sub, name, args, ip)));
+      return mcpJson(rpcResult(id, await runTool(env, token, sub, zone, name, args, ip)));
     } catch {
       return mcpJson(rpcResult(id, toolText('Something went wrong reaching DoubleDone. Try again.', true)));
     }
