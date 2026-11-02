@@ -589,7 +589,8 @@ describe('premiumHeaders: one credential, never both', () => {
 
 // The traps the server half recorded for the app (2026-11-03). A signed-in Premium call refused while the phone's
 // store still shows Premium is a purchase the account was never told about (a Restore while signed in, a logIn that
-// failed or raced configure, a webhook that lags), so it links the store, reconciles once, and asks once more.
+// failed, or raced configure before the iPhone waited for it, a webhook that lags), so it links the store, reconciles
+// once, and asks once more.
 describe('a signed-in refusal while the store still shows Premium mends itself once', () => {
   const UID = '11111111-2222-3333-4444-555555555555';
   const LOCAL = { since: '2026-11-01T00:00:00.000Z', currentPeriodEnd: 1_800_000_000, cancelAtPeriodEnd: false, source: 'apple' as const };

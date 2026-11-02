@@ -7,13 +7,14 @@
 // it cannot run without the native module, and purchases-split.test.ts checks only its identity, its
 // purchase proof and localPremium's cached and fresh reads, against a stubbed SDK.
 //
-// It is a copy of the iOS file with three differences that are the whole point of it:
+// It began as a copy of the iOS file with three differences that were the whole point of it (the iOS file
+// has since taken the second, on 2026-11-03):
 // 1. It reads the Android key, EXPO_PUBLIC_RC_ANDROID_KEY, and with no key it never configures (a
 //    configure with no key throws, and a throw here is a launch crash on every phone).
-// 2. Every call waits for configure to FINISH. The iOS file returns early while configure is still in
-//    flight, so a sign-in in the first moments of a launch skips logIn silently, and the effect that calls
-//    it only re-runs when the session changes. On Android that would let a purchase land on an anonymous
-//    RevenueCat id, which our webhook drops: someone who has paid, and exists nowhere in D1.
+// 2. Every call waits for configure to FINISH. Returning early while configure is still in flight, as the
+//    iOS file did until then, lets a sign-in in the first moments of a launch skip logIn silently, and the
+//    effect that calls it only re-runs when the session changes. On Android that would let a purchase land
+//    on an anonymous RevenueCat id, which our webhook drops: someone who has paid, and exists nowhere in D1.
 // 3. Buying and restoring need an account, and the account is CHECKED, not assumed. Google Play has no
 //    rule like Apple's 5.1.1, and a web or iPhone subscriber who opens Android signed out would otherwise
 //    be one tap from a second charge. Before the store sheet opens, RevenueCat's own app user id must be

@@ -25,8 +25,10 @@ export type PremiumCredential = { kind: 'account' | 'purchase'; headers: Record<
  * The session's bearer whenever there is one, else, on an iPhone that bought Premium without an account, its
  * anonymous purchase id (lib/purchases purchaserProof). Never both: the server reads the purchase header only when
  * a request has no Authorization header at all, and a signed-in iPhone's RevenueCat id is its Supabase uuid, which
- * purchaserProof refuses, so an account can never be lent through the header. Null when there is neither (signed out
- * on the web or on Android, or before the iPhone's store has configured). Never throws.
+ * purchaserProof refuses, so an account can never be lent through the header. Null when there is neither: signed out
+ * on the web or on Android, or on an iPhone whose store never configured (no key in the build, or a configure that
+ * failed). purchaserProof waits for configure, so a call made in the first moments of a launch is not refused for
+ * being early. Never throws.
  */
 export async function premiumHeaders(): Promise<PremiumCredential | null> {
   const auth = await authHeader();
@@ -46,12 +48,13 @@ let lastHealMs = Number.NEGATIVE_INFINITY;
 
 /**
  * A signed-in Premium call the server refused (a 403) while this phone's store still shows Premium: the purchase is
- * real, but the account was never told. A Restore while signed in, a sign-in whose logIn failed or raced the store's
- * configure, and a webhook that lags a purchase all end here, and the four features refused it until a relaunch. So
- * link the store to the account once more, and ask the server to attach what the store holds (POST /apple/reconcile,
- * which grants only a real purchase, and a sandbox one only for an account on SANDBOX_GRANT_UIDS). True only when
- * it attached something, so the caller asks once more. Never throws. Never runs on the web (no store), and never for
- * a phone without an account (premiumCall calls it only for the account's credential).
+ * real, but the account was never told. A Restore while signed in, a sign-in whose logIn failed (or, before the
+ * iPhone waited for configure, raced it), and a webhook that lags a purchase all end here, and the four features
+ * refused it until a relaunch. So link the store to the account once more, and ask the server to attach what the
+ * store holds (POST /apple/reconcile, which grants only a real purchase, and a sandbox one only for an account on
+ * SANDBOX_GRANT_UIDS). True only when it attached something, so the caller asks once more. Never throws. Never runs
+ * on the web (no store), and never for a phone without an account (premiumCall calls it only for the account's
+ * credential).
  */
 async function healAccountPremium(): Promise<boolean> {
   if (!IAP_AVAILABLE) return false;
