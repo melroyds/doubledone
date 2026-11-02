@@ -17,10 +17,185 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_The Worker (not deployed yet), plus one app sync fix, which reaches the web with the next push to `main` and the
-phones with the next store build. 1.8.0 is with the stores._
+_Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3, 1.10.4 and 1.10.5 on 2026-11-02, and on the
+Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02). The app changes reach the
+phones with the store build in the week of 16 to 22 Nov._
 
 ### Added
+- `doubledone.app/?ref=instagram` and `?ref=facebook` make the website's store badges carry that channel, so each
+  store can say which installs it brought. The list is fixed, so no free text reaches a store, and nothing is stored
+  (2026-11-01, [`client/src/lib/store-links.ts`](client/src/lib/store-links.ts)).
+- Two bare feature counts, so "Set today aside" is built only if they show a need: `day.closed.morning` (Goodnight
+  between 05:00 and 11:59) and `reentry.shown` (the welcome-back note after four or more days away). One count a day
+  and nothing finer, named in both privacy copies (Worker `636a1611`,
+  [`client/src/lib/day.ts`](client/src/lib/day.ts)).
+
+### Changed
+- **Tidy says it uses AI** on its face: "Tidy this into tasks with AI", in all five languages, from one key for the
+  words and the spoken name, so the two cannot drift apart (web 1.10.4).
+- **The screenshot review's copy batch** (2026-11-01, five languages, 99 edits): a one-day repeat is spelled out
+  ("Every Sunday"), a shared row due today says "Today", the AI note names the add panel's own buttons, and French
+  uses the typographic apostrophe throughout.
+- **The native read's copy batch** (web 1.10.3, five languages): a signed-in replay of the welcome no longer says
+  everything stays on this device, the AI-off lines speak only for the app's own AI features, the delete
+  confirmation says what is cleared and what Export keeps, the select bar agrees with one task or several, and every
+  spoken name on the held card, the select bar and the paywall starts with the words on its control.
+- "+ I also did that" stays on Today, and its usage count stops, as the privacy policy promised once its
+  keep-or-remove verdict was in. Worker `6d50a3eb` drops the name from older phones (web 1.10.3).
+- **The privacy policy**, both copies: three small records outlive a deleted account (a billing record, a free-trial
+  note and a gift record), a new section says what the website's daily reminder stores, the two new counts are
+  named, and so is the time zone kept for a connected assistant (below). The public page says "the Calendar", not
+  "the Lookback".
+
+### Fixed
+- **Keeping Premium during the card-free month charges when the month ends**, not on the day "Go Premium to keep it"
+  is tapped on the web, and a free month that cannot be read refuses the checkout rather than charging (Worker
+  `7139f696`).
+- **Premium follows sign-in and sign-out** straight away, a refused checkout re-reads the account so the screen shows
+  the button its words point to, and Back from Stripe no longer leaves Go Premium stuck (web 1.10.2).
+- **Sign-in** no longer says a good code "did not work" when the connection dropped, sends were rate limited, the
+  browser blocked saving or the server failed, and it always has a way out, even when it is the only screen open
+  (web 1.10.2 and 1.10.3).
+- **The Calendar**: "Add for this day" no longer erases tasks saved since the Calendar opened, and the Calendar plans
+  only what Today shows, so a broken-down task no longer appears as planned on its day (web 1.10.2).
+- **The daily reminder's Off stays off**, even right after its hour was changed (web 1.10.2).
+- **The website's daily reminder** sounds every day (from the second unread day it came silently), speaks your
+  language, keeps its hour across daylight saving, and arrives on the hour in half-hour and quarter-hour time zones
+  such as Adelaide, India and Nepal (2026-11-01, Worker `7139f696`).
+- **On the web**, the page names its language for every visitor, so a screen reader reads the app in the right voice,
+  Support says that deleting an account also clears the tasks on this device (export first), and open tabs are told
+  when a new version is ready (web 1.10.2).
+- Deleting an account purges every keepsake picture the account holds, not only the newest 16 on that device, and a
+  remade keepsake retires the picture it replaced (web 1.10.2).
+- **Ours**: a shared row you broke down waits for your own steps (your person's tick no longer marks your hidden copy
+  done), and your last step closes the shared row at once, so your person never redoes what you finished (web
+  1.10.2).
+- **Hold me to it ends when its task leaves Today**: removed (once its Undo has passed), combined, broken down, moved
+  to another day, or on a repeat's day off. It used to go on knocking about a task that was nowhere on Today (phones
+  only).
+- **Low resets each morning**, also when the app comes back from the background after midnight (web 1.10.3).
+- **On the web, screen readers hear which chip, segment and swatch is picked**, a row that cannot be ticked says it is
+  unavailable, and Space works: it ticks rows and checklists as the key comes up, and the Energy pills and the
+  welcome's Keep or Tuck are radio groups the arrow keys move through (web 1.10.4,
+  [`client/src/lib/picked.ts`](client/src/lib/picked.ts)).
+- **The Add button keeps a repeat's days whole**, up to seven lines in a box with round corners, on any screen 320 pt
+  wide or more, at the app's three text sizes (web 1.10.4).
+- **Clearer in the light theme**: Quiet's rows and check rings read clearly on the sky, Settle's guide words clear
+  4.5:1 on every light paper and the Menu's ✦ is a deeper gold (web 1.10.4), and Settle's rose word is a dustier
+  shade, clear of the red that Remove wears (web 1.10.5).
+- **An AI agent's "today" is your own day** (web 1.10.5, Worker `666a23d4`, OpenAPI 1.4.0). MCP and the REST API took
+  it from UTC, so in Melbourne an agent worked on yesterday until 11am. The account keeps the device's time-zone name
+  only for people who connect an assistant (Copy my token, or Allow on a connector's sign-in page), and Disconnect AI
+  connectors or deleting the account removes it. A connection made before this change stays on UTC until the token is
+  copied again or the connector reconnects ([`server/src/zone.ts`](server/src/zone.ts),
+  [`client/src/lib/account-zone.ts`](client/src/lib/account-zone.ts)).
+- **Server: the Stripe webhook writes the subscription as Stripe holds it now** (Worker `6d50a3eb`). A late or retried
+  event can no longer switch a payer to free or to "fix your card", an old subscription's ending can no longer switch
+  off a new one, an ending never waits on the read, and a failed read emails the owner
+  ([`server/src/stripe.ts`](server/src/stripe.ts)).
+- Server (Worker `7139f696`): the website reminder's sign-up answers only once it is stored, so a failed save is sent
+  again. A repeat set on a done task reopens its series, which brings back the repeats agents ticked before 25 Sep.
+  A datetime repeat start and a bare `?upcoming` are read correctly, and the `break_down` hourly cap is one atomic
+  count. OpenAPI 1.3.1.
+
+### Security
+- The installed web app is no longer a share target. Its shared text rode in the URL, which reached the host's request
+  logs. Android and iPhone share into the store apps as before (web 1.10.3).
+
+## [1.10.1] - 2026-11-01
+
+_iPhone only. Build 49 went to App Review on 2026-11-01, after a TestFlight check, and is not yet recorded as live.
+Android stays on 1.10.0, because the bug cannot happen there, so no Android build was made. The web has carried the
+code since 2026-11-01 (`ff4e2d9`), but the fix is native behaviour. Store notes:
+[`docs/release-notes/1.10.1.md`](docs/release-notes/1.10.1.md)._
+
+### Fixed
+- **On iOS 27, the list behind the add panel stays still.** Typing in the Add to Today panel with Apple's keyboard
+  made Today's list behind it climb a step with every letter, however the panel was opened (the +, a share, the Brain
+  dump shortcut). Closing the panel now leaves no gap at the end of the list either
+  ([`client/src/app/today.tsx`](client/src/app/today.tsx),
+  [`client/src/components/CaptureSheet.tsx`](client/src/components/CaptureSheet.tsx)).
+- German: the add panel's AI note names its three actions the way the panel does (on the web since 2026-10-26, and on
+  Android with the next store build).
+
+## [1.10.0] - 2026-10-26
+
+_Live on Google Play (versionCode 39) and, after App Review the same day, on the App Store (build 48), both on
+2026-10-26. It carries 1.9.1's Later folds too. The web has had drag by the grip and "A month on us" since 2026-10-25
+(`865d1f6`, `edb3c54`), with Workers `6112b1c7` and `84cded96` that evening. Store notes:
+[`docs/release-notes/1.10.0.md`](docs/release-notes/1.10.0.md)._
+
+### Added
+- **Drag a task by its grip**: rest a finger on the six dots at a task's right edge, then drag it where you want it (a
+  mouse picks it up at once). A hold anywhere else still opens the card, where Move up and Move down stay for screen
+  readers, keyboards and unsteady hands. The phone apps show no grip while VoiceOver or TalkBack runs
+  ([`client/src/components/DragGrip.tsx`](client/src/components/DragGrip.tsx),
+  [`client/src/lib/drag-order.ts`](client/src/lib/drag-order.ts)).
+- **"A month on us"**: a signed-in person with no Premium of any kind can be given a month of Premium (30 days) as
+  thanks for a note, at most once every 180 days. It is granted on the server, like the card-free month: no code,
+  nothing renews, nothing is charged, and it ends by itself. It is never tied to a rating or a review, and the store's
+  rating card stays off while it runs ([`server/src/feedback-month.ts`](server/src/feedback-month.ts)).
+- The month is offered by a line under Send feedback, and once by a card on Today a week after a device first opens
+  this version, each shown only when the server says the account can get one. With AI on, and only while a month is
+  on offer, Claude checks the note once for spam, and the screen says so above Send.
+- **Send feedback has a screen of its own** that keeps your words if you step away, with an optional link to book a
+  20-minute call once a note is sent ([`client/src/app/note.tsx`](client/src/app/note.tsx)).
+
+### Changed
+- The privacy policy gains "A note to us": what a note sends, the record kept when a month is given, the spam check
+  and the booking page. Its feature-usage list gains drags by the grip (`task.dragged`), counted beside Move up and
+  Move down so the two can be read side by side.
+- The App Store shows screenshots in every store language, each from that language's own app
+  ([`docs/appstore/captioned/`](docs/appstore/captioned/)). Play's set is made too
+  ([`docs/play-store/`](docs/play-store/)).
+
+## [1.9.1] - 2026-10-25
+
+_The first builds were superseded by the closed-fold change below and never submitted, and iOS 1.9.1 was in App Review
+on 2026-10-25. Nothing records its release, or an Android 1.9.1 going to Google Play: both stores' update nudges went
+from 1.9.0 to 1.10.0, which carries the folds too. The web has had them since 2026-10-25 (`e5d8913`, `6743de7`), with
+Worker `d2bdf430` the same day. Store notes: [`docs/release-notes/1.9.1.md`](docs/release-notes/1.9.1.md)._
+
+### Added
+- **Later folds the far future by month**, so the list below Today stays calm. The next seven days still show in full,
+  and everything further out folds into one closed line per month to the end of the year ("November · 6"), plus one
+  for next year and beyond. Tap a line to see what is in it. Every fold starts closed each time Today opens, and each
+  task still comes to Today on its own day ([`client/src/lib/today.ts`](client/src/lib/today.ts)).
+- Moving a task into a closed month keeps the fold closed and says where the task went ("Moved to Wednesday 4
+  November."), aloud too with a screen reader.
+- The website's store badges carry a campaign label (Apple's `ct=website`, UTM tags for Google Play), so each store
+  can say an install came from doubledone.app. It names the channel, never the person, and the in-app update nudge
+  stays untagged ([`client/src/lib/store-links.ts`](client/src/lib/store-links.ts)).
+
+### Changed
+- Server: MCP's `add_task` asks agents for one task in parts when the same thing is done several times by a date,
+  never several near-identical copies (Worker `d2bdf430`).
+
+## [1.9.0] - 2026-10-19
+
+_Submitted to both stores on 2026-10-19 and live on both on 2026-10-20: Google Play published versionCode 36 at 100%,
+and the App Store's automatic release sent out build 43 (22:05 UTC on the 19th). The web took the store batch on
+2026-10-19 (`1ff8382`, Worker `eee8ea16`) and the rest of this list as it was made: the 2026-10-05 fixes (`440e20c`,
+Worker `68fb7d84`), the landing page on 2026-10-18, and that night the R11 sync fix, beside the parts and linked steps
+for agents and integrations that the Worker carried (`9b10290e`). Store notes:
+[`docs/release-notes/1.9.0.md`](docs/release-notes/1.9.0.md)._
+
+### Added
+- **The store's own rating card** (the phone apps): asked for after a good Close the day, at most once per app version
+  and 180 days apart, and only after five closed days spread over at least two weeks. Never on a hard day (Low, Settle
+  or Lighten that day, or a return after time away), and never with words of ours before or after it. Only the count
+  of asks leaves the device, named in both privacy copies ([`client/src/lib/review.ts`](client/src/lib/review.ts)).
+- **A task's options without a finger**: VoiceOver's Actions rotor and TalkBack offer "Options" on every task, the
+  same choices as holding it. On the web, right-click, the Menu key or Shift+F10 opens a task's card, and a button
+  that only keyboard focus shows serves a Mac. Escape, VoiceOver's two-finger scrub and Android's back close it
+  ([`client/src/components/row-door.ts`](client/src/components/row-door.ts)).
+- **The Terms say plainly that DoubleDone is not medical care**, in a new section after "Using DoubleDone", with a
+  line for a crisis ([`client/public/terms.html`](client/public/terms.html),
+  [`client/src/app/terms.tsx`](client/src/app/terms.tsx)).
+- **A landing page search engines can read** (2026-10-18): doubledone.app's front page is real HTML in five
+  languages, written at build, with the audience first, seven questions answered, robots.txt and a sitemap.
+  Redesigned the same day with real app screens in every language and both themes, and one main action per device:
+  your phone's store badge, or Begin on a laptop ([`client/src/lib/landing-page.ts`](client/src/lib/landing-page.ts)).
 - **Parts for agents and integrations**: a task tracked in parts (the app's "Track in steps", a ten-episode
   series is 10 parts) can now be made, ticked, resized and made whole again through the MCP server and the REST
   API. MCP: `add_task` and `update_task` take `parts`, `complete_task` moves a task in parts forward ONE part
@@ -44,7 +219,41 @@ phones with the next store build. 1.8.0 is with the stores._
   offered, as the app's own does. ([`server/src/steps.ts`](server/src/steps.ts), with the shared cases in
   [`settle-cases.json`](server/src/settle-cases.json) run against the app's own rules too)
 
+### Changed
+- **Easier to read in the light theme**: grey and coloured words are darker on every screen, so text clears 4.5:1 on
+  the real sky, and the Honey theme's coloured words turn bronze. In dark mode only the faintest grey lines change,
+  lifting a touch. A test holds every text colour to the surfaces it sits on
+  ([`client/src/constants/palette.ts`](client/src/constants/palette.ts),
+  [`palette.test.ts`](client/src/constants/palette.test.ts)).
+- While you hold a task, the + steps aside until you are done, so Select several stays in view, on Today and Ours.
+- The app stops claiming more than it does: the AI-off welcome says your tasks stay on this device (it said nothing
+  leaves it), and Premium lists six more colour themes, not seven.
+- On an iPhone, the welcome and the Terms name no price of ours, only the App Store's own, in your currency.
+- **Honest AI lines** (2026-10-18): Turn AI off says the app's AI features send nothing you write, and tells a
+  signed-in person that a connected assistant keeps its access until Disconnect AI connectors. The AI-off notes no
+  longer say everything stays on your device.
+- Pin has one name per language, Ours is always called by its default name, and the app's Spanish is neutral
+  everywhere, with no vosotros left (2026-10-18).
+- **The store name says what the app is**: "DoubleDone: ADHD To-Do List" on both stores (the home-screen label stays
+  DoubleDone). Both listings were rewritten against the code, the App Store gained German, French, Italian and
+  Spanish pages and six captioned slides, and a CI gate holds both stores' copy
+  ([`scripts/check-listings.mjs`](scripts/check-listings.mjs)).
+- **The privacy policy says more**, in both copies: what deleting an account keeps (a billing record and a free-trial
+  note) and that a connector's email and keys go with it (2026-10-05), Cloudflare's visit counts on the website,
+  Speak on the web, and that the server notes who added each shared item only so a misuse report can be acted on
+  (2026-10-18), and the review-ask count (2026-10-19).
+- The web fonts are self-hosted, so loading a page no longer sends a request to Google, and the tab title names who
+  the app is for (2026-10-18).
+
 ### Fixed
+- A task in parts finished on one device (or by an agent) and edited on another before it synced came out of the
+  merge at every part ticked but still open, and a tap at the last part does nothing, so it could never close. The
+  merge now closes it, dated to when it was finished, and tells the server.
+  ([`client/src/lib/sync-merge.ts`](client/src/lib/sync-merge.ts))
+- The web no longer tells every visitor "A newer version is ready" (2026-10-05). With no native version it compared
+  a hard-coded 1.2.0, and Settings showed "v1.2.0 (web)" ([`client/src/lib/updates.ts`](client/src/lib/updates.ts)).
+- German joins the languages you can pick for DoubleDone in the phone's own settings (iPhone Settings, and Android 13
+  and later). The app already followed a German phone.
 - Ticking a task already done, over MCP or REST, now changes nothing. It used to re-stamp the finish time,
   which moved the task in the Lookback.
 - An agent's tick on a task in parts used to set it done while leaving its count at "2 / 5", so the next tap in
@@ -55,10 +264,6 @@ phones with the next store build. 1.8.0 is with the stores._
   on the list with nothing to close. Removing all its steps brings it back, and then it removes like any task.
   The refusal names every step when two or more are already done, because an agent sees only the open ones,
   and leaving the done ones behind would make the app finish the big task instead (REST: `stepIds`).
-- **App:** a task in parts finished on one device (or by an agent) and edited on another before it synced came
-  out of the merge at every part ticked but still open, and a tap at the last part does nothing, so it could never
-  close. The merge now closes it, dated to when it was finished, and tells the server.
-  ([`client/src/lib/sync-merge.ts`](client/src/lib/sync-merge.ts))
 - MCP `fetch` called a task waiting on its steps "on today", and a removed task too. It now says "waiting on its
   steps", shows a task's parts ("on today, 3 of 10 parts done"), and treats a removed task as the calm miss its
   documentation always described.
@@ -71,11 +276,20 @@ phones with the next store build. 1.8.0 is with the stores._
   and dated"), DELETE no longer lists a 404 it never returns, and a `due` day is no longer promised to be in the
   future. The REST repeat errors now name monthly.
 
+### Security
+- Deleting an account also disconnects its AI connectors and removes their records (the encrypted refresh token and
+  the sign-in email), and Disconnect AI connectors now also revokes the OAuth library's own grants, which had kept the
+  email until they expired (2026-10-05, Worker `68fb7d84`).
+- Keepsake pictures made by a signed-in person are tagged with their account, the groundwork for only the owner being
+  able to delete one. The rule is built and switched off for now, so a phone on an older build can still erase its
+  keepsakes when its account is deleted (2026-10-05,
+  [`server/src/scrapbook-purge.ts`](server/src/scrapbook-purge.ts)).
+
 ## [1.8.0] - 2026-10-05
 
-_With the stores: iOS build 41 at App Review, and Android versionCode 35 in closed testing on its way to
-Production. The web has carried it since 2026-10-04 (`17cc806`), with the two TestFlight fixes added on
-2026-10-05 (`2e31722`, `13348bb`). Store notes: [`docs/release-notes/1.8.0.md`](docs/release-notes/1.8.0.md)._
+_Live on Google Play on 2026-10-05 (versionCode 35) and on the App Store on 2026-10-07 (build 41). The web has
+carried it since 2026-10-04 (`17cc806`), with the two TestFlight fixes added on 2026-10-05 (`2e31722`, `13348bb`).
+Store notes: [`docs/release-notes/1.8.0.md`](docs/release-notes/1.8.0.md)._
 
 ### Added
 - **Where you left off**: one free line per task, for the version of you who comes back to it ("Called them,
