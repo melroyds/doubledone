@@ -153,7 +153,10 @@ line 70 still says "the Lookback" where the app says "the Calendar" (legal page,
 --append`, about four minutes). The baseline and its reading are in [`docs/store-search-ranks.md`](docs/store-search-ranks.md).
 Judge the keyword sets only from the second rerun. Same sitting: Play Console's acquisition report by search term.
 
-**DATED: 2026-12-01 at the latest, the R8 Android build** (Backlog, "R8 shrinking"): its own build, a closed-track
+**R8 IS SWITCHED ON in `client/app.json` (2026-11-03), so the next Android build carries it**: code shrinking on, resource
+shrinking off, and four libraries kept whole. The store build in the week of 16 to 22 Nov is that build, closed track first,
+with AND-11 as its device pass; if anything fails, that release ships without R8 and R8 gets its own build by 1 Dec.
+*(As dated before:)* **DATED: 2026-12-01 at the latest, the R8 Android build** (Backlog, "R8 shrinking"): its own build, a closed-track
 device pass of widget, share, purchases, reminders and Ours, and the mapping file, well before Google's February
 2027 deadline. Sooner if the SDK 57 upgrade lands first.
 

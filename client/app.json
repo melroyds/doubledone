@@ -138,7 +138,10 @@
         {
           "android": {
             "targetSdkVersion": 36,
-            "compileSdkVersion": 36
+            "compileSdkVersion": 36,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": false,
+            "extraProguardRules": "# R8 (the 2026-09-25 Play flag, 2% obfuscation against a 25% floor). These four libraries reach their own\n# classes by name at runtime and ship no keep rules of their own, so they are kept whole.\n-keep class com.reactnativeandroidwidget.** { *; }\n-keep class expo.modules.shareintent.** { *; }\n-keep class com.revenuecat.purchases.** { *; }\n-keep class com.reactnativecommunity.asyncstorage.** { *; }"
           }
         }
       ],

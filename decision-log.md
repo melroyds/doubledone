@@ -11594,3 +11594,23 @@ reviewer per language, one build lane, one reviewer and its fixes (a7542c6, fc71
 **Decided against, for now (Backlog):** the weekday chips' spoken names, which need a long weekday placeholder and
 code on a frozen screen; the paywall Terms link's "in English" note; and silencing the old uncaught errors under
 blocked storage, which break nothing.
+
+## 2026-11-03: R8 is switched on, and rides the store build with its own device pass
+
+Melroy, asking after it: "Did you do R8 as well btw?" It had been dated for 1 Dec as its own build, because it can only
+be proven on a device. The switch and its keeps are on main now, so the next Android build carries it.
+
+**Decided:**
+- **Code shrinking on, resource shrinking off** (`expo-build-properties`: `enableMinifyInReleaseBuilds` true,
+  `enableShrinkResourcesInReleaseBuilds` false). The widget library looks its images up by name at runtime, which
+  resource shrinking can strip (the 2026-11-01 review).
+- **Four libraries are kept whole** (`extraProguardRules`): the widget, share-in, RevenueCat and AsyncStorage. Each
+  reaches its own classes by name and ships no keep rules in its React Native layer, and between them they are the
+  widget, the share, the money and every saved task. Reanimated and expo-notifications ship their own rules.
+- **It rides the store build in the week of 16 to 22 Nov**, closed track first, with AND-11 as the device pass. One
+  build instead of two. If R8 fails the build or the pass, that release goes out without it and R8 gets its own build
+  before 1 Dec, still well before Google's February 2027 deadline. The bundle carries the mapping file, which Play reads
+  from the AAB, so crash reports stay readable.
+
+**Decided against:** keeping it a separate, earlier build (a second build from the monthly quota for the same device
+pass), and resource shrinking (the widget's images).
