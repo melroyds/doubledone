@@ -42,6 +42,15 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE 1 NOV SWEEP IS CLOSED (2026-11-02, evening, on Melroy's "do 27, 31 and 34 next. I want to close this off").**
+#31 (a7542c6: on the web, Today says when the browser keeps nothing), #34 (fc71406 and e22ca82: the paywall's
+privacy and Google Play links, the month-day chips and German Settings' AGB say their visible words first), #27
+(a0788ca: the German, French, Spanish and Italian listings say the app's current words, in the files the gate checks)
+and the German landing's six lines (9b4caba), as web 1.10.6. **Melroy's part:** paste the four Play descriptions now
+and the four App Store descriptions with the next iOS version, from the paste pack, which is generated from the
+checked files and never retyped. Every other sweep item is fixed. **Still to do:** the store build in the week of 16
+to 22 Nov (every client fix to the phones, and R8 by 1 Dec), on Melroy's ask.
+
 **THE 2 NOV FIX BATCH AND #24: LIVE (2026-11-02 afternoon, on Melroy's "Ship everything that makes sense").** Web
 1.10.4 (355af17: Tidy says it uses AI, #33 and #37 with their review's nine fixes, the Add label, Quiet's rows,
 Settle's words), then web 1.10.5 (59534b7: #24's app half, its review's eight fixes, and Settle's dustier rose), then
@@ -352,6 +361,13 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **Three small follow-ups from closing the sweep (found 2026-11-02).** (1) The weekday chips' spoken names ("Repeat
+  on Mo" for a chip that shows "Mo") fail the same voice rule #34 fixed, in all five languages; the fix needs a long
+  weekday placeholder and code in BrainDump and CadenceSheet, and the German wording is already read ("{day}, jeden
+  {weekday} wiederholen"). (2) The paywall's Terms link could say the terms are in English, as its privacy link now
+  does (German: "Nutzungsbedingungen und Erstattungsrichtlinie, auf Englisch"). (3) A browser with site data blocked
+  logs seven uncaught SecurityErrors from the storage layer; they predate #31, break nothing, and Today now says what is
+  happening. **Trigger:** the next copy pass for (1) and (2); a user report or an error count for (3).
 - **Two more light-mode pairs for the 3 Jan colour pass (found 2026-11-02 by the look's harness).** Honey's done tick
   ring on Quiet's light sky measures 2.8:1 (the tick inside it still carries the state), and the small ✦ on Today's
   Plan my day measures 2.3:1 (decorative, on a frozen screen). Neither was in #35 or #36. **Trigger:** the 3 Jan colour
@@ -442,7 +458,10 @@ the ladder is fixed and readable, never randomised.
      (BrainDump.tsx), and no note names "Tidy this into tasks", which is an AI call too (`showTidy` needs the
      shapers). So while Tidy is offered, the panel does not say where your words go. Fix the seat so the note is
      never displaced, or name Tidy in it, under the panel's own rule (BrainDump.tsx 491-495, OUR-77).
-  2. **The store listings now disagree with the app** in German, French, Spanish and Italian (the Ours line, "su lista
+  2. ~~**The store listings now disagree with the app**~~ **FIXED IN THE FILES 2026-11-02 (a0788ca, #27):** both
+     stores, all four languages, the Italian descriptions trimmed to 3969 and 3968, both retired phrases banned in
+     the gate. Melroy pastes Play now and the App Store with the next iOS version, from the paste pack. *(The
+     original item follows.)* in German, French, Spanish and Italian (the Ours line, "su lista
      era demasiado", "Falla minuscola" and four more Italian phrases). Both Italian descriptions sit at 3991 and 3992
      of 4000 characters, so pasting the new wording overflows: the listing pass needs a trim. Then add `/era
      demasiado/` to the Spanish `BANNED_BY_LANG` in `scripts/check-listings.mjs` (not before, or the gate fails).
@@ -459,7 +478,8 @@ the ladder is fixed and readable, never randomised.
      German.
   4. **The select bar's "a lot" pair is singular** in Italian, French and Spanish ("Segna come grossa") when several
      tasks are selected: plural keys chosen when `selected.length > 1`.
-  5. **The same garden path, unflagged:** `welcome.capturePrivacyAi` (English, Spanish), Italian `settings.aiStatusOn`,
+  5. ~~**The same garden path, unflagged:**~~ **FIXED 2026-11-02:** the German lines in 9b4caba, the rest in the
+     2 Nov copy batch (#40). *(The original item follows.)* `welcome.capturePrivacyAi` (English, Spanish), Italian `settings.aiStatusOn`,
      `landing.s1Body` and `landing.faqAiA` (bare action names, "Dopo, ordina tu per me" reads as "you order for
      me"), German `landing.sub`, `landing.faqWhoA`, `landing.promiseBody` and `welcome.heroSub`, `footerWho`,
      `promiseBody` (the old calques the welcome just lost).

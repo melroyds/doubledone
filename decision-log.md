@@ -11565,3 +11565,32 @@ the taller Add, Quiet's firmer rings, Settle's rose), each with a pick, and all 
 
 **Decided against, for now:** Honey's done tick ring in Quiet (2.8:1) and the ✦ on Today's Plan my day (2.3:1), parked
 for the 3 Jan colour pass (Backlog), because neither is in the fixes Melroy looked at and Today is frozen.
+
+## 2026-11-02: the last of the sweep: Today when a browser keeps nothing, three spoken names, and the four listings
+
+Melroy: "do 27, 31 and 34 next. I want to close this off." A spec, then a native writer and an adversarial native
+reviewer per language, one build lane, one reviewer and its fixes (a7542c6, fc71406, a0788ca, e22ca82, 9b4caba).
+
+**Decided:**
+- **On the web, Today says when the browser keeps nothing (#31).** A write-then-read probe of localStorage runs at
+  first paint, web only and never throwing (`lib/storage-probe.ts`). When it fails, Today shows `today.storageBlocked`
+  once per page load in the one-time card slot, with Got it, and the month offer and the free month's end line wait.
+  A modern private window saves for the session, so it passes and never sees the line, which is true. This reverses
+  the 2026-11-01 copy batch's parking of the Today probe. Checked in Chrome with every touch of storage throwing: the
+  app starts, Today shows the line, and the seven uncaught errors it logs were already there before #31 (Backlog).
+- **Three spoken names start with their visible words (#34):** the paywall's privacy link ("Privacy policy", and the
+  four translations add that it is in English, which it is), its Google Play subscriptions link, and the month-day
+  chips, which now start with their number ("15, repeat on the 15th of each month"). German Settings' Terms row says
+  "AGB, die Nutzungsbedingungen", a review find. This reverses the same entry's "decided against" for the paywall link
+  names and the month-day number.
+- **The German, French, Spanish and Italian listings say the app's current words (#27)**, on both stores, in the files
+  `scripts/check-listings.mjs` checks, with both Italian descriptions trimmed to 3969 and 3968 of 4000. The gate bans
+  the two retired phrases, and its Spanish "quién" rule narrows to the question form, because the relative "quien"
+  takes no accent and the new Spanish line uses it. Play takes the paste now. The App Store descriptions wait for the
+  next iOS version, because a description only changes with a version.
+- **The German landing and its web fallback drop the calques the listings dropped** (six lines), from the same German
+  read, which was the Backlog item's trigger.
+
+**Decided against, for now (Backlog):** the weekday chips' spoken names, which need a long weekday placeholder and
+code on a frozen screen; the paywall Terms link's "in English" note; and silencing the old uncaught errors under
+blocked storage, which break nothing.

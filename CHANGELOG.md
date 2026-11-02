@@ -17,7 +17,7 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3, 1.10.4 and 1.10.5 on 2026-11-02, and on the
+_Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3 to 1.10.6 on 2026-11-02, and on the
 Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02). The app changes reach the
 phones with the store build in the week of 16 to 22 Nov._
 
@@ -31,6 +31,11 @@ phones with the store build in the week of 16 to 22 Nov._
   [`client/src/lib/day.ts`](client/src/lib/day.ts)).
 
 ### Changed
+- **Spoken names start with the words on screen**: the paywall's privacy and Google Play links, the add
+  panel's month-day chips ("15, repeat on the 15th of each month") and German Settings' AGB, so voice control
+  finds them (web 1.10.6).
+- The German welcome and website speak more naturally, from a native read (web 1.10.6). The German, French,
+  Spanish and Italian store listings say the app's current words.
 - **Tidy says it uses AI** on its face: "Tidy this into tasks with AI", in all five languages, from one key for the
   words and the spoken name, so the two cannot drift apart (web 1.10.4).
 - **The screenshot review's copy batch** (2026-11-01, five languages, 99 edits): a one-day repeat is spelled out
@@ -48,6 +53,9 @@ phones with the store build in the week of 16 to 22 Nov._
   "the Lookback".
 
 ### Fixed
+- **On the web, Today says when the browser keeps nothing.** With site data blocked, a calm line says that
+  what you add will not be kept, and how to let doubledone.app save (web 1.10.6,
+  [`client/src/lib/storage-probe.ts`](client/src/lib/storage-probe.ts)).
 - **Keeping Premium during the card-free month charges when the month ends**, not on the day "Go Premium to keep it"
   is tapped on the web, and a free month that cannot be read refuses the checkout rather than charging (Worker
   `7139f696`).
