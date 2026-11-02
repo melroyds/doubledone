@@ -112,7 +112,7 @@ phones with the store build in the week of 16 to 22 Nov._
 
 ## [1.10.1] - 2026-11-01
 
-_iPhone only. Build 49 went to App Review on 2026-11-01, after a TestFlight check, and is not yet recorded as live.
+_iPhone only. Build 49 went to App Review on 2026-11-01, after a TestFlight check, and went live on the App Store on 2026-11-03.
 Android stays on 1.10.0, because the bug cannot happen there, so no Android build was made. The web has carried the
 code since 2026-11-01 (`ff4e2d9`), but the fix is native behaviour. Store notes:
 [`docs/release-notes/1.10.1.md`](docs/release-notes/1.10.1.md)._
