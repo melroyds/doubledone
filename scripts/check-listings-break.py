@@ -1,7 +1,7 @@
 """The break test for scripts/check-listings.mjs: every rule must FAIL on the copy it exists to stop.
 
     python scripts/check-listings-break.py            every group
-    python scripts/check-listings-break.py nothing    one group (protected, nothing, clinical, keywords)
+    python scripts/check-listings-break.py nothing    one group (protected, nothing, clinical, keywords, renamed, ascii)
 
 Why it exists: a gate that passes proves nothing about the rule you think it enforces. The 2026-10-19 build
 review found three that always passed (the six-character code check, the "nothing leaves your device" ban, and
@@ -188,6 +188,19 @@ GROUPS["keywords"] = [
     ("App Store en: 'anxiety' for 'breakdown'", [("iosEn", ",breakdown,", ",anxiety,", "en")], CLINICAL),
     ("App Store it: 'ddai' for 'todo'", [("iosL10n", "attività,todo,", "attività,ddai,", "it-IT")], CLINICAL),
     ("App Store es: 'racha' for 'lista'", [("iosL10n", "lista,pendientes,", "racha,pendientes,", "es-MX, es-ES")], "a habit, streak, chore or reward word"),
+]
+
+GROUPS["renamed"] = [
+    # Wording the app fixed on 2026-11-01, banned by name so a paste from an old doc cannot bring it back.
+    ("App Store it: 'Falla minuscola' back", probe("ios", "it", "Falla minuscola, per iniziare."), '"Falla minuscola" or its kin'),
+    ("Play it: 'rendila minuscola' back", probe("play", "it", "Tienila premuta per rendila minuscola."), '"Falla minuscola" or its kin'),
+    ("Play es: 'su lista era demasiado' back", probe("play", "es", "Para quien sintió que su lista era demasiado."), '"su lista era demasiado"'),
+    ("App Store es: 'era demasiado' back", probe("ios", "es", "Su lista era demasiado."), '"su lista era demasiado"'),
+]
+GROUPS["ascii"] = [
+    # The Spanish relative "a quien" takes no accent, so the rule names the interrogative phrase the listings carry.
+    ("Play es: 'quién hizo qué' ascii-fied", [("playL10n", "Nada dice quién hizo qué", "Nada dice quien hizo que", "es-ES")], "ascii-fied Spanish"),
+    ("App Store es: 'quién hizo qué' ascii-fied", [("iosL10n", "Nada dice quién hizo qué", "Nada dice quien hizo que", "es-MX, es-ES")], "ascii-fied Spanish"),
 ]
 
 

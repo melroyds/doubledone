@@ -22,6 +22,11 @@ since Path A, and the free-month sentence stays out under Play's trial ban) and 
 (Melroy's call 9). Spanish is neutral now, one text for es-ES and es-419. These changes join the batch's one
 native read.*
 
+*Carried in 2026-11-02 (bug sweep #27): the app's 1 Nov copy pass changed lines these listings lift, so all four now
+say the app's current words, from that day's native read, and the Italian free list names the button by its new
+name, "Falla piccolissima". Both Italian descriptions needed room. Each listing's notes say exactly what changed and
+what was trimmed, and the gate now bans the retired "era demasiado" and "Falla minuscola" by name.*
+
 ## Why these are not machine-translated
 
 Google Play Console offers "Import translations with AI". It was considered and rejected, for three
@@ -89,15 +94,15 @@ DoubleDone: ADHS-To-do-Liste
 Ruhige To-dos für ADHS und Überforderung. Nur heute. Nichts ist je überfällig.
 ```
 
-**Full description** (3970 / 4000)
+**Full description** (3969 / 4000)
 
 ```
 Heute ist überschaubar und machbar.
 
-DoubleDone zeigt dir nur, was heute dran ist, in machbarer Größe, und bewahrt still alles auf, was du schaffst. Nichts ist je überfällig. Es wartet einfach. Nichts hier wird dich je dafür beschämen, dass eine Aufgabe einfach da ist.
+DoubleDone zeigt dir nur, was heute dran ist, in machbarer Größe, und bewahrt still alles auf, was du schaffst. Nichts ist je überfällig. Es wartet einfach. Hier macht dir nichts ein schlechtes Gewissen, nur weil eine Aufgabe da ist.
 
 Gemacht für
-ADHS, Autismus, Zwangsstörungen, Menschen, bei denen mehreres davon zusammenkommt, und alle, deren Liste sich jemals nach zu viel angefühlt hat. Die meisten To-do-Apps legen dir die ganze Liste hin und nennen das Motivation. Hier ist es andersherum: keine Streaks, keine Schuldgefühle, kein Rot. DoubleDone wird in Melbourne von Melroy gemacht. Er hat es für Freundinnen und Freunde mit ADHS und Zwangsstörungen gebaut.
+ADHS, Autismus, Zwangsstörungen, Menschen, bei denen mehreres davon zusammenkommt, und alle, denen die eigene Liste schon mal zu viel war. Die meisten To-do-Apps legen dir die ganze Liste hin und nennen das Motivation. Hier ist es andersherum: keine Streaks, keine Schuldgefühle, kein Rot. DoubleDone wird in Melbourne von Melroy gemacht. Er hat es für Freundinnen und Freunde mit ADHS und Zwangsstörungen gebaut.
 
 Der ruhige Kern, kostenlos für immer
 - Schreib dir den Kopf leer. Eine Zeile pro Sache, die Reihenfolge ist unser Job.
@@ -115,7 +120,7 @@ Der ruhige Kern, kostenlos für immer
 Unsere Liste: eine gemeinsame Liste mit einem anderen Menschen
 Kostenlos. Nichts darauf sagt, wer was getan hat, und nichts zählt oder vergleicht. Ein Wettbewerb kann daraus nicht werden.
 
-Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Was keinen hat, Milch und Batterien, bleibt auf der Liste und erreicht niemandes Tag. Wer abhakt, hakt für beide ab.
+Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag bei euch beiden auf Heute. Was keinen hat, Milch und Batterien, bleibt auf der Liste und erreicht niemandes Tag. Wer abhakt, hakt für beide ab.
 
 Sie fängt damit an, dass du deinem Menschen einen Code aus sechs Zeichen vorliest. Es gibt keinen Feed, erreichen kann dich nur, wem du ihn gegeben hast. Verlassen kann sie jeder von euch, wann er mag, ohne Grund. Nötig ist nur die Anmeldung per E-Mail.
 
@@ -155,6 +160,8 @@ missing hyphen right beside the hyphenated To-do-Liste. The App Store's German n
 still serves both stores, and search is unaffected because both stores break words at a hyphen. Title still
 28 characters, full description unchanged at 3970.
 
+**2026-11-02 (bug sweep #27, the 1 Nov copy pass carried in):** the Ours line is `sharedLead2`'s "erscheint an dem Tag bei euch beiden auf Heute", because "in euren beiden Heute" made the screen's name plural. The never-shame line is `welcome.lead3`'s "Hier macht dir nichts ein schlechtes Gewissen, nur weil eine Aufgabe da ist.", and Gemacht für ends with its "und alle, denen die eigene Liste schon mal zu viel war.", which drop the two "jemals" calques the store-screenshot reviewers flagged. "Hier ist es andersherum" two paragraphs later keeps its "Hier": it answers "Die meisten To-do-Apps" in the sentence before it. Full description now 3969 characters.
+
 Full description: 4005 to 3909 characters (96 cut, 41 under the 3950 target). Short description: 78 characters.
 
 Four edits, no bullet and no heading removed, so every feature a shopper chooses on is still listed.
@@ -192,7 +199,7 @@ DoubleDone: tareas para TDAH
 Tu lista para el TDAH y el agobio. Solo hoy. Aquí nada está nunca atrasado.
 ```
 
-**Full description** (3888 / 4000)
+**Full description** (3899 / 4000)
 
 ```
 Hoy es finito y alcanzable.
@@ -202,7 +209,7 @@ DoubleDone te muestra solo lo que hoy necesita, en su justa medida, y guarda en 
 Casi todas las apps de tareas te ponen la lista entera delante y lo llaman motivación. Para muchos, eso es justo el agobio. DoubleDone hace lo contrario: un día pequeño y una lista que nunca te hará sentir mal por una tarea que simplemente existe.
 
 HECHA PARA
-El TDAH, el autismo, el TOC, por separado o a la vez, y cualquiera que alguna vez haya sentido que su lista era demasiado. Sin rachas que mantener, sin culpa, sin castigar una tarea por existir ni por esperar. DoubleDone está hecha en Melbourne por Melroy. La creó para amigos con TDAH y TOC.
+El TDAH, el autismo, el TOC, por separado o a la vez, y para cualquiera a quien su lista alguna vez le haya pesado demasiado. Sin rachas que mantener, sin culpa, sin castigar una tarea por existir ni por esperar. DoubleDone está hecha en Melbourne por Melroy. La creó para amigos con TDAH y TOC.
 
 EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 - Sácalo todo de la cabeza. Una cosa por línea.
@@ -220,7 +227,7 @@ EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 NUESTRA LISTA: UNA SOLA LISTA COMPARTIDA CON OTRA PERSONA
 Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador.
 
-Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo que no tiene día, la leche y las pilas, se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos.
+Lo que tiene fecha, como la basura el martes, llega ese día al Hoy de los dos. Lo que no tiene fecha, como la leche y las pilas, se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos.
 
 Cada uno inicia sesión con su correo, y el código de seis caracteres que le lees a tu persona solo sirve para la dirección que pusiste. Nadie llega a ti si no le diste ese código. Cualquiera de los dos sale cuando quiera, sin explicaciones, y todo se puede seguir leyendo.
 
@@ -241,7 +248,7 @@ tienes permiso para ir despacio
 
 DoubleDone no es un producto sanitario. No diagnostica, trata, cura ni previene ninguna afección, y no sustituye la atención de un profesional. Si necesitas consejo médico, consulta con un profesional de la salud.
 
-Lee la política de privacidad, en lenguaje claro, en doubledone.app/privacy.
+Lee la política de privacidad, en un inglés claro, en doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
@@ -251,6 +258,8 @@ Lee la política de privacidad, en lenguaje claro, en doubledone.app/privacy.
 **2026-10-16:** the not-a-medical-device line went in just before the privacy line, matching the English listing (a5d3031). Full description now 3319 characters.
 
 **2026-10-19 (store 1.9, slice 8):** neutral now, one text pasted under es-ES and es-419 (the live es-419 text had no source in this repo). The two vosotros lines went: "llega a vuestros dos Hoy" is "llega al Hoy de los dos" and "Los dos iniciáis sesión" is "Cada uno inicia sesión" (`m4Body`). "así que tu persona no te carga la mañana" went (false: your person can give a shared row today's date) for "por larga que sea, para que tu día siga siendo tuyo". The AI-off "el texto que escribes ya no sale de tu dispositivo" lines went (the AI paragraph now carries `priv2`'s "solo envía aquello en lo que la usas"), "PRIVADO POR DEFECTO" became `privTitle`, "rastreadores de terceros" became `priv3`, "Exporta tus datos" became `priv4`, and Aligera el día is a suggestion (`m2Body`). The monthly album is "hecho con IA", and the Claude bullet names Cloudflare. Added: a title, `founder`, a Premium paragraph from `faqFreeA`, and "Si necesitas consejo médico, consulta con un profesional de la salud." Then, from the native read, "La marca cualquiera de los dos" became "Cualquiera de los dos marca una tarea": after "se queda en la lista" the "la" read as the list, and the catalogue's own `sharedLead2` puts the subject first too. Full description now 3888 characters.
+
+**2026-11-02 (bug sweep #27, the 1 Nov copy pass carried in):** HECHA PARA ends with `welcome.lead3`'s "y para cualquiera a quien su lista alguna vez le haya pesado demasiado", which replaces the calque "haya sentido que su lista era demasiado". The "para" keeps "cualquiera" from reading as a new subject after "a la vez", the way the app and the App Store say it. The Ours line is "Lo que tiene fecha, como la basura el martes, llega ese día al Hoy de los dos" and "Lo que no tiene fecha, como la leche y las pilas": "tener día" is not idiomatic, "como" marks the bins as an example rather than the date, and the word order is `ours.sharedLine`'s. The closing line says the policy is in English, "en un inglés claro", as the App Store's "(en inglés)" and the German Play line do. The new "a quien" needed the gate's narrower ascii check, because the relative takes no accent. Full description now 3899 characters.
 
 4372 to 3933 characters (cap 4000, target 3950). Short description is 75 characters.
 
@@ -283,7 +292,7 @@ DoubleDone : liste de tâches
 Pour le TDAH et la surcharge. Juste aujourd'hui. Rien n'est jamais en retard.
 ```
 
-**Full description** (3950 / 4000)
+**Full description** (3957 / 4000)
 
 ```
 Aujourd'hui a une fin, et tu peux y arriver.
@@ -293,7 +302,7 @@ DoubleDone ne te montre que ce dont aujourd'hui a besoin, et garde en silence to
 La plupart des applis te tendent la liste entière et appellent ça de la motivation. DoubleDone fait l'inverse. Rien ici ne te fera jamais honte parce qu'une tâche existe.
 
 CONÇUE POUR
-Le TDAH, l'autisme, les TOC, et toutes les personnes pour qui la liste, un jour, c'était trop. Pas de séries, pas de culpabilité, aucune punition pour une tâche qui a attendu. DoubleDone est fait à Melbourne par Melroy. Il l'a créé pour des amis concernés par le TDAH ou les TOC.
+Le TDAH, l'autisme, les TOC et toutes les personnes pour qui la liste, un jour, c'était trop. Pas de séries, pas de culpabilité, aucune punition pour une tâche qui a attendu. DoubleDone est fait à Melbourne par Melroy. Il l'a créé pour des amis concernés par le TDAH ou les TOC.
 
 LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Vide ta tête. Une ligne par chose.
@@ -305,14 +314,14 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Les tâches qui reviennent, à leur jour.
 - Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.
 - Settle : une pièce calme, un guide de respiration, quand aujourd'hui fait du bruit.
-- Clore en douceur. On y honore ce que tu as fait, jamais ce que tu n'as pas fait.
+- Clore la journée honore ce que tu as fait, jamais ce que tu n'as pas fait.
 - Ton Calendrier : tout ce que tu as vraiment terminé, même une tâche redoutée depuis des semaines. Ton cerveau ne pourra plus te dire que tu n'as rien fait.
 - Un album souvenir IA gratuit par mois, une image de ce que tu termines.
 
 NOTRE LISTE : PARTAGÉE AVEC UNE SEULE AUTRE PERSONNE
 Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores.
 
-Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux.
+Ce qui a son propre jour, les poubelles le mardi, arrive ce jour-là dans Aujourd'hui pour vous deux. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux.
 
 Ça commence par un code de six caractères, que tu lis à ta personne. Pas de fil d'actualité, personne ne peut te joindre ici sans ce code. Vous partez quand vous voulez, sans raison à donner. Notre liste demande seulement la connexion par e-mail.
 
@@ -333,7 +342,7 @@ tu as le droit d'aller doucement
 
 DoubleDone n'est pas un dispositif médical. L'appli ne diagnostique, ne traite, ne guérit ni ne prévient aucun problème de santé, et ne remplace pas le suivi d'un professionnel de santé. Pour un avis médical, adresse-toi à un professionnel de santé.
 
-La politique de confidentialité, en clair : doubledone.app/privacy.
+La politique de confidentialité, en anglais clair : doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
@@ -351,6 +360,8 @@ La politique de confidentialité, en clair : doubledone.app/privacy.
 **2026-10-19 (the native French read):** the Premium heading is "PREMIUM, SI UN JOUR TU EN VEUX PLUS". Without the "en", a French ear hears the spoken "tu (ne) veux plus", you no longer want it, and "en vouloir plus" is the idiom for wanting more. The App Store's French takes the same fix. Full description now 3955 characters.
 
 **2026-10-19 (the colour and copy review, after the native read):** "L'un ou l'autre la coche, elle est faite pour les deux." is "La coche de l'un ou de l'autre vaut pour les deux." The nearest feminine nouns before "la coche" are "la tienne" (ta journée) and "la liste", so it read as one of you ticking your day, or the list: the slip the Spanish and Italian readers fixed in their own Ours lines. The new line is the Italian fix's shape ("La spunta di uno dei due vale per entrambi"). The App Store's French takes the same fix. It went back to the French reader, since they passed the old one, and they confirmed it on 2026-10-19 (the native read of the 1.9.0 release notes), when the app's welcome (`sharedLead2`) took the same line. Full description now 3950 characters.
+
+**2026-11-02 (bug sweep #27, the 1 Nov copy pass carried in):** "arrive dans vos deux Aujourd'hui ce jour-là" made the screen's name plural. It is now "arrive ce jour-là dans Aujourd'hui pour vous deux", the app's own `sharedLead2`. "Le TDAH, l'autisme, les TOC, et toutes les personnes" lost the comma before "et", which a French list does not take, as `lead3` and `footerWho` did on 1 Nov. "Clore en douceur. On y honore ce que tu as fait" is now "Clore la journée honore ce que tu as fait": the bullet names the button (`closeTheDay`) in the landing's own `s3Body` words, and the "y" with nothing to point back to is gone. The closing line's "en clair" is now "en anglais clair": the English source says plain-English, and the policy at that URL is in English. Full description now 3957 characters.
 
 4029 to 3853 characters, verified in Python (UTF-8, trailing newline excluded), so 97 under the 3950 target and 147 under Google's cap. Every cut was a repeat, never a fact, and no bullet was lost: the adjective and clause layer alone freed enough room, so both bullets I first removed (Regrouper, Silencieuse) went back in.
 
@@ -386,23 +397,23 @@ DoubleDone: lista cose da fare
 Cose da fare per ADHD e per il troppo. Solo oggi. Niente è mai in ritardo.
 ```
 
-**Full description** (3992 / 4000)
+**Full description** (3968 / 4000)
 
 ```
 Oggi ha una fine, ed è fattibile.
 
-DoubleDone ti mostra solo ciò che serve oggi, e conserva in silenzio tutto quello che finisci. Niente è mai in ritardo. Semplicemente aspetta.
+DoubleDone ti mostra solo ciò che serve oggi e conserva in silenzio tutto quello che finisci. Niente è mai in ritardo. Semplicemente aspetta.
 
-Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per tanti di noi, è proprio lì che arriva il troppo. DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa perché un'attività esiste.
+Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per tanti di noi, è proprio lì che arriva il troppo. DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa solo perché un'attività esiste.
 
 FATTA PER
-Persone con ADHD, autismo, la sovrapposizione fra i due, DOC, e chiunque abbia mai sentito che la lista era troppa. Poco attrito, nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato. DoubleDone è fatta a Melbourne da Melroy. L'ha creata per amici con ADHD e DOC.
+Persone con ADHD, autismo, la sovrapposizione fra i due, DOC, e chiunque abbia mai trovato la propria lista troppo pesante. Nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato. DoubleDone è fatta a Melbourne da Melroy. L'ha creata per amici con ADHD e DOC.
 
 IL CUORE CALMO, GRATIS PER SEMPRE
 - Svuota la testa, una cosa per riga.
 - Solo oggi. Il resto può aspettare.
 - Dividi in passaggi, un'attività che temi diventa passaggi da pochi minuti.
-- Falla minuscola, una versione da due minuti per iniziare.
+- Falla piccolissima, una versione da due minuti per iniziare.
 - Alleggerisci la giornata, nei giorni pieni propone di spostare qualche attività ai giorni successivi. Non si sposta niente finché non dici di sì.
 - Ricorrenti, le attività che ritornano.
 - Promemoria gentili, solo quelli che chiedi tu, mai una scadenza.
@@ -414,12 +425,12 @@ IL CUORE CALMO, GRATIS PER SEMPRE
 LA NOSTRA LISTA: UNA LISTA PER DUE PERSONE
 Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica.
 
-Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha, il latte e le pile, resta sulla lista. La spunta di uno dei due vale per entrambi.
+Ciò che ha un giorno suo, i rifiuti il martedì, arriva nell'Oggi di entrambi quando è il momento. Quello che non ce l'ha, il latte e le pile, resta sulla lista. La spunta di uno dei due vale per entrambi.
 
-Si comincia leggendo un codice di sei caratteri alla tua persona. Niente feed, e nessuno può raggiungerti senza quel codice. Potete uscirne quando volete, senza spiegare niente. Come la sincronizzazione, La nostra lista chiede solo il semplice accesso via email.
+Si comincia leggendo un codice di sei caratteri alla tua persona. Niente feed, e nessuno può raggiungerti senza quel codice. Potete uscirne quando volete, senza spiegare niente. Come la sincronizzazione, La nostra lista chiede solo l'accesso via email.
 
 L'AI CHE AIUTA, DEL TUTTO FACOLTATIVA
-L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
+L'AI è attiva di default: ordina in una giornata quello che hai buttato giù e divide in passaggi un'attività difficile. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
 
 PREMIUM, SE UN GIORNO VUOI DI PIÙ
 Premium aggiunge extra facoltativi, tramite Google Play: Scansiona una lista, Fissa la cosa di oggi, Organizza la giornata, Traccia la rotta, sei temi di colore in più, un album della settimana, Le tue tendenze e le scelte senza limiti in Cosa ci sta adesso.
@@ -435,7 +446,7 @@ hai il permesso di andare piano
 
 DoubleDone non è un dispositivo medico. Non diagnostica, non tratta, non cura né previene alcuna condizione di salute, e non sostituisce il supporto di un professionista. Per un consiglio medico, rivolgiti a un professionista della salute.
 
-La privacy, in parole semplici, su doubledone.app/privacy.
+La privacy, in inglese semplice, su doubledone.app/privacy.
 ```
 
 <details><summary>What was trimmed, and why those lines were the safest to lose</summary>
@@ -459,6 +470,8 @@ di noi" stays here for now, unlike the App Store's "Per molti": it translates th
 `client/src/lib/catalogs/it.ts` still read "La spunta uno dei due, e vale per entrambi.", straight after
 `sharedLead1`'s "la spesa" and "Una lista", so the app kept the wording this read rejected. It now says "La spunta
 di uno dei due vale per entrambi.", the reader's own words, so the app and both store pages say it the same way.
+
+**2026-11-02 (bug sweep #27, the 1 Nov copy pass carried in):** "Falla minuscola" is "Falla piccolissima" (`actions.makeItTiny`), so the free list names the button a shopper will find. The Ours line is `sharedLead2`'s "arriva nell'Oggi di entrambi quando è il momento". "e chiunque abbia mai sentito che la lista era troppa" now ends with `lead3`'s "abbia mai trovato la propria lista troppo pesante", "solo perché un'attività esiste" takes `lead3`'s "solo", and `heroSub` drops the comma before "e conserva". For room, three cuts, each repeating the words beside it: "e fa un lavoro vero" before the examples that show the work (the French cut), "Poco attrito," before the clause that says it concretely (the Spanish and French cuts), and "il semplice" after "solo". The closing line says the policy is in English, "in inglese semplice", as the App Store's "(in inglese)" does. Full description now 3968 characters. The item-1 quote below is the 2026-08-16 record and keeps the old sentence.
 
 4247 to 3841 characters, 406 removed, 109 of headroom left under the 3950 target. What went, in order of how little it cost:
 

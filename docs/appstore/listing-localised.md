@@ -7,6 +7,9 @@ are DRAFTS until the batch's one native read is back (Melroy's call 7): if it is
 now, so nobody makes it at the console. The native read of all four came back on 2026-10-19, one reader per
 language, and its fixes are in (the last paragraph of How these were made).*
 
+*Updated 2026-11-02 (bug sweep #27): the app's 1 Nov copy pass, carried into all four descriptions after its own
+native read (How these were made, the paragraph after the native read's). It ships with the next iOS version.*
+
 *Every count is measured by `node scripts/check-listings.mjs --appstore`, never estimated, and CI runs it.*
 
 ## How these were made
@@ -51,6 +54,27 @@ old sentence, so this one went back to them, and they confirmed it on 2026-10-19
 release notes). The app's own `sharedLead2` in `client/src/lib/catalogs/fr.ts` had the same construction ("L'un
 ou l'autre la coche, et elle est faite pour les deux.") and took the same line then, so the app and its store
 pages say it the same way.
+
+**The 1 Nov copy pass, carried in (2026-11-02, bug sweep #27):** the app's catalogue had changed lines these
+descriptions lift, so each one now says the app's current words, from that day's native read. German: the Ours line
+is `sharedLead2`'s "bei euch beiden auf Heute", because "in euren beiden Heute" made the screen's name plural. The
+never-shame line and the who-it's-for line are `welcome.lead3`'s ("Hier macht dir nichts ein schlechtes Gewissen,
+nur weil eine Aufgabe da ist." and "denen die eigene Liste schon mal zu viel war"), which drop the two "jemals"
+calques. The first line about the app opens "Die App", as `welcome.lead1` does: a sentence-initial "Sie" straight
+after "Überforderung" read as the overwhelm, and for a beat as the formal Sie. Spanish: `lead3`'s "a quien su lista
+alguna vez le haya pesado demasiado" replaces the calque "haya sentido que su lista era demasiado", and the Ours
+line says "Lo que tiene fecha, como la basura el martes, llega ese día al Hoy de los dos", the app's "tener fecha"
+in `ours.sharedLine`'s word order. French: the Ours line is `sharedLead2`'s "arrive ce jour-là dans Aujourd'hui pour
+vous deux", the close-the-day bullet names its button, "Clore la journée honore ce que tu as fait" (the landing's
+`s3Body`), and the sync bullet lost "à retenir" for room, ending on the sign-in screen's own words
+(`signIn.subtitle`). Italian: "Falla piccolissima" (`actions.makeItTiny`), `sharedLead2`'s "arriva nell'Oggi di
+entrambi quando è il momento", `lead3`'s "e per chiunque abbia mai trovato la propria lista troppo pesante" and its
+"solo perché", and `lead1` without the comma before "e conserva". For room, "e fa un lavoro vero" and "Una schermata
+calma" went (the first line already says calma), and with one beat left the sentence takes a colon: "DoubleDone fa
+il contrario: una giornata piccola, e niente...". Descriptions now: German 3938, Spanish 3987, French 3984 and
+Italian 3969, of 4000. The gate now bans "era demasiado" and "Falla minuscola" with its kin, and its Spanish ascii
+check names "quien hizo" rather than every "quien", because the relative "a quien" takes no accent. This text waits
+for the next iOS version: a description only changes with a new version.
 
 The keywords follow the English rules: no word repeats the name or subtitle, no spaces, no competitor names, no
 clinical words. Apple searches the name, subtitle and keyword field only, never the description.
@@ -105,14 +129,14 @@ adhd,aufgaben,aufgabenliste,todo,autismus,zwangsstörung,neurodivergent,routine,
 Eine ruhige To-do-Liste für ADHS, Autismus und Zwangsstörungen. Nur heute, in machbarer Größe, und nichts ist je überfällig. Der tägliche Ablauf ist kostenlos, für immer.
 ```
 
-**Description** (3935 / 4000)
+**Description** (3938 / 4000)
 
 ```
 DoubleDone ist eine ruhige To-do-Liste für Erwachsene mit ADHS, Autismus, Zwangsstörungen und Überforderung.
 
-Sie zeigt dir nur, was heute dran ist, in machbarer Größe, und bewahrt still alles auf, was du schaffst. Nichts ist je überfällig. Es wartet einfach. Nichts hier wird dich je dafür beschämen, dass eine Aufgabe einfach da ist.
+Die App zeigt dir nur, was heute dran ist, in machbarer Größe, und bewahrt still alles auf, was du schaffst. Nichts ist je überfällig. Es wartet einfach. Hier macht dir nichts ein schlechtes Gewissen, nur weil eine Aufgabe da ist.
 
-Keine Streaks, keine Schuldgefühle, kein Rot. DoubleDone wird in Melbourne von Melroy gemacht. Er hat es für Freundinnen und Freunde mit ADHS und Zwangsstörungen gebaut, und für alle, deren Liste sich jemals nach zu viel angefühlt hat.
+Keine Streaks, keine Schuldgefühle, kein Rot. DoubleDone wird in Melbourne von Melroy gemacht. Er hat es für Freundinnen und Freunde mit ADHS und Zwangsstörungen gebaut, und für alle, denen die eigene Liste schon mal zu viel war.
 
 Der ruhige Kern, kostenlos für immer
 - Schreib dir den Kopf leer. Eine Zeile pro Sache, die Reihenfolge ist unser Job.
@@ -127,7 +151,7 @@ Der ruhige Kern, kostenlos für immer
 - Ein kostenloses KI-Erinnerungsalbum im Monat, ein Bild von dem, was du geschafft hast.
 
 Unsere Liste: eine gemeinsame Liste mit einem anderen Menschen
-Kostenlos. Nichts darauf sagt, wer was getan hat, und nichts zählt oder vergleicht. Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag in euren beiden Heute. Was keinen hat, bleibt auf der Liste und erreicht niemandes Tag. Wer abhakt, hakt für beide ab. Sie fängt mit einem Code aus sechs Zeichen an, den du deinem Menschen vorliest, und nötig ist nur die Anmeldung per E-Mail.
+Kostenlos. Nichts darauf sagt, wer was getan hat, und nichts zählt oder vergleicht. Was einen eigenen Tag hat, die Mülltonne am Dienstag, erscheint an dem Tag bei euch beiden auf Heute. Was keinen hat, bleibt auf der Liste und erreicht niemandes Tag. Wer abhakt, hakt für beide ab. Sie fängt mit einem Code aus sechs Zeichen an, den du deinem Menschen vorliest, und nötig ist nur die Anmeldung per E-Mail.
 
 KI, die hilft, ganz freiwillig
 Die KI ist von Haus aus an und macht echte Arbeit. Freiwillig ist sie trotzdem, und sie schickt nur das, wofür du sie nutzt. Ein Fingertipp in den Einstellungen schaltet sie aus, und die App funktioniert weiter.
@@ -182,7 +206,7 @@ lista,pendientes,todo,planificador,organizador,autismo,toc,neurodivergente,rutin
 Una lista de tareas serena para el TDAH, el autismo y el TOC. Solo hoy, en su justa medida, y nada está nunca atrasado. Todo el ciclo diario es gratis, para siempre.
 ```
 
-**Description** (3989 / 4000)
+**Description** (3987 / 4000)
 
 ```
 DoubleDone es una lista de tareas serena para adultos con TDAH, autismo, TOC y agobio.
@@ -191,7 +215,7 @@ Te muestra solo lo que hoy necesita, en su justa medida, y guarda en silencio to
 
 Casi todas las apps de tareas te ponen la lista entera delante y lo llaman motivación. Para muchos, eso es justo el agobio. DoubleDone hace lo contrario: un día pequeño y una lista que nunca te hará sentir mal por una tarea que simplemente existe. Sin rachas que mantener, sin culpa, sin castigar una tarea por existir ni por esperar.
 
-DoubleDone está hecha en Melbourne por Melroy. La creó para amigos con TDAH y TOC, y para cualquiera que alguna vez haya sentido que su lista era demasiado.
+DoubleDone está hecha en Melbourne por Melroy. La creó para amigos con TDAH y TOC, y para cualquiera a quien su lista alguna vez le haya pesado demasiado.
 
 EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 - Sácalo todo de la cabeza. Una cosa por línea.
@@ -207,7 +231,7 @@ EL NÚCLEO TRANQUILO, GRATIS PARA SIEMPRE
 - Un álbum gratis al mes, hecho con IA: una imagen de recuerdo de lo que terminaste.
 
 NUESTRA LISTA: UNA SOLA LISTA COMPARTIDA CON OTRA PERSONA
-Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador. Lo que tiene día propio, la basura el martes, llega al Hoy de los dos ese día. Lo demás se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos. Empieza con un código de seis caracteres que le lees a tu persona, y cada uno inicia sesión con su correo.
+Gratis, y de dos personas exactamente. Nada dice quién hizo qué, y nada cuenta ni compara, así que no puede volverse un marcador. Lo que tiene fecha, como la basura el martes, llega ese día al Hoy de los dos. Lo demás se queda en la lista, por larga que sea, para que tu día siga siendo tuyo. Cualquiera de los dos marca una tarea, y queda hecha para ambos. Empieza con un código de seis caracteres que le lees a tu persona, y cada uno inicia sesión con su correo.
 
 UNA IA QUE AYUDA, Y OPCIONAL DEL TODO
 La IA viene activada y hace trabajo real: ordena lo que te sacas de la cabeza en un día posible y divide una tarea difícil en pasos. Pero es opcional de verdad, y solo envía aquello en lo que la usas. Un toque en Ajustes la apaga, y la app sigue funcionando.
@@ -259,7 +283,7 @@ todo,to-do,planificateur,agenda,organisation,autisme,toc,neuroatypique,routine,r
 Une liste de tâches calme pour le TDAH, l'autisme et les TOC. Juste aujourd'hui, et rien n'est jamais en retard. Toute la boucle quotidienne est gratuite, pour de bon.
 ```
 
-**Description** (3994 / 4000)
+**Description** (3984 / 4000)
 
 ```
 DoubleDone est une liste de tâches calme pour les adultes concernés par le TDAH, l'autisme, les TOC ou le trop-plein.
@@ -278,12 +302,12 @@ LE CŒUR CALME, GRATUIT POUR TOUJOURS
 - Les tâches qui reviennent, à leur jour.
 - Des rappels tout doux, seulement ceux que tu demandes, jamais une échéance.
 - Settle : une pièce calme, un guide de respiration.
-- Clore en douceur. On y honore ce que tu as fait, jamais ce que tu n'as pas fait.
+- Clore la journée honore ce que tu as fait, jamais ce que tu n'as pas fait.
 - Ton Calendrier : tout ce que tu as vraiment terminé, même une tâche redoutée depuis des semaines.
 - Un album souvenir IA gratuit par mois, une image de ce que tu termines.
 
 NOTRE LISTE : PARTAGÉE AVEC UNE SEULE AUTRE PERSONNE
-Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores. Ce qui a son propre jour, les poubelles le mardi, arrive dans vos deux Aujourd'hui ce jour-là. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux. Ça commence par un code de six caractères, que tu lis à ta personne. Notre liste demande seulement la connexion par e-mail.
+Gratuite. Rien n'y dit qui a fait quoi, et rien ne compte ni ne compare, cela ne peut donc pas devenir un tableau de scores. Ce qui a son propre jour, les poubelles le mardi, arrive ce jour-là dans Aujourd'hui pour vous deux. Le reste attend sur la liste, ta journée reste la tienne. La coche de l'un ou de l'autre vaut pour les deux. Ça commence par un code de six caractères, que tu lis à ta personne. Notre liste demande seulement la connexion par e-mail.
 
 UNE IA QUI AIDE, ENTIÈREMENT OPTIONNELLE
 L'IA est active par défaut : elle trie ce que tu déposes. Elle n'envoie que ce sur quoi tu l'utilises. Un seul geste dans les Réglages la désactive, et l'appli continue de fonctionner.
@@ -295,7 +319,7 @@ DoubleDone Premium est un abonnement facultatif à renouvellement automatique, m
 
 SUR TON APPAREIL PAR DÉFAUT
 - Tes tâches restent sur ton appareil. Aucun compte n'est nécessaire.
-- La synchro entre appareils est optionnelle : un e-mail, un code à 6 chiffres, aucun mot de passe à retenir.
+- La synchro entre appareils est optionnelle : un e-mail, un code à 6 chiffres, aucun mot de passe.
 - Ce que tu choisis pour une fonction IA est envoyé à Claude, d'Anthropic, et Anthropic ne s'en sert pas pour entraîner ses modèles. Les images des albums souvenirs sont créées avec les modèles d'IA de Cloudflare. On garde une copie, sans ton nom ni ton compte, pour améliorer la façon dont les tâches sont décomposées.
 - Pas de pub. Aucun identifiant publicitaire, aucun suivi entre applis. Rien n'est vendu.
 
@@ -335,21 +359,21 @@ attività,todo,planner,agenda,promemoria,autismo,doc,neurodivergente,routine,org
 Una lista calma di cose da fare per ADHD, autismo e DOC. Solo oggi, una giornata fattibile, e niente è mai in ritardo. Tutto il ciclo quotidiano è gratis, per sempre.
 ```
 
-**Description** (3991 / 4000)
+**Description** (3969 / 4000)
 
 ```
 DoubleDone è una lista calma di cose da fare per adulti con ADHD, autismo, DOC e sovraccarico mentale.
 
-Ti mostra solo ciò che serve oggi, e conserva in silenzio tutto quello che finisci. Niente è mai in ritardo. Semplicemente aspetta.
+Ti mostra solo ciò che serve oggi e conserva in silenzio tutto quello che finisci. Niente è mai in ritardo. Semplicemente aspetta.
 
-Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per molti, è proprio lì che arriva il troppo. DoubleDone fa il contrario. Una schermata calma, una giornata piccola, e niente ti farà mai sentire in colpa perché un'attività esiste. Nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato.
+Quasi tutte le app di cose da fare ti danno la lista intera e la chiamano motivazione. Per molti, è proprio lì che arriva il troppo. DoubleDone fa il contrario: una giornata piccola, e niente ti farà mai sentire in colpa solo perché un'attività esiste. Nessuna serie da mantenere, e nessuna punizione per un'attività che ha aspettato.
 
-DoubleDone è fatta a Melbourne da Melroy. L'ha creata per amici con ADHD e DOC, e per chiunque abbia mai sentito che la lista era troppa.
+DoubleDone è fatta a Melbourne da Melroy. L'ha creata per amici con ADHD e DOC, e per chiunque abbia mai trovato la propria lista troppo pesante.
 
 IL CUORE CALMO, GRATIS PER SEMPRE
 - Svuota la testa, una cosa per riga.
 - Dividi in passaggi, un'attività che temi diventa passaggi da pochi minuti.
-- Falla minuscola, una versione da due minuti per iniziare.
+- Falla piccolissima, una versione da due minuti per iniziare.
 - Alleggerisci la giornata, nei giorni pieni propone di spostare qualche attività ai giorni successivi. Non si sposta niente finché non dici di sì.
 - Ricorrenti, le attività che ritornano.
 - Promemoria gentili, solo quelli che chiedi tu, mai una scadenza.
@@ -359,10 +383,10 @@ IL CUORE CALMO, GRATIS PER SEMPRE
 - Un album dei ricordi gratis ogni mese, fatto con l'AI.
 
 LA NOSTRA LISTA: UNA LISTA PER DUE PERSONE
-Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica. Ciò che ha un giorno suo, i rifiuti il martedì, arriva su entrambi i vostri Oggi quel giorno. Quello che non ce l'ha resta sulla lista. La spunta di uno dei due vale per entrambi. Si comincia leggendo un codice di sei caratteri alla tua persona, e serve solo l'accesso via email.
+Gratis, e in due soltanto. Nulla dice chi ha fatto cosa, e nulla conta o confronta, quindi non può diventare una classifica. Ciò che ha un giorno suo, i rifiuti il martedì, arriva nell'Oggi di entrambi quando è il momento. Quello che non ce l'ha resta sulla lista. La spunta di uno dei due vale per entrambi. Si comincia leggendo un codice di sei caratteri alla tua persona, e serve solo l'accesso via email.
 
 L'AI CHE AIUTA, DEL TUTTO FACOLTATIVA
-L'AI è attiva di default e fa un lavoro vero: ordina in una giornata quello che hai buttato giù. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
+L'AI è attiva di default: ordina in una giornata quello che hai buttato giù. Invia solo quello su cui la usi. Un tocco nelle Impostazioni la spegne, e l'app continua a funzionare.
 
 PREMIUM, SE UN GIORNO VUOI DI PIÙ
 Premium aggiunge extra facoltativi: Scansiona una lista, Fissa la cosa di oggi, Organizza la giornata, Traccia la rotta, sei temi di colore in più, un album della settimana, Le tue tendenze e le scelte senza limiti in Cosa ci sta adesso.

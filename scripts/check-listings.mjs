@@ -57,7 +57,9 @@
 //      trackers" (RevenueCat gets an install id on Android), "Export your data" (it exports tasks and what you
 //      finished), seven themes as Premium (Dusk is free), a comparison nobody can check, any accessibility
 //      claim, which nothing in the app has earned, and a clinical word in any of the five languages (anxiety,
-//      therapy, treatment, symptom, the Italian DDAI and their translations, as nouns).
+//      therapy, treatment, symptom, the Italian DDAI and their translations, as nouns). Also the wording the app
+//      has since retired, by name in its own language ("su lista era demasiado", "Falla minuscola" and its kin,
+//      2026-11-02), so a paste from an old doc cannot bring it back.
 //
 //   7. THE KEYWORD FIELDS never carry a competitor's name (Apple 2.3.7) or a habit, streak, chore or reward
 //      word, the words slice 8 ruled out, on top of every rule above.
@@ -114,7 +116,9 @@ const LANG = {
   es: {
     name: 'Spanish',
     marks: /[áéíóúñÁÉÍÓÚÑ]/,
-    ascii: /\b(manana|dia|demas|asi|quien|que hacer|album)\b/,
+    // "quien (lo) hizo", not a bare "quien": the relative "a quien" takes no accent (the 2026-11-02 listing pass), and
+    // the listings' one interrogative is "Nada dice quién hizo qué".
+    ascii: /\b(manana|dia|demas|asi|quien (?:lo )?hizo|que hacer|album)\b/,
     forever: /para siempre/i,
     code: /código de seis caracteres/,
     medical: [
@@ -250,8 +254,13 @@ const BANNED_BY_LANG = {
   es: [
     ['vosotros Spanish (one neutral text serves Spain and Latin America)', /\bvosotr[oa]s\b|\bvuestr[oa]s?\b|\b\p{L}+(?:áis|éis)\b/iu],
     ['ustedes Spanish (neutral tú throughout)', /\bustedes\b/i],
+    // Wording the app retired on 2026-11-01, banned by name so a paste from an old doc cannot bring it back.
+    ['"su lista era demasiado" (a calque of "felt like too much", which the app replaced on 2026-11-01 with "a quien su lista alguna vez le haya pesado demasiado")', /\bera demasiado\b/i],
   ],
-  it: [['"Nostro" as the shared list\'s name (it is always La nostra lista)', /\bNostro\b/]],
+  it: [
+    ['"Nostro" as the shared list\'s name (it is always La nostra lista)', /\bNostro\b/],
+    ['"Falla minuscola" or its kin (the button reads "Falla piccolissima" since 2026-11-01, and "minuscola" also reads as lower case)', /\b(?:falla|rendila|resa) minuscola\b/i],
+  ],
 };
 
 // Play's protected claims, on every full description. The six-character code is checked on both stores, by its
