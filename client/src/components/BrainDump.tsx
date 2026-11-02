@@ -817,10 +817,13 @@ export const BrainDump = forwardRef<BrainDumpHandle, Props>(function BrainDump(
           hitSlop={4}
           style={({ pressed }) => [styles.addBtn, pressed && styles.pressed, (busy || !hasText) && styles.dim]}
         >
-          {/* Up to four lines, so a repeat's days are never cut off (bug sweep #26). At 360 pt "Hinzufügen · Wöchentlich
-              am Mo, Mi" takes three, and "Ajouter · Chaque semaine : Lun, Mer" three, or four at Large text. The button
-              grows only for a label that needs it, and the sheet's floor follows the row, so When and Add stay in view. */}
-          <Text style={styles.addText} numberOfLines={4}>
+          {/* Up to seven lines, so a repeat's days are not cut off at any of the app's text sizes on a screen 320 pt wide
+              or wider (bug sweep #26, measured in Atkinson Hyperlegible Bold). At 360 pt "Hinzufügen · Wöchentlich am
+              Mo, Mi" takes three, and French weekly on five days takes five at Large text. The longest, French weekly on
+              every day of a twelve-line dump at 320 pt and Large text, takes seven. Past that is the phone's own font
+              size turned up, where the cap keeps When and Add on screen. The button grows only for a label that needs
+              it, and the sheet's floor follows the row, so When and Add stay in view. */}
+          <Text style={styles.addText} numberOfLines={7}>
             {addLabel}
           </Text>
         </Pressable>
@@ -898,7 +901,7 @@ const makeStyles = (t: Theme) => {
     liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.colors.accent },
     busyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     note: { flexShrink: 1, minWidth: 140, color: t.colors.inkSoft, fontSize: 12.5 * t.scale, lineHeight: 17.5 * t.scale, fontFamily: fonts.body, textAlign: 'right' },
-    // When and Add, one row, 48 tall, and taller only when Add's label needs a third or fourth line.
+    // When and Add, one row, 48 tall, and taller only when Add's label needs a third line or more.
     bottomRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     whenChip: {
       flex: 1,
@@ -921,7 +924,10 @@ const makeStyles = (t: Theme) => {
       minHeight: 48,
       justifyContent: 'center',
       paddingHorizontal: 18,
-      borderRadius: radius.pill,
+      // Half the least height, not radius.pill. At one or two lines the button is 48 tall, so it is the same pill.
+      // A taller label sits in a box with round corners instead: a pill's radius is half the shorter side, so from
+      // the fourth line its round ends cut the corners off the first and last lines (bug sweep #26).
+      borderRadius: 24,
       backgroundColor: t.colors.accent,
     },
     addText: { color: t.colors.onAccent, fontSize: 16 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700', textAlign: 'center' },

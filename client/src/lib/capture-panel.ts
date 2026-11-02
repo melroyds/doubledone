@@ -6,9 +6,10 @@
 // The rows were budgeted at their design heights (the heading 48, the hint seat 36, the tools 44, When and Add 48),
 // scaled with the text, and that budget stays the floor wherever the rows fit it, so nothing moves for them. They do
 // not always fit. At 360 pt the AI note runs to three lines in German, French and Spanish, the German tools wrap to a
-// second row at Large text, and a repeat's days take the Add label to three lines in German and French, four in
-// French at Large text. A floor that assumed the design heights then pushed When and Add past the panel's foot. Now
-// the floor follows the rows' real height, as the panel measured it, whenever that is taller.
+// second row at Large text, and a repeat's days take the Add label to three lines in German and French, five in
+// French on five weekdays at Large text, and up to seven at 320 pt. A floor that assumed the design heights then
+// pushed When and Add past the panel's foot. Now the floor follows the rows' real height, as the panel measured it,
+// whenever that is taller.
 
 /** The panel's padding above its heading. */
 const PANEL_TOP = 8;
