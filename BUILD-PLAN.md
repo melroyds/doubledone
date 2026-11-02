@@ -76,8 +76,8 @@ the runbook: sign in with an email never used before, and if Premium vanishes, R
 #31 (a7542c6: on the web, Today says when the browser keeps nothing), #34 (fc71406 and e22ca82: the paywall's
 privacy and Google Play links, the month-day chips and German Settings' AGB say their visible words first), #27
 (a0788ca: the German, French, Spanish and Italian listings say the app's current words, in the files the gate checks)
-and the German landing's six lines (9b4caba), as web 1.10.6. **Melroy's part:** paste the four Play descriptions now
-and the four App Store descriptions with the next iOS version, from the paste pack, which is generated from the
+and the German landing's six lines (9b4caba), as web 1.10.6. **Melroy's part:** the four Play descriptions are LIVE (pasted and through review 2026-11-03,
+checked character for character on all five listings, French no-break spaces included), and the four App Store descriptions go in with the next iOS version, from the paste pack, which is generated from the
 checked files and never retyped. Every other sweep item is fixed. **Still to do:** the store build in the week of 16
 to 22 Nov (every client fix to the phones, and R8 by 1 Dec), on Melroy's ask.
 
@@ -503,7 +503,7 @@ the ladder is fixed and readable, never randomised.
      never displaced, or name Tidy in it, under the panel's own rule (BrainDump.tsx 491-495, OUR-77).
   2. ~~**The store listings now disagree with the app**~~ **FIXED IN THE FILES 2026-11-02 (a0788ca, #27):** both
      stores, all four languages, the Italian descriptions trimmed to 3969 and 3968, both retired phrases banned in
-     the gate. Melroy pastes Play now and the App Store with the next iOS version, from the paste pack. *(The
+     the gate. Play is LIVE (2026-11-03, all five listings match the file exactly). The App Store goes in with the next iOS version, from the paste pack. *(The
      original item follows.)* in German, French, Spanish and Italian (the Ours line, "su lista
      era demasiado", "Falla minuscola" and four more Italian phrases). Both Italian descriptions sit at 3991 and 3992
      of 4000 characters, so pasting the new wording overflows: the listing pass needs a trim. Then add `/era
