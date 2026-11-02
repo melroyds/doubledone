@@ -11784,12 +11784,18 @@ Cloudflare's log.
   runs only after a `logIn` that worked and after a Restore while signed in, and a signed-in refusal while the store
   still shows Premium mends itself once.
 
-## 2026-11-03: signing in never switches Premium off: the iPhone waits for its store, and the reconcile runs when it can attach
+## 2026-11-03: signing in no longer leaves the server refusing a Premium the phone shows: the iPhone waits for its store, and the reconcile runs when it can attach
 
 Option 1 made Premium work on an iPhone without an account, and that made an old gap visible: signing in could switch
 Scan, Chart a course, Plan my day and Reflect on this week off while the phone still showed Premium. The server half
 recorded the traps for the app, and the Apple review and the security review named the same ones. This closes them.
-Not pushed, not built. The iOS part rides the 16 to 22 Nov store build.
+One case it does not change: signing in to an account that has signed in on a phone before moves no anonymous
+purchase onto it, so Premium seems to vanish at sign-in on the phone too, and a Restore brings it back (now without
+a relaunch, see below). Not pushed, not built. The iOS part rides the 16 to 22 Nov store build.
+
+*(Heading corrected by the batch's review, the same day. It said "signing in never switches Premium off", which the
+Restore bullet below contradicts. Commit `18416d5` keeps the old words in its subject, because history is not
+rewritten.)*
 
 **Decided:**
 - **The iPhone waits for configure, as Android always has** (`ready()`, one remembered attempt that every store call
