@@ -19,7 +19,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { ocr } from '@/lib/ai';
 import { aiErrorLine, premiumMissLine } from '@/lib/connection';
-import { t } from '@/lib/locale';
+import { aiLanguage, t } from '@/lib/locale';
 import { usePremiumMiss } from '@/lib/premium-provider';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -33,10 +33,12 @@ type Props = {
   // After the Modal has fully closed (web and iOS). Where focus must land in the page behind, it lands here:
   // on web the Modal's focus trap holds focus until this point.
   onDismiss?: () => void;
+  // The language the AI answers in. Defaults to the app's own, so a caller that passes nothing (Today and Ours
+  // did until 2026-11-03) never gets English titles from a German, French, Spanish or Italian app.
   language?: string;
 };
 
-export function CameraCapture({ visible, onClose, onTasks, onDismiss, language }: Props) {
+export function CameraCapture({ visible, onClose, onTasks, onDismiss, language = aiLanguage }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
   const isWeb = Platform.OS === 'web';

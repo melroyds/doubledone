@@ -65,6 +65,8 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   "the Lookback".
 
 ### Fixed
+- **Chart a course, Reflect on this week and Scan answer in the app's language.** They sent none, so a German,
+  French, Spanish or Italian app got English answers (web now, the phones with the store build).
 - **A Premium feature that cannot run says why** (on main only). Scan, Chart a course, Plan my day and Reflect on
   this week showed one line for every failure, and Chart told a paying iPhone with no account to rephrase a goal
   that never left the phone. Now a refusal says no active Premium was found, a Premium that could not be confirmed

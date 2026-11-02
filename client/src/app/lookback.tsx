@@ -18,7 +18,7 @@ import { canMakeScrapbook } from '@/lib/entitlement';
 import { scrapbookReady } from '@/lib/haptics';
 import { captureKeepsakeCard } from '@/lib/keepsake-capture';
 import { lookbackStats } from '@/lib/insights';
-import { fmt, t } from '@/lib/locale';
+import { aiLanguage, fmt, t } from '@/lib/locale';
 import { usePremium, usePremiumMiss } from '@/lib/premium-provider';
 import { findScrapbook, remakeScrapbook, type Scrapbook, weekCompletions, weekLabel, weekStartISO } from '@/lib/scrapbook';
 import { retireReplacedKeepsake } from '@/lib/scrapbook-sync';
@@ -218,7 +218,7 @@ export default function LookbackScreen() {
     setSummaryError(null);
     setSummaryWeek(weekStart);
     try {
-      const r = await lookbackSummary(titles);
+      const r = await lookbackSummary(titles, aiLanguage);
       if (!r.ok) {
         setSummaryError(premiumMissLine(r.miss, t('lookback.reflectError')));
         notePremiumMiss('reflect', r.miss);

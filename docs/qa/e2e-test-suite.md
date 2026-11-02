@@ -424,6 +424,12 @@ The readable copy of the manual QA pass. The fillable version with a Result drop
 | I18N-01 | P2 | Both | App follows the device language (Italian / Spanish / French) | Set the device (or browser) language to Italian, Spanish, or French and open DoubleDone fresh. Walk Today, the introduction, Settings, Calendar, capture, and close-the-day. | The whole UI renders in that language: screens, buttons, hints, errors, notification copy, and screen-reader labels. Dates and times follow the region's convention (24-hour clock and day-month order where the locale uses them). Task titles the user typed stay exactly as typed (user data never translates), the brand stays 'DoubleDone', and legal pages stay English. Any missing string falls back to English, never a blank. An English device sees the app unchanged. |
 | I18N-02 | P2 | Both | German is a supported language on the phones | PREREQ: a store build made after 2026-10-05 (it is native config, so web and older builds cannot show it). Set the phone's language to German, open DoubleDone. On iOS also open Settings -> Apps -> DoubleDone -> Language. iOS shows that row only when the phone has two or more languages under Settings -> General -> Language & Region, so add Deutsch there first and choose 'Keep English' (Melroy's iPhone, 2026-10-19). | The app is in German throughout (it already was: the app follows the phone's language). New with this build: iOS lists Deutsch beside English, Italiano, Español and Français in the app's own language setting, and choosing it switches the app; Android 13+ app languages offer Deutsch too; and once the build is live, the App Store page's Languages line includes German. |
 
+## I18N
+
+| ID | Pri | Platform | Test | Steps | Expected |
+|---|---|---|---|---|---|
+| I18N-03 | P2 | iOS + Android + Web | Chart a course, Reflect on this week and Scan answer in the app's language | With the device (or browser) set to German, on a Premium account: run Chart a course on a goal, open Reflect on this week with a few finished tasks, and Scan a photo of a short handwritten German list. Repeat one of them in French. | Each answer comes back in the app's language: the course's steps, the reflection and the scanned titles are German (then French), never English. English devices are unchanged. |
+
 ## Accessibility
 
 | ID | Pri | Platform | Test | Steps | Expected |

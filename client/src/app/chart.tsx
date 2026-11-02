@@ -15,7 +15,7 @@ import { chart, type CourseStep } from '@/lib/ai';
 import { aiErrorLine, premiumMissLine } from '@/lib/connection';
 import { toISODate } from '@/lib/day';
 import { hasPendingInbound, setInbound } from '@/lib/inbound';
-import { fmt, t } from '@/lib/locale';
+import { aiLanguage, fmt, t } from '@/lib/locale';
 import { usePremium, usePremiumMiss } from '@/lib/premium-provider';
 import { spreadDueDates } from '@/lib/spread';
 import { loadTasks, saveTasks } from '@/lib/storage';
@@ -128,7 +128,7 @@ export default function ChartScreen() {
     setError(null);
     track('chart.requested');
     try {
-      const r = await chart(g, dueDate ? { dueDate } : undefined);
+      const r = await chart(g, dueDate ? { dueDate } : undefined, aiLanguage);
       if (!r.ok) {
         // Refused or dropped before any AI read the goal, so the line says what happened and never asks for a
         // rephrase (it did, to a paying iPhone with no account whose request never left the phone, 2026-11-03).
