@@ -175,8 +175,7 @@ export const it: Catalog = {
     goalPlaceholder: 'es. allenarti per una 10 km, imparare tre ricette facili',
     intro: 'Scrivi qualcosa a cui stai lavorando. Riceverai una lista tranquilla dei prossimi passaggi, da prendere o lasciare come preferisci.',
     mapError: "Non è stato possibile tracciare la rotta questa volta. Vuoi provare a riformulare l'obiettivo?",
-    // English until the native read (2026-11-03, Premium without an account).
-    mapRetry: "I couldn't map that out just now. Your goal is still here, so try again in a moment.",
+    mapRetry: 'Non è stato possibile tracciare la rotta questa volta. Il tuo obiettivo è ancora qui, riprova tra un momento.',
     pickAStep: 'Scegli un passaggio da aggiungere',
     spreadNote: 'Il primo passaggio arriva su Oggi, gli altri si distribuiscono con calma {spreadHint}. Diventano attività normali.',
     spreadNoteOverNextDays: 'nei prossimi giorni',
@@ -595,9 +594,8 @@ export const it: Catalog = {
     },
   },
   premium: {
-    // English until the native read (2026-11-03, Premium without an account).
-    aiNotActive: "We couldn't find an active Premium for you just now, so nothing went to the AI. If you've only just bought or restored it, give it a minute and try again.",
-    aiNotConfirmed: "We couldn't confirm your Premium just now, so nothing went to the AI. Try again in a moment.",
+    aiNotActive: "Al momento non siamo riusciti a trovare un Premium attivo per te, quindi non è stato inviato nulla all'AI. Se l'hai appena acquistato o ripristinato, aspetta un minuto, poi riprova.",
+    aiNotConfirmed: "Non siamo riusciti a verificare il tuo Premium adesso, quindi non è stato inviato nulla all'AI. Riprova tra un momento.",
     appleManageElsewhere: 'Questo abbonamento è stato acquistato su iPhone o iPad, quindi lo gestisce Apple. Apri Impostazioni su quel dispositivo, tocca il tuo nome e poi Abbonamenti.',
     googleManageElsewhere: 'Questo abbonamento è stato acquistato su Google Play, quindi lo gestisce Google. Sul tuo telefono Android, apri il Play Store, tocca la tua immagine del profilo, poi Pagamenti e abbonamenti e poi Abbonamenti.',
     iapUnavailableGoogle: 'Google Play non risponde in questo momento. Il tuo account è a posto. Riprova tra poco.',
