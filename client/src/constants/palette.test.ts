@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PHASE_GRADIENT, PHASE_POOLS, type Phase } from '../lib/phase';
 import { THEME_NAMES } from '../lib/settings';
-import { Colors, paletteFor, PILL_FILL_ALPHA, quietTokens, shelfTint, THEME_PRESETS, type Palette, type ThemeTokens } from './palette';
+import { Colors, paletteFor, PILL_FILL_ALPHA, quietTokens, shelfTint, THEME_PRESETS, type Palette, type QuietTokens, type ThemeTokens } from './palette';
 
 // The contrast gate (C10, store 1.9). Every text colour must reach 4.5:1 and every check ring 3:1 on the
 // surfaces the app really draws it on, composited the way the screen composites them, in all 14 palettes (seven
@@ -14,8 +14,9 @@ import { Colors, paletteFor, PILL_FILL_ALPHA, quietTokens, shelfTint, THEME_PRES
 // is laid over each phase's top stop. The rose pool lies mid-screen, behind the rested screen's lines, so it is
 // laid over each mid and bottom stop. Leaving the rose pool out is how 4.64:1 on paper became 4.10:1 on the
 // rested screen (docs/design-source/store-1.9, the colour proposal), so it stays in. Cards, the shelf and Quiet's
-// held card can sit anywhere in the list, so they are laid over every one of those. The Menu pill only ever sits
-// in the header, so it is laid over the top of the sky: the top stops, and the glow over them.
+// held card can sit anywhere in the list, so they are laid over every one of those, and so can Quiet's rows, which
+// have no card at all. The Menu pill only ever sits in the header, so it is laid over the top of the sky: the top
+// stops, and the glow over them.
 
 type RGB = [number, number, number];
 type Scheme = 'light' | 'dark';
@@ -24,10 +25,11 @@ type Sample = { at: string; rgb: RGB; top?: boolean };
 function parse(color: string): { rgb: RGB; a: number } {
   const m = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/.exec(color);
   if (m) return { rgb: [Number(m[1]), Number(m[2]), Number(m[3])], a: Number(m[4]) };
-  const h = /^#([0-9a-f]{6})$/i.exec(color);
+  // Six digits, or eight with the alpha last, as `${done}26` writes it.
+  const h = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(color);
   if (!h) throw new Error(`not a colour this test can read: ${color}`);
   const v = h[1];
-  return { rgb: [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)], a: 1 };
+  return { rgb: [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)], a: h[2] ? parseInt(h[2], 16) / 255 : 1 };
 }
 
 /** `color` (hex, or rgba with its alpha) painted over an opaque backdrop. */
@@ -67,7 +69,7 @@ function sky(scheme: Scheme): Sample[] {
   });
 }
 
-type Surface = 'sky' | 'card' | 'shelf' | 'pill' | 'tint' | 'quietHeld' | 'surface' | 'bg' | 'accentFill';
+type Surface = 'sky' | 'card' | 'shelf' | 'pill' | 'tint' | 'quietHeld' | 'quietDoneBand' | 'surface' | 'bg' | 'accentFill';
 
 /** Every surface a token is drawn on, as the screen composites it, for one palette. */
 function surfaces(p: Palette, scheme: Scheme): Record<Surface, Sample[]> {
@@ -82,22 +84,38 @@ function surfaces(p: Palette, scheme: Scheme): Record<Surface, Sample[]> {
     pill: s.filter((b) => b.top).map((b) => ({ at: `the Menu pill over ${b.at}`, rgb: over(pillFill, b.rgb) })),
     tint: solid('the accent tint', p.accentSoft),
     quietHeld: s.map((b) => ({ at: `Quiet's held card over ${b.at}`, rgb: over(quietTokens(p, scheme).pressWash, b.rgb) })),
+    // A held row's closing line in Quiet, on its sage band, over the sky or the tint of a pinned row.
+    quietDoneBand: [...s, ...solid('the accent tint', p.accentSoft)].map((b) => ({
+      at: `Quiet's closing band over ${b.at}`,
+      rgb: over(quietTokens(p, scheme).doneBand, b.rgb),
+    })),
     surface: solid('a sheet (surface)', p.surface),
     bg: solid('the page (bg)', p.bg),
     accentFill: solid('the accent fill', p.accent),
   };
 }
 
+// A palette role, or one of Quiet's usage tokens (palette.ts quietTokens) as `quiet.ring`.
+type Token = keyof Palette | `quiet.${keyof QuietTokens}`;
+
+function colorOf(p: Palette, scheme: Scheme, token: Token): string {
+  if (token.startsWith('quiet.')) return quietTokens(p, scheme)[token.slice('quiet.'.length) as keyof QuietTokens];
+  return p[token as keyof Palette] as string;
+}
+
 // What each colour is for, and where it is drawn. A text colour gets a new surface only by adding it here, so
-// this table is the contract and the test holds it. [what it is, the token, its surfaces, the ratio it needs]
-const ROLES: [string, keyof Palette, Surface[], number][] = [
+// this table is the contract and the test holds it. [what it is, the token, its surfaces, the ratio it needs, and
+// 'light' on a row held in light mode only, each with its reason]
+const ROLES: [string, Token, Surface[], number, Scheme?][] = [
   ['primary words (titles, task names)', 'ink', ['sky', 'card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase (in light mode, see below for dark), the shared list\'s lines (on the page once a list is archived), and in Quiet the Right now frame (RIGHT NOW, the caret, an unavailable tool\'s name), which has no card there', 'skyInk', ['sky', 'bg'], 4.5],
-  // Right now's frame is a card only in Standard. In Quiet its words are on the sky, so they take skyInk and
-  // skyAccent above, never these two rows.
+  // A Quiet row has no card, so its words are on the sky, and on the tint when the row is pinned, picked in select
+  // mode or washed (#35). Dark mode's sky roles are its card roles, so the dark pairs below are unchanged by them.
+  ['words straight on the sky: the date, the greeting, the weight line, Energy, Later, the rested screen, the foot phrase (in light mode, see below for dark), the shared list\'s lines (on the page once a list is archived), in Quiet the Right now frame (RIGHT NOW, the caret, an unavailable tool\'s name), which has no card there, and in Quiet a task row\'s grey words (a done title, the note, "· Ours", the repeat mark, the tiny-step eyebrow, the n / N count, Hold to adjust, the hold line)', 'skyInk', ['sky', 'bg', 'tint'], 4.5],
+  // Right now's frame and a task row are cards only in Standard. In Quiet their words are on the sky, so they take
+  // skyInk and skyAccent, never these two rows (TaskRow's rowSoft and rowAccent).
   ['secondary words on a card, the shelf, a tint, a sheet or the page, and every placeholder (the Right now frame in Standard only)', 'inkSoft', ['card', 'shelf', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
   ['accent words on a card, the shelf, a tint, a sheet or the page: Close the day, More, Close, Normal, Got it, the Menu label, every link and action on the other screens, and the Right now frame\'s tool and "now" in Standard only', 'accentText', ['card', 'shelf', 'pill', 'tint', 'quietHeld', 'surface', 'bg'], 4.5],
-  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore, and in Quiet the Right now frame\'s tool and its "now" tag', 'skyAccent', ['sky', 'bg'], 4.5],
+  ['accent words straight on the sky: Reopen today, the reminder Yes, Quiet\'s Menu, + I also did that, the shared list\'s Restore, in Quiet the Right now frame\'s tool and its "now" tag, and in Quiet a task row\'s accent words (the big tag, the reminder time, "Looks big, break it down?", "Let it go")', 'skyAccent', ['sky', 'bg', 'tint'], 4.5],
   ['the repeat mark, step counts and the tiny-step eyebrow on a card', 'repeat', ['card', 'surface'], 4.5],
   // Not words on the page: periwinkle is 4.3:1 on paper in the light themes, so the break-down review's phase dates
   // (the one line that put it there) are inkSoft in light mode, and keep the periwinkle in dark. The Calendar's ↻ beside a day's task is a symbol that screen
@@ -108,7 +126,14 @@ const ROLES: [string, keyof Palette, Surface[], number][] = [
   ['labels on the accent fill (the + pill, Break it down)', 'onAccent', ['accentFill'], 4.5],
   // The tint too: a pinned row sits on solid accentSoft with its ring always empty (Today pins only an open task),
   // and a row changed since you looked in Ours sits on the opaque wash for as long as you look.
-  ['the empty check ring and the select ring (not text, 3:1), on a card and on the tint of a pinned row or an Ours row changed since you looked', 'inkFaint', ['card', 'tint'], 3],
+  ['the empty check ring and the select ring in Standard (not text, 3:1), on a card and on the tint of a pinned row or an Ours row changed since you looked', 'inkFaint', ['card', 'tint'], 3],
+  // In Quiet those rings sit on the sky, on the page of an archived shared list, and on the tint of a pinned or washed
+  // row (#35). Light only for now: in dark quiet.ring is still inkFaint, 2.2 to 2.5:1 on the dark sky, and waits for the
+  // dark colour pass with OPEN_IN_DARK below. Drop the 'light' in that commit.
+  ['in Quiet, a row\'s empty check ring and select ring (not text, 3:1)', 'quiet.ring', ['sky', 'bg', 'tint'], 3, 'light'],
+  // The closing line ("You closed the one I was holding.") plays on a sage band inside the held row, which is on the
+  // sky in Quiet. Light only the same way: dark keeps its 15% band, where the sage words are 3.7 to 3.9:1.
+  ['in Quiet, the closing line of a held task, on its sage band', 'doneText', ['quietDoneBand'], 4.5, 'light'],
 ];
 
 type Failure = { key: string; r: number; text: string };
@@ -117,8 +142,10 @@ function failures(theme: (typeof THEME_NAMES)[number], scheme: Scheme): Failure[
   const p = paletteFor(theme, scheme);
   const on = surfaces(p, scheme);
   const out: Failure[] = [];
-  for (const [what, token, where, need] of ROLES) {
-    const fg = parse(p[token] as string).rgb;
+  for (const [what, token, where, need, only] of ROLES) {
+    if (only && only !== scheme) continue;
+    const color = colorOf(p, scheme, token);
+    const fg = parse(color).rgb;
     for (const surface of where) {
       let worst = { r: Infinity, at: '' };
       for (const b of on[surface]) {
@@ -127,7 +154,7 @@ function failures(theme: (typeof THEME_NAMES)[number], scheme: Scheme): Failure[
       }
       if (worst.r < need) {
         const key = `${theme} ${scheme} ${token} on ${surface}`;
-        out.push({ key, r: worst.r, text: `${key} (${p[token]}): ${worst.r.toFixed(2)} < ${need} at ${worst.at} (${what})` });
+        out.push({ key, r: worst.r, text: `${key} (${color}): ${worst.r.toFixed(2)} < ${need} at ${worst.at} (${what})` });
       }
     }
   }

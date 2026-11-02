@@ -509,15 +509,16 @@ the ladder is fixed and readable, never randomised.
   the next change to TaskRow's keys, the Energy pills or the floatNote.
 - **Three contrast gaps the slice 3 test and the colour review found and left (parked 2026-10-19, with slice 3 of
   `store-1.9`).** All three are measured by `client/src/constants/palette.test.ts`'s model. (1) **With Quiet on,
-  a task row sits straight on the sky.** Quiet drops the row's card, so its grey words (a done title, the row note, "· Ours", the repeat mark, the
-  step count), its accent words ("a lot", the nudge time, "looks big"), its check ring and Quiet's hold-hint line
-  are all drawn on the living sky. In light mode the words measure 3.1 to 3.2:1, and the ring 2.1 to 2.5:1 in both
-  modes, where it needs 3:1. The a11y scout modelled Quiet only for the held card and the Menu pill, so its list
-  missed this. The fix follows slice 3's rule: those Quiet styles read `skyInk` and `skyAccent`, and the ring gets a
-  darker sky shade of its own, solved the same way. That makes Quiet's rows visibly firmer, so it is a taste call.
-  Trigger: Melroy's word (before the 1.9.0 builds, if he wants it in them), or the next change to Quiet. Already
-  done, so not part of this: the Right now frame above the rows (RIGHT NOW, the tool's name, the caret) and its
-  tools panel's unavailable names and "now" tag. The colour review found them on the sky in Quiet too (3.3 to
+  a task row sits straight on the sky.** Quiet drops the row's card, so its words and its check ring are drawn on
+  the living sky. **Light mode's rows were fixed on 2026-11-02 (bug sweep #35):** their grey words take `skyInk`,
+  their accent words `skyAccent`, the check and select rings `quiet.ring` (inkSoft, 3.1 to 3.2:1 on the sky, from
+  2.1 to 2.3), and a held row's closing line gets a solid band (`quiet.doneBand`), all held by the test. Still
+  open: Quiet's tip line above the list (the hold tip and its Got it), which is Today's and not a row, still
+  `quiet.secondary` and `accentText` at 3.1 to 3.2:1 on the light sky. And in dark mode the Quiet rings stay
+  inkFaint, 2.2 to 2.5:1 on the dark sky, and the closing band 3.7 to 3.9:1, so their two rows in the test are
+  light-only. Trigger: the tip with the next change to Today's tips, the dark half with (2), lifting the test's
+  'light' in the same commit. Already done, so not part of this: the Right now frame above the rows (RIGHT NOW,
+  the tool's name, the caret) and its tools panel's unavailable names and "now" tag. The colour review found them on the sky in Quiet too (3.3 to
   4.1:1), and they took `skyInk` and `skyAccent` there on 2026-10-19, to match ENERGY just above them. (2) **In
   dark mode, pale words under the hero glow.** With the glow at full strength, inkSoft and the accent straight on
   the dark sky measure 3.9 to 4.5:1 in six of the seven themes. A real line at the top of the screen sees about 80%

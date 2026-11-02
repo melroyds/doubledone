@@ -206,7 +206,8 @@ export type QuietTokens = {
   secondary: string; // quiet secondary actions (soft ink)
   link: string; // the accent text links that stay coloured (rendered bold)
   remove: string; // destructive text (muted brick, never red)
-  nOfM: string; // the "n of m" multi-step counter (soft ink)
+  ring: string; // a row's empty check ring and select ring, straight on the sky (a Quiet row has no card)
+  doneBand: string; // the sage band under a held row's closing line, straight on the sky
 };
 
 /** The quiet usage tokens, derived from the ACTIVE palette so Quiet works on every colour theme, not just Dusk.
@@ -220,6 +221,13 @@ export function quietTokens(colors: Palette, scheme: 'light' | 'dark'): QuietTok
     secondary: colors.inkSoft,
     link: colors.accentText, // words, so the text role (the accent itself is a fill)
     remove: colors.danger,
-    nOfM: colors.inkSoft,
+    // A row's words take the sky's text roles in Quiet (TaskRow), and these two finish the row (#35). On the light
+    // sky inkFaint is 2.1 to 2.3:1, under the 3:1 a ring needs. Solving its lightness for 3.1:1, hue and saturation
+    // kept, lands within a few steps of each theme's own inkSoft, which is that same hue one step firmer, so the
+    // ring takes inkSoft (3.1 to 3.2:1 on the sky) rather than a near-copy of it.
+    ring: scheme === 'light' ? colors.inkSoft : colors.inkFaint,
+    // Solid in light: at 15% the sky's rose pool showed through and took the sage words to 3.4:1. doneSoft is the
+    // theme's own pale sage, near what that band looks like on the page. Dark keeps both as they were, for its own pass.
+    doneBand: scheme === 'light' ? colors.doneSoft : `${colors.done}26`,
   };
 }

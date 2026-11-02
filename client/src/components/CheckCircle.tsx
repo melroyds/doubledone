@@ -28,12 +28,18 @@ type Props = {
    * never implemented, which is the third time today.
    */
   dim?: boolean;
+  /**
+   * No card under the ring: a Quiet row, which drops its card, so the ring sits straight on the sky. inkFaint is
+   * 2.1 to 2.3:1 there in light mode, under the 3:1 a ring needs, so it takes Quiet's ring instead (#35). The
+   * Repeating room and Break it down's review draw theirs on a card, so they leave this off.
+   */
+  onSky?: boolean;
 };
 
-export function CheckCircle({ done, size = control.check, dim = false }: Props) {
+export function CheckCircle({ done, size = control.check, dim = false, onSky = false }: Props) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={[styles.check, { width: size, height: size }, done && styles.checkDone, dim && styles.dim]}>
+    <View style={[styles.check, { width: size, height: size }, onSky && styles.checkOnSky, done && styles.checkDone, dim && styles.dim]}>
       {done && <Text style={styles.tick}>✓</Text>}
     </View>
   );
@@ -50,6 +56,7 @@ const makeStyles = (t: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    checkOnSky: { borderColor: t.quiet.ring },
     checkDone: { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
     // The same 0.45 every other quiet-unavailable control in this app uses. Lowered contrast, not
     // removal: the row keeps its shape, so the list never reflows around what you cannot do.

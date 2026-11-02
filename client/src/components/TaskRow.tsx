@@ -184,6 +184,8 @@ export function TaskRow({
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const theme = useTheme();
+  // A Quiet row has no card, so its check ring sits straight on the sky (#35).
+  const ringOnSky = theme.appearance === 'quiet';
   // Inline title editing on the held card: tap the title, it becomes a field, enter or blur saves.
   // The draft starts from the RAW title (never the sliced "· n/N" suffix, which is render-only).
   // Editing state (and the "More" disclosure) reset whenever the card closes (the adjust-during-render
@@ -1144,7 +1146,7 @@ export function TaskRow({
       >
         <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
         <View style={styles.sliceTop}>
-          <CheckCircle done={complete} />
+          <CheckCircle done={complete} onSky={ringOnSky} />
           <MarqueeText text={title} style={[styles.text, complete && styles.textDone]} />
           {showLeftOff && !complete ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
           {justAdded ? <Text style={styles.justAddedMark} accessible={false} importantForAccessibility="no">{t('today.justAdded')}</Text> : null}
@@ -1194,7 +1196,7 @@ export function TaskRow({
           aria-checked={done}
           accessibilityLabel={rowLabel}
         >
-          <CheckCircle done={done} />
+          <CheckCircle done={done} onSky={ringOnSky} />
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
@@ -1240,7 +1242,7 @@ export function TaskRow({
           aria-checked={done}
           accessibilityLabel={t(showLeftOff ? 'leftOff.tinyStepRowA11y' : 'today.tinyStepRowLabel', { title, parent: tinyParent })}
         >
-          <CheckCircle done={done} />
+          <CheckCircle done={done} onSky={ringOnSky} />
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
         </Pressable>
@@ -1270,7 +1272,7 @@ export function TaskRow({
           aria-checked={done} aria-disabled={Boolean(inert)}
           accessibilityLabel={rowLabel}
         >
-          <CheckCircle done={done} dim={Boolean(inert)} />
+          <CheckCircle done={done} dim={Boolean(inert)} onSky={ringOnSky} />
           {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
           <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
@@ -1310,7 +1312,7 @@ export function TaskRow({
     >
       <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
       <View style={styles.rowMain}>
-        <CheckCircle done={done} dim={Boolean(inert)} />
+        <CheckCircle done={done} dim={Boolean(inert)} onSky={ringOnSky} />
         {big ? <Text style={styles.bigMark} accessible={false} importantForAccessibility="no">{t('today.bigTag')}</Text> : null}
         <MarqueeText text={title} style={[styles.text, done && styles.textDone]} />
           {showLeftOff ? <LeftOffMark color={theme.colors.inkSoft} size={16 * theme.scale} /> : null}
@@ -1358,6 +1360,13 @@ const makeStyles = (t: Theme) => {
   // text colour on it follows: white on the light fill, accent on the dark tint / in Quiet. Computed once
   // so heroLabel and heroSub can't drift apart.
   const heroText = t.appearance === 'quiet' ? t.colors.accentText : t.scheme === 'dark' ? t.colors.accentText : t.colors.onAccent;
+  // A Quiet row has no card, so its words sit straight on the sky (or the page, on an archived shared list), and
+  // there they take the sky's text roles, as every other word on the sky does (#35: inkSoft and accentText were 3.1
+  // to 3.2:1 on the light sky). In dark mode the sky roles ARE the card roles, so dark draws what it always did.
+  // The ring and the closing line's band come from t.quiet, for the same reason.
+  const quiet = t.appearance === 'quiet';
+  const rowSoft = quiet ? t.colors.skyInk : t.colors.inkSoft;
+  const rowAccent = quiet ? t.colors.skyAccent : t.colors.accentText;
   return StyleSheet.create({
     // Quiet strips the card to whitespace + a 5%-ink bottom hairline; standard keeps the soft floating card.
     // The row's CONTENT line. Everything that used to sit directly on `row` lives here now, so a
@@ -1365,7 +1374,7 @@ const makeStyles = (t: Theme) => {
     rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four, alignSelf: 'stretch' },
     // Quiet, and in the body colour: this is a fact about the row, not an alarm about it.
     rowNote: {
-      color: t.colors.inkSoft,
+      color: rowSoft,
       fontSize: 13 * t.scale,
       fontFamily: fonts.body,
       marginTop: spacing.one,
@@ -1410,15 +1419,15 @@ const makeStyles = (t: Theme) => {
     // the full width instead, one centred italic sentence.
     holdLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, alignSelf: 'stretch', marginTop: spacing.two, marginLeft: 24 + spacing.four, minHeight: 36 },
     holdLineMain: { flex: 1, minHeight: 36, justifyContent: 'center' },
-    holdLineText: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
+    holdLineText: { color: rowSoft, fontSize: 13 * t.scale, fontFamily: fonts.body },
     holdLineLetGo: { minHeight: 36, justifyContent: 'center' },
-    holdLineLetGoText: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
-    holdLineClosed: { marginLeft: 0, backgroundColor: `${t.colors.done}26`, justifyContent: 'center', borderRadius: radius.md, paddingHorizontal: spacing.three },
+    holdLineLetGoText: { color: rowAccent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    holdLineClosed: { marginLeft: 0, backgroundColor: quiet ? t.quiet.doneBand : `${t.colors.done}26`, justifyContent: 'center', borderRadius: radius.md, paddingHorizontal: spacing.three },
     holdClosedText: { color: t.colors.doneText, fontFamily: fonts.sans, fontStyle: 'italic', fontSize: 14 * t.scale, textAlign: 'center', flex: 1, paddingVertical: spacing.one },
     // A quiet accent tag (never danger red): the app agreeing this task is a lot, sized small so it never scolds.
     // "a lot" tag: a soft accent pill in standard; plain accent text (no pill chrome) in quiet.
     bigMark: {
-      color: t.colors.accentText,
+      color: rowAccent,
       fontSize: 11 * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: '700',
@@ -1532,7 +1541,7 @@ const makeStyles = (t: Theme) => {
       backgroundColor: t.colors.accentSoft,
     },
     // The faint "· Ours" on YOUR copy. Quiet enough to be a fact and not a badge.
-    originMark: { color: t.colors.inkSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
+    originMark: { color: rowSoft, fontSize: 13 * t.scale, fontFamily: fonts.body, marginLeft: spacing.two },
     // Ink on light (the accent on its own wash is 4.0:1, under AA for text this small), the accent on dark (4.9:1).
     justAddedMark: { color: t.scheme === 'dark' ? t.colors.accentText : t.colors.ink, fontSize: 11 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     // Full strength (C3): the 0.82 fade took it under 4.5:1 on the hero fill in both schemes (3.8 to 4.8).
@@ -1628,7 +1637,7 @@ const makeStyles = (t: Theme) => {
       height: 26,
       borderRadius: radius.pill,
       borderWidth: border.thick,
-      borderColor: t.colors.inkFaint,
+      borderColor: quiet ? t.quiet.ring : t.colors.inkFaint,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1637,27 +1646,27 @@ const makeStyles = (t: Theme) => {
     text: { color: t.colors.ink, fontSize: 17 * t.scale, fontFamily: fonts.body, lineHeight: 23 * t.scale, userSelect: 'none' },
     // Ticked, not ALSO struck through: one sign is enough, and a struck line is harder to read (the Today v3
     // feedback, 2026-09-26). Soft ink says done while keeping the words legible.
-    textDone: { color: t.colors.inkSoft },
-    repeatMark: { color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
+    textDone: { color: rowSoft },
+    repeatMark: { color: quiet ? t.colors.skyInk : t.colors.repeat, fontSize: 18 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     heldDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: t.colors.accent, marginLeft: 6, alignSelf: 'center' },
     heldLabel: { color: t.colors.accentText },
-    nudgeMark: { color: t.colors.accentText, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    nudgeMark: { color: rowAccent, fontSize: 13 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     suggestColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     suggestMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     suggestHintBtn: { alignSelf: 'flex-start' },
-    suggestHint: { color: t.colors.accentText, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    suggestHint: { color: rowAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
     tinyColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     tinyMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
-    tinyEyebrow: { ...t.type.eyebrow, color: t.appearance === 'quiet' ? t.quiet.secondary : t.colors.repeat },
+    tinyEyebrow: { ...t.type.eyebrow, color: quiet ? t.colors.skyInk : t.colors.repeat },
     sliceColumn: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.two },
     sliceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.four },
     sliceCount: {
-      color: t.appearance === 'quiet' ? t.quiet.nOfM : t.colors.repeat,
+      color: quiet ? t.colors.skyInk : t.colors.repeat,
       fontSize: (t.appearance === 'quiet' ? 13 : 14) * t.scale,
       fontFamily: fonts.bodyBold,
       fontWeight: t.appearance === 'quiet' ? '600' : '700',
     },
-    sliceAdjustHint: { color: t.colors.inkSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
+    sliceAdjustHint: { color: rowSoft, fontSize: 11 * t.scale, fontFamily: fonts.body, marginTop: spacing.half },
     track: {
       flexDirection: 'row',
       height: 4,
