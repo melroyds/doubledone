@@ -38,7 +38,9 @@ function swallowNextContextMenu() {
 }
 
 /**
- * Spread onto the Pressable that owns a row's tap and long-press: `{...rowDoor(onLongPress, tap)}`.
+ * Spread onto the Pressable that owns a row's tap and long-press: `{...rowDoor(onLongPress, tap)}`. Any other
+ * Pressable that is not a button and should answer Space (a checkbox in a list, a tab) takes it the same way,
+ * with no card to open: `{...rowDoor(undefined, tap)}`. A button needs none: RN-web presses it on Space itself.
  *
  * `open` opens the row's card. Right-click opens it, unless the press responder already prevented the
  * event (a touch hold, which opens the card by itself), so one gesture never opens it twice.

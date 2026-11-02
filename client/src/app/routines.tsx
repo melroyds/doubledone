@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, RoomHead, RoomIntro, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
+import { rowDoor } from '@/components/row-door';
 import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
@@ -570,10 +571,13 @@ export default function RoutinesScreen() {
                   )}
                   {r.steps.map((s) => {
                     const done = isStepDoneToday(r, s.id, today);
+                    const onTick = () => tick(r.id, s.id);
                     return (
                       <Pressable
                         key={s.id}
-                        onPress={() => tick(r.id, s.id)}
+                        onPress={onTick}
+                        // Space ticks it on the web, as a tap does (RN-web lets Space press only a button).
+                        {...rowDoor(undefined, onTick)}
                         accessibilityRole="checkbox"
                         aria-checked={done}
                         accessibilityLabel={s.title}

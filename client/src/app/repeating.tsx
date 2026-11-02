@@ -18,6 +18,7 @@ import bandArt from '../../assets/images/rooms/band-repeating.webp';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { CheckCircle } from '@/components/CheckCircle';
 import { RoomBackRow, RoomHead, RoomIntro, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
+import { rowDoor } from '@/components/row-door';
 import { border, cardShadow, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
 import { t } from '@/lib/locale';
@@ -146,10 +147,13 @@ export default function RepeatingScreen() {
             <View style={styles.card}>
               {group.items.map((task, i) => {
                 const done = isDoneOn(task, today);
+                const tick = () => void toggle(task.id);
                 return (
                   <View key={task.id} style={[styles.row, i > 0 && styles.rowRule]}>
                     <Pressable
-                      onPress={() => void toggle(task.id)}
+                      onPress={tick}
+                      // Space ticks it on the web, as a tap does (RN-web lets Space press only a button).
+                      {...rowDoor(undefined, tick)}
                       style={styles.rowTick}
                       accessibilityRole="checkbox"
                       aria-checked={done}

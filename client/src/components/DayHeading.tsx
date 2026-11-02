@@ -4,6 +4,8 @@ import { border, fonts, PRESSED_OPACITY, radius, rgba, spacing, type Theme } fro
 import { t } from '@/lib/locale';
 import { useThemedStyles } from '@/lib/theme-provider';
 
+import { rowDoor } from './row-door';
+
 type Props = {
   /** Which page you are on. The underline sits under it. */
   current: 'today' | 'ours';
@@ -42,10 +44,14 @@ export function DayHeading({ current, oursLabel, changed = 0, compact = false, w
 
   const word = (which: 'today' | 'ours', label: string, a11y: string, onPress: () => void) => {
     const on = current === which;
+    const press = on ? undefined : onPress;
     return (
       <Pressable
         key={which}
-        onPress={on ? undefined : onPress}
+        onPress={press}
+        // Space opens the other page on the web, as a tap and Enter do (RN-web lets Space press only a button,
+        // and these are tabs). On the page you are on, Space does nothing, and the list stays still under it.
+        {...rowDoor(undefined, press)}
         accessibilityRole="tab"
         aria-selected={on}
         accessibilityLabel={a11y}

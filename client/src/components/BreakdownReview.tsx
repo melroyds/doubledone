@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { CheckCircle } from '@/components/CheckCircle';
 import { ModalCard } from '@/components/ModalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { rowDoor } from '@/components/row-door';
 import { border, fonts, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { friendlyDate } from '@/lib/day';
 import { describePace, paceDays } from '@/lib/estimate';
@@ -136,10 +137,14 @@ export function BreakdownReview({ task, steps, laterPhases, busy, onAdd, onCance
                 if (removed[i]) return null;
                 const on = selected[i];
                 const dateLabel = s.date == null ? t('common.today') : friendlyDate(s.date, today);
+                const onToggle = () => toggle(i);
                 return (
                   <Pressable
                     key={`${s.title}-${i}`}
-                    onPress={() => toggle(i)}
+                    onPress={onToggle}
+                    // Space keeps or skips the step on the web, as a tap does (RN-web lets Space press only a
+                    // button). A space typed into the title field below, or Space on its buttons, stays theirs.
+                    {...rowDoor(undefined, onToggle)}
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                     accessibilityRole="checkbox"
                     aria-checked={on}

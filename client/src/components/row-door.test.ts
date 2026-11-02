@@ -173,6 +173,14 @@ describe('rowDoor: Space on a task row (the 1 Nov bug sweep, #37)', () => {
     expect(tap).not.toHaveBeenCalled();
   });
 
+  it('leaves Space on a button inside the row to that button: a step’s title or its remove, in a review list', () => {
+    const tap = vi.fn();
+    const d = door(undefined, tap);
+    const { down } = press(d, { target: el('button', 'button'), currentTarget: ROW });
+    expect(down.preventDefault).not.toHaveBeenCalled(); // the button presses itself on Space
+    expect(tap).not.toHaveBeenCalled();
+  });
+
   it('leaves Space to a row that is a button, which presses itself, so a step never advances twice', () => {
     const advance = vi.fn();
     const d = door(vi.fn(), advance);

@@ -9,6 +9,7 @@ import { Chip } from '@/components/Chip';
 import { PremiumButton } from '@/components/PremiumButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { RoomBackRow, RoomHead, useRoomEntrance, useRoomOrigin } from '@/components/RoomTop';
+import { rowDoor } from '@/components/row-door';
 import { border, control, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
 import { chart, type CourseStep } from '@/lib/ai';
 import { aiErrorLine } from '@/lib/connection';
@@ -282,10 +283,14 @@ export default function ChartScreen() {
             {heading.length > 0 && <Text style={styles.heading}>{heading}</Text>}
             {steps.map((s, i) => {
               if (s.removed) return null;
+              const onToggle = () => toggle(i);
               return (
                 <Pressable
                   key={i}
-                  onPress={() => toggle(i)}
+                  onPress={onToggle}
+                  // Space picks or drops the step on the web, as a tap does (RN-web lets Space press only a
+                  // button). A space typed into the title field, or Space on its buttons, stays theirs.
+                  {...rowDoor(undefined, onToggle)}
                   style={styles.stepRow}
                   accessibilityRole="checkbox"
                   aria-checked={s.checked}
