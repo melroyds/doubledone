@@ -69,6 +69,7 @@ export default function SettingsScreen() {
   // this is always simply stated: a person here has come looking for facts about their app.
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [mcpExpired, setMcpExpired] = useState(false); // the access token couldn't be fetched (expired session)
+  const [mcpCopying, setMcpCopying] = useState(false); // a Copy my token is waiting on the zone: more taps are ignored
   const [mcpDisconnecting, setMcpDisconnecting] = useState(false);
   const [mcpDisconnectNote, setMcpDisconnectNote] = useState<string | null>(null); // calm line after a disconnect
   const { premium, entitlement, devOverride, setDevOverride, devAllowed, refresh } = usePremium();
@@ -285,21 +286,28 @@ export default function SettingsScreen() {
   // over carries it, which is what puts the agent on the same day as Today (#24). The wait is capped (TOKEN_WAIT_MS),
   // then the current token is copied anyway.
   async function revealMcpToken() {
-    if (!supabase) return;
-    const ready = tokenForAssistant(supabase.auth, deviceTimeZone());
-    // On the web the copy starts NOW, inside the tap, and takes the token when it is ready: Safari refuses a
-    // clipboard write that comes after a network wait. The selectable field below is the fallback.
-    const copied = Platform.OS === 'web' ? copyWhenReady(ready) : null;
-    const token = await ready;
-    if (!token) {
-      // The access token expired and could not refresh: point at re-sign-in instead of dead-ending silently
-      // (the footnote tells users to re-copy when their agent stops, so the expired case is the common one).
-      setMcpExpired(true);
-      return;
+    // One copy at a time, as Disconnect is. "Copied" only shows once the wait is over, and a second tap meanwhile
+    // could copy the older token, without the zone in it, over the fresh one (#24).
+    if (!supabase || mcpCopying) return;
+    setMcpCopying(true);
+    try {
+      const ready = tokenForAssistant(supabase.auth, deviceTimeZone());
+      // On the web the copy starts NOW, inside the tap, and takes the token when it is ready: Safari refuses a
+      // clipboard write that comes after a network wait. The selectable field below is the fallback.
+      const copied = Platform.OS === 'web' ? copyWhenReady(ready) : null;
+      const token = await ready;
+      if (!token) {
+        // The access token expired and could not refresh: point at re-sign-in instead of dead-ending silently
+        // (the footnote tells users to re-copy when their agent stops, so the expired case is the common one).
+        setMcpExpired(true);
+        return;
+      }
+      setMcpExpired(false);
+      setMcpToken(token);
+      if (copied && (await copied)) setMcpCopied(true);
+    } finally {
+      setMcpCopying(false);
     }
-    setMcpExpired(false);
-    setMcpToken(token);
-    if (copied && (await copied)) setMcpCopied(true);
   }
 
   // The immediate kill switch for URL-connected (OAuth) agents: POST /mcp/disconnect with
@@ -324,8 +332,8 @@ export default function SettingsScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMcpDisconnectNote(res.ok ? t('settings.mcpDisconnectDone') : t('settings.mcpDisconnectError'));
-      // The Worker cleared the time zone kept for the assistants (#24). Refresh so this device agrees, or Today's
-      // refresh would keep a zone the account no longer has, and clear it from here if the Worker's clear missed.
+      // The Worker cleared the time zone kept for the assistants (#24). Clear it from here too, every time: it is
+      // idempotent, it covers a Worker clear that missed, and it updates this device's copy of the account at once.
       if (res.ok) void forgetZone(supabase.auth);
     } catch {
       setMcpDisconnectNote(t('settings.mcpDisconnectError'));
@@ -604,6 +612,7 @@ export default function SettingsScreen() {
                   </Text>
                   <Pressable
                     onPress={revealMcpToken}
+                    disabled={mcpCopying}
                     accessibilityRole="button"
                     accessibilityLabel={t('settings.copyMcpTokenA11y')}
                     hitSlop={6}

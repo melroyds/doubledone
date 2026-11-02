@@ -11471,14 +11471,25 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
 - **The app's half (lib/account-zone.ts).** The device's zone comes from expo-localization (lib/locale.ts
   deviceTimeZone), never from Intl's resolvedOptions in shared code (the Hermes gotcha), and a value the Worker would
   refuse (Android can give GMT+11:00) is skipped. Copy my token is 'connect': it writes when the device's zone is
-  valid and differs from the stored one. Today's focus and a warm resume are 'refresh': they write ONLY when a zone
-  is already stored and differs, so they never create one. Each write is followed by a session refresh, because the
-  zone reaches the next access token, not the one in hand.
+  valid and differs from the stored one. Today's focus and a warm resume are 'refresh': they write ONLY when the
+  account already keeps a zone and it differs. "The account" is the server's answer, not this device's copy of it
+  (the review find, 2026-11-02): when the copy says a write is due, the app asks first (supabase.auth.getUser, one
+  GET, only on that rare open) and writes only if the answer still says so. The copy can be an hour old, and the
+  first build trusted it, so a second signed-in device whose copy still held a zone wrote it back after Disconnect
+  on another device. Each write is followed by a session refresh, because the zone reaches the next access token,
+  not the one in hand.
 - **Copy my token keeps the zone first, then copies the fresh token**, waiting at most 3 seconds before it copies
   the token it has. On the web the copy starts inside the tap, as a ClipboardItem holding a promise, because Safari
   refuses a clipboard write that comes after a network wait. The token stays on screen and selectable, as before.
-- **After Disconnect AI connectors the app refreshes its session**, and clears the zone itself if the Worker's clear
-  did not land, so Today's refresh can never keep a zone the account no longer has.
+  It decides against the zone inside the token it is about to hand over as well as the account's copy (review fix):
+  a refresh that failed after the write left the account with the zone and the token without it, and the next tap
+  handed that token over as it was. Now that tap refreshes, and never writes twice. Taps while a copy is in flight
+  are ignored, as Disconnect's are, because "Copied" only shows at the end and a second tap could copy the older
+  token over the fresh one.
+- **After a disconnect that succeeded, the app clears the zone itself as well, every time** (review fix). It is
+  idempotent after the Worker's clear, it covers a Worker clear that missed, and updateUser swaps this device's copy
+  of the account without a refresh. The first build cleared only when a refresh showed the zone still there, so a
+  failed refresh skipped its own fallback.
 
 **Decided against:**
 - **(a) Keeping the zone for everyone signed in.** It dilutes "your email is the only personal information we hold"
@@ -11503,6 +11514,8 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   account connected before this change gets its zone the next time the person taps Copy my token or connects again,
   and its agent keeps the UTC day until then.
 - **A 'refresh' that writes without a stored zone**, on every signed-in open. That is option (a) by the back door.
+- **Asking the account on every open**, to catch a zone cleared elsewhere. A request per open for a write that is
+  rare. The app asks only when its own copy says a write is due.
 
 **Accepted edges:**
 - Two devices in different zones on one account trade the zone back and forth, the one opened last winning. The
@@ -11511,3 +11524,7 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   token or connects again. The app keeps a zone current but never creates one.
 - The zone in a token is as old as the token. After a flight, the agent catches up within about an hour: the app
   writes on its next open, and custody's next refresh carries it.
+- A disconnect that lands in the instant between a device's ask and its write can still be undone by that write. It
+  takes a zone change on one device and a disconnect on another within the same second.
+- If both clears miss, the Worker's and the app's, the zone stays until the next disconnect, and the app keeps it
+  current. They are two separate writes to Supabase with the person's own token, from two different places.

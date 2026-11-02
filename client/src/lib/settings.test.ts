@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { de } from './catalogs/de';
@@ -135,5 +138,28 @@ describe('Quiet is free, and no Premium copy sells it', () => {
   it.each(Object.entries(catalogs))('%s: the Interface hint is one line for everyone and never says Premium', (_lang, c) => {
     expect(c.settings.appearanceHint).toContain(c.settings.appearanceQuiet);
     expect(c.settings.appearanceHint).not.toMatch(/Premium/);
+  });
+});
+
+// The Settings screen is not rendered by the harness either, so its half of #24's review fixes is held in its source:
+// lib/account-zone.test.ts proves the helpers, and these prove the screen still calls them the way they need.
+describe("Settings' AI agent access keeps the time-zone promises (#24)", () => {
+  const screen = readFileSync(join(__dirname, '..', 'app', 'settings.tsx'), 'utf8');
+
+  it('ignores Copy my token while a copy is in flight, as Disconnect does, so a second tap cannot copy the older token', () => {
+    expect(screen).toContain('if (!supabase || mcpCopying) return;');
+    expect(screen).toMatch(/setMcpCopying\(true\);\s*try \{/);
+    expect(screen).toMatch(/\} finally \{\s*setMcpCopying\(false\);/);
+    expect(screen).toMatch(/onPress=\{revealMcpToken\}\s*disabled=\{mcpCopying\}/);
+  });
+
+  it('hands over the token tokenForAssistant decided on, and starts the web copy inside the tap', () => {
+    expect(screen).toContain('const ready = tokenForAssistant(supabase.auth, deviceTimeZone());');
+    expect(screen).toContain("const copied = Platform.OS === 'web' ? copyWhenReady(ready) : null;");
+  });
+
+  it('clears the zone from the app after every disconnect that succeeded, and never after one that failed', () => {
+    expect(screen).toContain('if (res.ok) void forgetZone(supabase.auth);');
+    expect(screen.match(/forgetZone\(/g)).toHaveLength(1);
   });
 });
