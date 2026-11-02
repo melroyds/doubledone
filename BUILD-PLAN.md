@@ -42,9 +42,15 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**OPTION 1'S PRIVACY TEXT IS APPROVED AND ON BOTH PAGES (2026-11-03, Melroy: "Fix the privacy pages"), WITH THE AI
-LOG'S 90 DAYS.** The push puts it live; Melroy deploys the Worker straight after (Option 1, the 90-day purge on the
-:00 tick); then PREM-74 (the purchase id REDACTED in Cloudflare's logs) before the iPhone build that sends it.
+**PREMIUM WITHOUT AN ACCOUNT, THE AI LOG'S 90 DAYS AND THE LANGUAGE FIX ARE LIVE (2026-11-03 morning).** The
+privacy pages went out first (36e79f8, with Chart a course, Reflect on this week and Scan now sending the app's
+language), then Melroy dropped the old Supabase `ai_calls` table and deployed Worker `5389bfa1` (rollback `666a23d4`;
+checked: bindings, secrets and handlers identical, /health 200, `info.version` 1.4.0, money routes 401 JSON, the
+Stripe webhook 400, /chart with no or a malformed purchase id 401 JSON). PREM-74 PASSED in the live log stream:
+`x-purchaser-token` REDACTED, no RCAnonymousID anywhere. The first 90-day purge ran on the 23:00 UTC tick: all 324
+rows older than 90 days lost their text, all 506 rows kept their counts. **Next:** the iPhone store build carries the
+app half (week of 16 to 22 Nov, on Melroy's ask), with PREM-72 to 81 and I18N-03 on the device. Until then the
+friend in India signs in, which attaches his purchase today.
 
 **PREMIUM WITHOUT AN ACCOUNT (OPTION 1): BUILT AND REVIEWED ON MAIN, NOT PUSHED, NOT DEPLOYED (2026-11-03, on
 Melroy's "Please go on Option 1").** A friend in India bought Premium on his iPhone without signing in, and Chart a

@@ -343,7 +343,7 @@ flowchart LR
 
 | Data | Device | Supabase | Worker and D1 | Third parties |
 |---|---|---|---|---|
-| Tasks | Yes, including tombstones | When signed in | Read and written only as the user, through REST or MCP. Text sent to an AI feature is kept in `ai_calls` without identity | The text a person sends to an AI feature goes to Anthropic |
+| Tasks | Yes, including tombstones | When signed in | Read and written only as the user, through REST or MCP. Text sent to an AI feature is kept in D1 `ai_calls` without identity, for 90 days | The text a person sends to an AI feature goes to Anthropic |
 | Where you left off (one line per task, up to 280 characters) | Yes | On the owner's own row (`left_off`) | Never in an AI request, a REST or MCP response, or a shared row | None |
 | Routines, rhythms, settings, Hold me to it, reminders, energy picks, day state | Yes | No, never synced | No | None |
 | Keepsakes | The image URL and caption | The same record, when signed in | Image bytes in R2 | The week's finished titles go to Claude Haiku (or Workers AI as a fallback) to write a scene, then the scene to Workers AI for the image |

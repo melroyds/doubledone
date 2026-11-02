@@ -170,10 +170,10 @@ The full, plain-English policy is at [doubledone.app/privacy](https://doubledone
   - completion outcomes hold a random id, a step count and a number of days
   - feature usage is a daily counter per event name, stored without even a row id, so not even the order
     of events survives
-- **An older telemetry table is still defined in Supabase.** [`supabase/schema.sql`](supabase/schema.sql)
-  keeps the `ai_calls` table from before telemetry moved to D1. Nothing in the app or the Worker writes to
-  it now. Its policy accepts inserts and there is no read policy, so no row can be read back through the
-  API.
+- **The older Supabase telemetry table is gone.** The `ai_calls` table from before telemetry moved to D1
+  (20 Jun 2026) was dropped on 3 Nov 2026, with the text it held
+  ([`supabase/drop-ai-calls.sql`](supabase/drop-ai-calls.sql)), so the D1 log above, which keeps text for
+  90 days, is the only copy.
 - **Some server records are tied to an account, because they have to be:** subscription status, the free
   trial, the RevenueCat delivery log, and an AI connector's encrypted custody. If you connect an AI assistant,
   the account also keeps your device's time-zone name, so the assistant works on the same day as your Today.

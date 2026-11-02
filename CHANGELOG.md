@@ -17,8 +17,8 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3 to 1.10.6 on 2026-11-02, and on the
-Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02). The app changes reach the
+_Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3 to 1.10.7 on 2 and 3 Nov, and on the
+Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02, `5389bfa1` on 2026-11-03). The app changes reach the
 phones with the store build in the week of 16 to 22 Nov. The entries marked **(on main only)** are Premium without
 an account (2026-11-03): built and reviewed, but not yet on the web, the Worker or any phone._
 

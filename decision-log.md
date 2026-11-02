@@ -11915,3 +11915,20 @@ Melroy approved the Option 1 privacy text and the AI log's retention in one word
 **Decided against:** keeping the Break it down replies past 90 days for the flywheel. The completion half (`outcomes`:
 a random id, a step count and days) keeps everything the moat measures today, and a copy of what people typed is the
 one thing this policy should never hold open-ended.
+
+## 2026-11-03: Premium without an account and the AI log's 90 days go live, and the old Supabase table is gone
+
+**Decided:**
+- **The order held: the page first, then the Worker.** The privacy pages (and the language fix) went out with the web
+  push, then Melroy dropped the old Supabase `ai_calls` table and deployed Worker `5389bfa1`. No version of the Worker
+  that keeps a scrambled id or deletes text ran before the page said so.
+- **The old Supabase `ai_calls` table is dropped, not kept.** The 3 Nov privacy check found it could still hold AI text
+  from before telemetry moved to D1 (20 Jun), which the purge cannot reach and the new 90-day promise would have made
+  false. It was unused since June and its insert-only policy accepted rows from anyone holding the public key, so
+  dropping it also closes a write path nothing needed. `supabase/schema.sql` no longer defines it, so a re-run cannot
+  bring it back (`supabase/drop-ai-calls.sql` records the drop). Irreversible, by Melroy, in the SQL editor.
+- **PREM-74 counts as passed on the live tail.** `x-purchaser-token` shows as REDACTED in Cloudflare's stream and the
+  id appears nowhere, because Cloudflare blanks headers whose names carry words like token. A glance at the stored Logs
+  view in the dashboard would make it airtight, and the header must never be renamed to something plain (CLAUDE.md).
+- **The first purge is proven:** all 324 rows older than 90 days lost their text on the 23:00 UTC tick, and all 506
+  kept their counts.
