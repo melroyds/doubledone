@@ -7,6 +7,7 @@ import {
   getAccessToken,
   type GrantsEnv,
   jwtExp,
+  markAccessStale,
   type McpGrantRow,
   putGrant,
 } from './mcp-grants';
@@ -241,6 +242,91 @@ describe('getAccessToken', () => {
     expect(await getAccessToken(makeEnv(db), 'missing', NOW_MS)).toBeNull();
     const { db: db2 } = fakeDb(row({}));
     expect(await getAccessToken(makeEnv(db2, { MCP_GRANT_KEY: undefined }), 'g1', NOW_MS)).toBeNull();
+  });
+});
+
+/** A JWT-shaped token whose payload carries `exp`, which is all the custody cache reads of it. */
+const jwtWithExp = (exp: number, tag = 'consent') => `${b64u({ alg: 'ES256' })}.${b64u({ sub: 'u1', exp, tag })}.sig`;
+
+// #24's review fix: a new connection that kept a time zone at consent starts with its consent token marked stale
+// (markAccessStale), so the first call refreshes and carries the zone. The token itself is good for most of its
+// hour, and a Supabase blip on that first refresh must not 401 a connection made seconds ago.
+describe('getAccessToken, for a row marked stale on purpose', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function staleOnPurpose() {
+    const enc = (await encryptSecret(KEY, 'test-refresh-consent')) as string;
+    const consent = jwtWithExp(NOW_SEC + 3500);
+    return { consent, ...fakeDb(row({ refresh_enc: enc, access_token: consent, access_exp: NOW_SEC })) };
+  }
+
+  it('refreshes on the first call, so the token it hands over is the new one, which carries the zone', async () => {
+    const { db } = await staleOnPurpose();
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ access_token: 'test-zoned-access', refresh_token: 'test-refresh-2', expires_in: 3600 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    expect(await getAccessToken(makeEnv(db), 'g1', NOW_MS)).toBe('test-zoned-access');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back on the still-good consent token when that refresh fails for a passing reason, and revokes nothing', async () => {
+    const answers: [string, () => Promise<Response>][] = [
+      ['network', async () => Promise.reject(new Error('network down'))],
+      ['503', async () => new Response('oops', { status: 503 })],
+      ['429', async () => new Response('slow down', { status: 429 })],
+      ['bare 400', async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })],
+      ['unreadable 200', async () => new Response('not json', { status: 200 })],
+      ['200 without a refresh token', async () => new Response(JSON.stringify({ access_token: 'test-half-answer' }), { status: 200 })],
+    ];
+    for (const [name, answer] of answers) {
+      const { db, calls, consent } = await staleOnPurpose();
+      vi.stubGlobal('fetch', vi.fn(answer));
+      expect(await getAccessToken(makeEnv(db), 'g1', NOW_MS), name).toBe(consent);
+      expect(calls.find((c) => c.sql.includes('SET revoked_at')), name).toBeUndefined();
+      expect(calls.find((c) => c.sql.includes('SET refresh_enc')), name).toBeUndefined();
+    }
+  });
+
+  it('still revokes and answers null when the refresh is rejected outright (401, 403, 404)', async () => {
+    for (const status of [401, 403, 404]) {
+      const { db, calls } = await staleOnPurpose();
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status })));
+      expect(await getAccessToken(makeEnv(db), 'g1', NOW_MS), `status ${status}`).toBeNull();
+      expect(calls.find((c) => c.sql.includes('SET revoked_at')), `status ${status}`).toBeDefined();
+    }
+  });
+
+  it('a row refreshed on schedule answers null on the same failures, exactly as before: its token is within the skew of its own exp', async () => {
+    for (const exp of [NOW_SEC + 30, NOW_SEC - 10]) {
+      const enc = (await encryptSecret(KEY, 'test-refresh-hourly')) as string;
+      const { db } = fakeDb(row({ refresh_enc: enc, access_token: jwtWithExp(exp, 'hourly'), access_exp: exp }));
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 503 })));
+      expect(await getAccessToken(makeEnv(db), 'g1', NOW_MS), `exp ${exp - NOW_SEC}s`).toBeNull();
+    }
+  });
+
+  it('never hands over a consent token that has itself run out', async () => {
+    const enc = (await encryptSecret(KEY, 'test-refresh-late')) as string;
+    const { db } = fakeDb(row({ refresh_enc: enc, access_token: jwtWithExp(NOW_SEC + 30), access_exp: NOW_SEC - 3000 }));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 503 })));
+    expect(await getAccessToken(makeEnv(db), 'g1', NOW_MS)).toBeNull();
+  });
+});
+
+describe('markAccessStale', () => {
+  it("sets the cached token's exp to now, so the next call refreshes, and leaves the token itself", async () => {
+    const { db, calls } = fakeDb(null);
+    await markAccessStale(makeEnv(db), 'g1', NOW_MS);
+    expect(calls).toEqual([{ sql: 'UPDATE mcp_grants SET access_exp = ?2, updated_at = ?3 WHERE grant_id = ?1', params: ['g1', NOW_SEC, NOW_MS] }]);
+  });
+
+  it('never throws, and does nothing without a DB', async () => {
+    const broken = {
+      prepare() {
+        throw new Error('d1 down');
+      },
+    } as unknown as D1LikeDatabase;
+    await expect(markAccessStale(makeEnv(broken), 'g1', NOW_MS)).resolves.toBeUndefined();
+    await expect(markAccessStale({}, 'g1', NOW_MS)).resolves.toBeUndefined();
   });
 });
 

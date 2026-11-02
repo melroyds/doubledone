@@ -24,7 +24,17 @@ import {
   type OAuthProviderOptions,
 } from '@cloudflare/workers-oauth-provider';
 
-import { decryptSecret, deleteGrant, deleteGrantsForUser, encryptSecret, getAccessToken, type GrantsEnv, jwtExp, putGrant } from './mcp-grants';
+import {
+  decryptSecret,
+  deleteGrant,
+  deleteGrantsForUser,
+  encryptSecret,
+  getAccessToken,
+  type GrantsEnv,
+  jwtExp,
+  markAccessStale,
+  putGrant,
+} from './mcp-grants';
 import { decodeJwtEmail, handleMcp, type McpEnv } from './mcp';
 import { defaultVerifySub } from './premium';
 import { bearer } from './stripe';
@@ -525,13 +535,6 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
     return plainErrorPage(400, 'This connection request is not valid any more. Go back to your AI assistant and connect again.');
   }
 
-  // Connecting is the moment the account keeps the device's time zone (#24), so the assistant works on the
-  // person's own day rather than the UTC one. Only on Allow, never on Cancel, and best effort: a zone that does not
-  // validate, or a write that fails, still connects, and the agent keeps the UTC day (the app keeps a zone current
-  // but never creates one, so until Copy my token or the next connection).
-  const zone = validZone(String(form.get('tz') ?? ''));
-  const zoneKept = zone ? await writeAccountZone(env, access, zone) : false;
-
   const nowSec = Math.floor(Date.now() / 1000);
   const ok = await putGrant(env, {
     grantId,
@@ -539,17 +542,28 @@ async function stepConsent(env: OAuthEnv, helpers: OAuthHelpers, authReq: AuthRe
     email,
     refreshToken: refresh,
     accessToken: access,
-    // A zone kept just now is in the NEXT token Supabase mints, not this one. So custody starts with this token
-    // already stale, and the first tool call refreshes through getAccessToken's own path (rotation persisted,
-    // races covered by the reuse window) and carries the zone. Without that, the first hour of a new connection
-    // would still be the UTC day. Without a kept zone, this token is good for its whole life, as before.
-    accessExp: zoneKept ? nowSec : (jwtExp(access) ?? nowSec + 3600),
+    accessExp: jwtExp(access) ?? nowSec + 3600,
   });
   if (!ok) {
     // Without custody the minted grant would 401 on every tool call forever. Better a
     // clean retry now than a wedged connector later, so no redirect on failure.
     console.warn('[mcp-oauth] custody write failed; authorization not delivered');
     return plainErrorPage(500, 'Could not finish connecting just now. Go back to your AI assistant and try once more.');
+  }
+
+  // Connecting is the moment the account keeps the device's time zone (#24), so the assistant works on the
+  // person's own day rather than the UTC one. Only on Allow, never on Cancel, and only once custody is stored, so a
+  // connect that fails keeps nothing either. Best effort: a zone that does not validate, or a write that fails,
+  // still connects, and the agent keeps the UTC day (the app keeps a zone current but never creates one, so until
+  // Copy my token or the next connection).
+  const zone = validZone(String(form.get('tz') ?? ''));
+  if (zone && (await writeAccountZone(env, access, zone))) {
+    // A zone kept just now is in the NEXT token Supabase mints, not this one. So custody's token is marked stale,
+    // and the first tool call refreshes through getAccessToken's own path (rotation persisted, races covered by the
+    // reuse window) and carries the zone. If that refresh fails for a passing reason, getAccessToken falls back on
+    // this token while it is good, so a blip does not 401 the new connection. Without a kept zone, this token is good
+    // for its whole life, as before. No tool call can arrive before the mark: the redirect below comes after it.
+    await markAccessStale(env, grantId);
   }
   console.log(`[mcp-oauth] grant created: client=${authReq.clientId} custody=${grantId}`);
   return Response.redirect(redirectTo, 302);

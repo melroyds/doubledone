@@ -533,7 +533,8 @@ export function parseUpdate(raw: unknown): { body: UpdateBody } | { error: strin
   }
   if (typeof o.done === 'boolean') body.done = o.done;
   // The day a repeat is ticked for (with `done`), or the day a done task was finished (with a new repeat); a real
-  // calendar day, defaulting to the UTC day.
+  // calendar day. Without one the handler uses the user's own today (the zone their token carries, #24), else the
+  // UTC day, and for a finish the day it was finished, read the same way.
   if (typeof o.day !== 'undefined') {
     if (typeof o.day === 'string' && isValidIsoDay(o.day)) body.day = o.day;
     else return { error: 'day must be a real calendar day (YYYY-MM-DD)' };

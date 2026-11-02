@@ -12,7 +12,10 @@
 // auth server REJECTS marks the row revoked_at and returns null, which /mcp surfaces as a
 // 401 invalid_token so the client re-runs the OAuth flow cleanly. A merely TRANSIENT
 // failure (network, 5xx, 429) returns null WITHOUT revoking, so a Supabase blip never
-// burns a healthy grant.
+// burns a healthy grant. The one exception is a row whose cached token was marked stale
+// on purpose while it is still good (a new connection that kept a time zone, #24): a
+// transient failure returns that token instead, because a null would 401 a connection
+// made seconds ago and the connector would drop it.
 //
 // Which rejection statuses revoke: 401/403/404 are unambiguous (the token/user/family is
 // gone), so they revoke. A bare 400 is NOT revoked: a 400 is exactly what the LOSER of a
@@ -180,6 +183,22 @@ export async function deleteGrantsForUser(env: GrantsEnv, userId: string): Promi
   }
 }
 
+/** Mark a custody row's cached access token stale, so the next getAccessToken refreshes. Called once, from the
+ *  consent Allow step, after the account has just kept the device's time zone (#24): the zone is in the NEXT token
+ *  Supabase mints, not the one custody holds, so without this the first hour of a new connection would still be the
+ *  UTC day. The token itself stays, and getAccessToken falls back on it while it is good if that first refresh
+ *  fails for a passing reason. Best effort: a row left fresh keeps its token for its hour, on the UTC day. */
+export async function markAccessStale(env: GrantsEnv, grantId: string, nowMs = Date.now()): Promise<void> {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare('UPDATE mcp_grants SET access_exp = ?2, updated_at = ?3 WHERE grant_id = ?1')
+      .bind(grantId, Math.floor(nowMs / 1000), nowMs)
+      .run();
+  } catch {
+    // best effort: the zone arrives with the token's own refresh within the hour
+  }
+}
+
 async function markRevoked(env: GrantsEnv, grantId: string, nowMs: number): Promise<void> {
   if (!env.DB) return;
   try {
@@ -197,8 +216,12 @@ async function markRevoked(env: GrantsEnv, grantId: string, nowMs: number): Prom
  *   cached access fresh    -> return it, no network (fresh = access_exp minus 60s skew)
  *   else                   -> refresh against Supabase; persist the ROTATED refresh token
  *                             + the new cached access + exp in ONE update, return the token
- *   refresh REJECTED (400/401/403/404: the family is dead) -> set revoked_at, null
- *   refresh TRANSIENTLY failing (network / 5xx / 429)      -> null, row untouched
+ *   refresh REJECTED (401/403/404: the family is dead)     -> set revoked_at, null
+ *   refresh failing for a passing reason (network / 5xx / 429 / a bare 400 / an unreadable
+ *   answer) -> the cached token if it is still good by its OWN exp, else null; row untouched.
+ *   Only a row marked stale on purpose (markAccessStale) has one: a row refreshed on
+ *   schedule reaches this point because its token is within 60s of expiry, so for it the
+ *   answer is null, exactly as before.
  */
 export async function getAccessToken(env: GrantsEnv, grantId: string, nowMs = Date.now()): Promise<string | null> {
   if (!env.DB || !env.MCP_GRANT_KEY || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return null;
@@ -214,6 +237,12 @@ export async function getAccessToken(env: GrantsEnv, grantId: string, nowMs = Da
   if (row.access_token && typeof row.access_exp === 'number' && row.access_exp - ACCESS_SKEW_SECONDS > nowSec) {
     return row.access_token;
   }
+
+  // What a refresh that fails for a passing reason falls back on: the cached token while it is still good by its own
+  // exp. A new connection whose zone was kept at consent starts with its still-valid consent token marked stale
+  // (markAccessStale, #24), and a Supabase blip on that first refresh must not 401 it. Null for every other row.
+  const exp = row.access_token ? jwtExp(row.access_token) : null;
+  const stillGood = row.access_token && exp !== null && exp - ACCESS_SKEW_SECONDS > nowSec ? row.access_token : null;
 
   const refresh = await decryptSecret(env.MCP_GRANT_KEY, row.refresh_enc);
   if (!refresh) {
@@ -232,7 +261,7 @@ export async function getAccessToken(env: GrantsEnv, grantId: string, nowMs = Da
       body: JSON.stringify({ refresh_token: refresh }),
     });
   } catch {
-    return null; // transient network failure: never revoke a healthy grant over a blip
+    return stillGood; // transient network failure: never revoke a healthy grant over a blip
   }
 
   if (!res.ok) {
@@ -244,19 +273,20 @@ export async function getAccessToken(env: GrantsEnv, grantId: string, nowMs = Da
     if (res.status === 401 || res.status === 403 || res.status === 404) {
       console.warn(`[mcp-grants] refresh rejected (${res.status}); revoking grant`);
       await markRevoked(env, grantId, nowMs);
+      return null;
     }
-    return null;
+    return stillGood;
   }
 
   let session: { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown; expires_at?: unknown };
   try {
     session = (await res.json()) as typeof session;
   } catch {
-    return null;
+    return stillGood;
   }
   const access = typeof session.access_token === 'string' ? session.access_token : '';
   const rotated = typeof session.refresh_token === 'string' ? session.refresh_token : '';
-  if (!access || !rotated) return null;
+  if (!access || !rotated) return stillGood;
 
   const accessExp =
     typeof session.expires_at === 'number'

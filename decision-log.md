@@ -11461,9 +11461,17 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
   own offset.
 - **The sign-in page posts the browser's zone with Allow**, filled in by one inline script, and the Worker keeps it
   with the person's own token (PUT /auth/v1/user under the anon key, the write the app makes), best effort, bounded at
-  3 seconds and never logged. Only on Allow, never on Cancel. When it lands, custody stores the consent's access token
-  as already stale, so the first tool call refreshes through getAccessToken's own path and carries the zone. Without
-  that, the first hour of a new connection would still be the UTC day.
+  3 seconds and never logged. Only on Allow, never on Cancel, and only once custody is stored (review fix): a connect
+  whose custody write fails ("Could not finish connecting") keeps nothing either, where the first build had already
+  written the zone. When it lands, custody's token is marked stale (markAccessStale), so the first tool call
+  refreshes through getAccessToken's own path and carries the zone. Without that, the first hour of a new connection
+  would still be the UTC day.
+- **A failed first refresh falls back on the consent's token** (review fix). The stale mark made a new connection's
+  first call depend on a refresh, and a transient failure there (network, 5xx, 429, a bare 400, an unreadable answer)
+  returned null, the 401 that makes a connector drop the grant. getAccessToken now hands over the cached token while
+  it is still good by its own exp. Only the row marked stale on purpose has one at refresh time: a row refreshed on
+  schedule gets there because its token is within 60 seconds of expiry, so hourly refreshes behave exactly as
+  before, and a refresh rejected outright (401, 403, 404) still revokes.
 - **Disconnect AI connectors clears it** with the caller's verified token, best effort, after the custody delete. A
   failed clear never fails the disconnect.
 - **OpenAPI goes to 1.4.0**, since every "today" changes behaviour, and the tool descriptions say the day is the
@@ -11507,6 +11515,9 @@ took yesterday's date of the month. complete_task ticked the wrong day's occurre
 - **Refreshing the session inside the consent step**, so custody's first token carries the zone at once. A refresh
   whose answer is lost on the way back spends the refresh token unseen, and the next refresh an hour later would read
   as reuse and end the connection. The stale first token puts that refresh on the path that already handles it.
+- **Clearing the zone again when the custody write fails**, the review's other option for a failed connect. A
+  compensating write can fail too, and then a failed connect keeps a zone the app goes on keeping current. Writing
+  only once custody is stored leaves nothing to undo, for one more D1 statement on a connect that keeps a zone.
 - **Naming the date in the list replies** (optional in the design). It would change replies that agents and tests
   read exactly, for little gain once the day is right.
 - **Telling the app whether an assistant is connected.** Nothing in the app can tell today: no route reports

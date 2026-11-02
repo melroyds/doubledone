@@ -395,8 +395,8 @@ describe('the /authorize flow (PKCE enforcement)', () => {
 describe('the /authorize flow (code + consent steps)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  /** Minimal D1 double for the custody INSERT on Allow. */
-  function fakeDb() {
+  /** Minimal D1 double for the custody INSERT on Allow. `failInsert` makes that INSERT throw, as a D1 hiccup would. */
+  function fakeDb(o: { failInsert?: boolean } = {}) {
     const calls: { sql: string; params: unknown[] }[] = [];
     const db: D1LikeDatabase = {
       prepare(sql: string) {
@@ -408,6 +408,7 @@ describe('the /authorize flow (code + consent steps)', () => {
           },
           async run() {
             calls.push({ sql, params: bound });
+            if (o.failInsert && sql.startsWith('INSERT INTO mcp_grants')) throw new Error('d1 down');
             return {};
           },
           async first<T>() {
@@ -608,15 +609,17 @@ describe('the /authorize flow (code + consent steps)', () => {
   describe('#24: the time zone kept on Allow', () => {
     /** Serves the shared JWKS and records every write to the account (PUT /auth/v1/user), answering it with
      *  `user` (a status, or a network throw). Any other URL is a test failure. */
+    let dbCalls: { sql: string; params: unknown[] }[] = [];
     function zoneFetch(user: number | 'throw' = 200) {
-      const writes: { url: string; init: RequestInit }[] = [];
+      // afterCustody: whether the custody row was already stored when the account was written (the review's fix 5).
+      const writes: { url: string; init: RequestInit; afterCustody: boolean }[] = [];
       const fn = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
         const u = String(url);
         if (u.includes('/.well-known/jwks.json')) {
           return new Response(JSON.stringify({ keys: [signPublicJwk] }), { status: 200, headers: { 'content-type': 'application/json' } });
         }
         if (u === 'https://proj.supabase.co/auth/v1/user') {
-          writes.push({ url: u, init: init ?? {} });
+          writes.push({ url: u, init: init ?? {}, afterCustody: dbCalls.some((c) => c.sql.startsWith('INSERT INTO mcp_grants')) });
           if (user === 'throw') throw new Error('network down');
           return new Response('{}', { status: user });
         }
@@ -626,15 +629,23 @@ describe('the /authorize flow (code + consent steps)', () => {
       return writes;
     }
 
-    async function allow(tz: string | undefined) {
+    async function allow(tz: string | undefined, o: { failInsert?: boolean } = {}) {
       const sbAccess = await signAccess({ sub: 'user-77' });
-      const { db, calls } = fakeDb();
+      const { db, calls } = fakeDb(o);
+      dbCalls = calls;
       const env = authorizeEnv({ DB: db, MCP_GRANT_KEY: Buffer.from(new Uint8Array(32).fill(9)).toString('base64') } as Partial<Env>);
       const fields: Record<string, string> = { step: 'consent', decision: 'allow', email: 'mel@example.com', sb_access: sbAccess, sb_refresh: 'rt-1' };
       if (tz !== undefined) fields.tz = tz;
       const res = await worker.fetch(formPost('/authorize' + AUTH_QS, fields), env, ctx);
       const insert = calls.find((c) => c.sql.startsWith('INSERT INTO mcp_grants'));
-      return { res, sbAccess, accessExp: (insert?.params as unknown[] | undefined)?.[5] as number | undefined };
+      const stale = calls.find((c) => c.sql.startsWith('UPDATE mcp_grants SET access_exp'));
+      return {
+        res,
+        sbAccess,
+        accessExp: (insert?.params as unknown[] | undefined)?.[5] as number | undefined,
+        // The exp custody's token is marked stale at, once the zone has landed (undefined: never marked).
+        staleAt: (stale?.params as unknown[] | undefined)?.[1] as number | undefined,
+      };
     }
 
     it('the consent form carries a tz field, filled in by an inline script from the browser', async () => {
@@ -647,30 +658,43 @@ describe('the /authorize flow (code + consent steps)', () => {
       expect(html).not.toMatch(/<script[^>]+src=/);
     });
 
-    it("Allow keeps a valid zone on the person's own account, and custody starts stale so the first call carries it", async () => {
+    it("Allow keeps a valid zone on the person's own account once custody is stored, then marks custody stale so the first call carries it", async () => {
       const writes = zoneFetch(200);
       const before = Math.floor(Date.now() / 1000);
-      const { res, sbAccess, accessExp } = await allow('Australia/Melbourne');
+      const { res, sbAccess, accessExp, staleAt } = await allow('Australia/Melbourne');
       expect(res.status).toBe(302);
       expect(new URL(res.headers.get('Location') ?? '').searchParams.get('code')).toBeTruthy();
       expect(writes).toHaveLength(1);
+      expect(writes[0].afterCustody).toBe(true);
       expect(writes[0].init.method).toBe('PUT');
       const h = writes[0].init.headers as Record<string, string>;
       expect(h.apikey).toBe('anon-key');
       expect(h.authorization).toBe(`Bearer ${sbAccess}`);
       expect(JSON.parse(writes[0].init.body as string)).toEqual({ data: { tz: 'Australia/Melbourne' } });
-      // Stale on arrival: getAccessToken refreshes on the first tool call, and that token carries the zone.
-      expect(accessExp).toBeGreaterThanOrEqual(before);
-      expect(accessExp).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+      // Custody is stored with the token's own hour, then marked stale once the zone has landed: getAccessToken
+      // refreshes on the first tool call, and that token carries the zone.
+      expect(accessExp).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3000);
+      expect(staleAt).toBeGreaterThanOrEqual(before);
+      expect(staleAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+    });
+
+    it('a connect whose custody write fails keeps no zone: the account is never written', async () => {
+      const writes = zoneFetch(200);
+      const { res, staleAt } = await allow('Australia/Melbourne', { failInsert: true });
+      expect(res.status).toBe(500);
+      expect(await res.text()).toContain('Could not finish connecting just now.');
+      expect(writes).toHaveLength(0);
+      expect(staleAt).toBeUndefined();
     });
 
     it('a zone that does not validate, or none at all, writes nothing and connects as before', async () => {
       for (const tz of ['GMT+11:00', 'Mars/Olympus_Mons', '', undefined]) {
         const writes = zoneFetch(200);
-        const { res, accessExp } = await allow(tz);
+        const { res, accessExp, staleAt } = await allow(tz);
         expect(res.status, String(tz)).toBe(302);
         expect(writes, String(tz)).toHaveLength(0);
         expect(accessExp, String(tz)).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3000); // the token's own hour
+        expect(staleAt, String(tz)).toBeUndefined();
         vi.unstubAllGlobals();
       }
     });
@@ -678,10 +702,11 @@ describe('the /authorize flow (code + consent steps)', () => {
     it('a write Supabase refuses, or a network throw, never fails the consent: it connects with the token as it is', async () => {
       for (const user of [500, 'throw'] as const) {
         const writes = zoneFetch(user);
-        const { res, accessExp } = await allow('Australia/Melbourne');
+        const { res, accessExp, staleAt } = await allow('Australia/Melbourne');
         expect(res.status, String(user)).toBe(302);
         expect(writes, String(user)).toHaveLength(1);
         expect(accessExp, String(user)).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3000);
+        expect(staleAt, String(user)).toBeUndefined();
         vi.unstubAllGlobals();
       }
     });
