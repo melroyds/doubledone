@@ -68,7 +68,7 @@ Built as `c99309c` (the Worker's store check), `561d5ab` (the app half), `18416d
 **The live checks:** after step 3, PREM-74 (every probe answers 401 with the JSON body, and Cloudflare's Logs show
 `x-purchaser-token` as REDACTED with no `RCAnonymousID` anywhere, or the store build waits), then PREM-75 and PREM-78.
 Before step 4, the read-only RevenueCat lookup of the two anonymous App Store customers. With the build, PREM-72, 73,
-79, 80 and 81 on TestFlight (81 takes a day). PREM-77 can run on today's TestFlight build at any time, and PREM-76,
+79, 80 and 81 on TestFlight (81 can take a day). PREM-77 can run on today's TestFlight build at any time, and PREM-76,
 CHART-09, OCR-08 and SEQ-09 on a local `npm run dev`. Until the store build, the two anonymous buyers' stopgap is in
 the runbook: sign in with an email never used before, and if Premium vanishes, Restore, then relaunch.
 

@@ -11881,7 +11881,8 @@ or deployed.
 - **Holding the privacy section until PREM-74 has passed.** That needs the Worker deployed first, which the order
   above rules out, and a failed PREM-74 already holds the only build that could put a real id in the log.
 - **A shorter iOS case for the recheck.** Only a real lapse makes the phone's fresh read come back free, and
-  TestFlight renews a subscription once a day whatever its length, so PREM-81 takes a day. The mechanism itself is
+  TestFlight renews a subscription once a day whatever its length, so PREM-81 can take a day (less with a Sandbox
+  Apple Account set to a faster renewal rate, which Apple's TestFlight help allows). The mechanism itself is
   unit-tested.
 - **Rewriting `18416d5`'s subject.** History is not rewritten, so the heading carries a note that keeps the old words
   findable.
