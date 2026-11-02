@@ -88,6 +88,30 @@ export async function logAiCall(env: TelemetryEnv, log: AiCallLog): Promise<void
   }
 }
 
+/** How long the AI-call log keeps what a person sent and the reply, the privacy policy's promise (2026-11-03).
+ *  After that a row keeps only its counts: the feature, the model, the tokens, the time and whether it worked. */
+export const AI_TEXT_DAYS = 90;
+
+/** The cut-off in ai_calls' own created_at form (SQLite's datetime('now'), 'YYYY-MM-DD HH:MM:SS' in UTC), so the
+ *  comparison is plain text order, which for this form is time order. */
+export function aiTextCutoff(nowMs: number): string {
+  return new Date(nowMs - AI_TEXT_DAYS * 86_400_000).toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/** Clear the text from every AI call older than AI_TEXT_DAYS. Runs on the cron's :00 tick, so a row's text is gone
+ *  within an hour of turning 90 days old. Best effort, and it never throws: a missed hour is caught by the next. */
+export async function purgeOldAiText(db: D1LikeDatabase | undefined, nowMs: number): Promise<void> {
+  if (!db) return;
+  try {
+    await db
+      .prepare('UPDATE ai_calls SET input = NULL, output = NULL WHERE created_at < ?1 AND (input IS NOT NULL OR output IS NOT NULL)')
+      .bind(aiTextCutoff(nowMs))
+      .run();
+  } catch {
+    // best effort
+  }
+}
+
 // The completion half of the moat: an anonymised record that a decomposition's step
 // finished, linked to the offered decomposition only by its pseudonymous corr_id.
 // No user_id, no task text, no IP — just the id, the step total, and the days from

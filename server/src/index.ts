@@ -34,7 +34,7 @@ import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
 import { handleCheckout, handleCloseBilling, handleEntitlement, handlePortal, handleWebhook } from './stripe';
 import { handleScrapbookPurge, type ScrapbookBucket, scrapbookOwner } from './scrapbook-purge';
-import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome } from './telemetry';
+import { type D1LikeDatabase, extractUsage, logAiCall, logOutcome, purgeOldAiText } from './telemetry';
 import { buildTriageRequest, parseTriageResponse, TRIAGE_MODEL } from './triage';
 
 // Cloudflare per-IP rate limiter binding (see wrangler.jsonc). Typed locally so we
@@ -1327,5 +1327,8 @@ export default {
     // The store check's answers past their expiry and its counters whose minute, hour or day is over, so an answer
     // is gone within two hours of its check (the privacy policy's promise). Best effort, and it never throws.
     ctx.waitUntil(purgeStorePremium(env.DB, at));
+    // The AI-call log's text and replies after 90 days, keeping each row's counts (the privacy policy's promise,
+    // 2026-11-03). Best effort, and it never throws.
+    ctx.waitUntil(purgeOldAiText(env.DB, at));
   },
 } satisfies ExportedHandler<Env>;

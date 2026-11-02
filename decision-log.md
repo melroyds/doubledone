@@ -11891,3 +11891,27 @@ or deployed.
   failed, on an account with no RevenueCat customer yet, and the store check still refuses production Premium to an
   id merged into what that makes. It is a code change, outside a review of words and tests, so it is parked in the
   Backlog with a trigger.
+
+## 2026-11-03: the privacy pages describe Premium without an account, and the AI log forgets text after 90 days
+
+Melroy approved the Option 1 privacy text and the AI log's retention in one word: "Fix the privacy pages."
+
+**Decided:**
+- **"Premium without an account" is a section of both privacy pages**, straight after "Payment events", in the
+  reviewed draft's words (`docs/design-source/premium-without-account/privacy-draft.md`), and "Payment events" gains
+  the clause that a purchase made without an account is kept only as the store's notices, which carry RevenueCat's
+  anonymous id. It goes live with the web push BEFORE the Worker that keeps scrambled ids is deployed.
+- **The AI log keeps what a person sent, and the reply, for 90 days.** The Worker's :00 tick clears `input` and
+  `output` from every `ai_calls` row older than that (`purgeOldAiText`) and keeps the rest of the row: the feature,
+  the model, the tokens, the time, whether it worked, and the corr_id that links a break-down to its finished steps.
+  The policy said the copy was "pseudonymous and aggregate"; pseudonymous is true, aggregate was not, and no period was
+  stated, which Apple 5.1.1(i) and the GDPR both ask for (the 3 Nov Premium review's find). 90 days covers the one use
+  the text has at this volume, checking the quality of the answers. The purge is permanent, and its first run clears
+  everything from before 5 Aug 2026.
+- **The feature-usage section names the server's own counts**: a note's check stopping or failing, a month given for a
+  note, and the purchase checks. "The server accepts a short fixed list of names" was about what the app sends, and
+  the three `feedback.*` counts the Worker writes itself were named nowhere.
+
+**Decided against:** keeping the Break it down replies past 90 days for the flywheel. The completion half (`outcomes`:
+a random id, a step count and days) keeps everything the moat measures today, and a copy of what people typed is the
+one thing this policy should never hold open-ended.

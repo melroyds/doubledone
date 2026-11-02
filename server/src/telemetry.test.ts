@@ -1,6 +1,39 @@
 import { describe, expect, it } from 'vitest';
 
-import { aiCallStatement, extractUsage, outcomeStatement, type AiCallLog } from './telemetry';
+import { AI_TEXT_DAYS, aiCallStatement, aiTextCutoff, extractUsage, outcomeStatement, purgeOldAiText, type AiCallLog, type D1LikeDatabase } from './telemetry';
+
+describe('the AI-call log keeps text for 90 days (the privacy policy, 2026-11-03)', () => {
+  const NOW = Date.UTC(2026, 10, 3, 5, 0, 0); // 2026-11-03 05:00:00 UTC
+
+  it('cuts off exactly 90 days back, in the created_at form SQLite writes', () => {
+    expect(AI_TEXT_DAYS).toBe(90);
+    expect(aiTextCutoff(NOW)).toBe('2026-08-05 05:00:00');
+  });
+
+  it('clears only the text and the reply of older rows, and binds the cut-off', async () => {
+    const calls: { sql: string; args: unknown[] }[] = [];
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          run: async () => {
+            calls.push({ sql, args });
+            return {};
+          },
+        }),
+      }),
+    } as unknown as D1LikeDatabase;
+    await purgeOldAiText(db, NOW);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].sql).toBe('UPDATE ai_calls SET input = NULL, output = NULL WHERE created_at < ?1 AND (input IS NOT NULL OR output IS NOT NULL)');
+    expect(calls[0].args).toEqual(['2026-08-05 05:00:00']);
+  });
+
+  it('never throws, with no database or a failing one', async () => {
+    await expect(purgeOldAiText(undefined, NOW)).resolves.toBeUndefined();
+    const broken = { prepare: () => { throw new Error('d1 down'); } } as unknown as D1LikeDatabase;
+    await expect(purgeOldAiText(broken, NOW)).resolves.toBeUndefined();
+  });
+});
 
 const sampleLog: AiCallLog = {
   endpoint: 'decompose',
