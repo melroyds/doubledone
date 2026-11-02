@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 // Relative, not '@/lib/…': vitest does not read tsconfig's paths, and row-door.test.ts loads this file.
-import { isOptionsKey, rowSpace, type SpaceKeyEvent } from '../lib/row-options';
+import { isOptionsKey, rowSpace, rowSpaceUp, type SpaceKeyEvent } from '../lib/row-options';
 
 // The web's keyboard and mouse twins of a row's long-press (store 1.9, slice 2, K1), and its Space (#37).
 //
@@ -12,11 +12,17 @@ import { isOptionsKey, rowSpace, type SpaceKeyEvent } from '../lib/row-options';
 //
 // Space ticks the row, exactly as a tap does (the 1 Nov bug sweep, #37). RN-web's press responder lets
 // Space press only a button, and a row is a checkbox, so Space did nothing and scrolled the page. Enter
-// was always the press responder's, and still is.
+// was always the press responder's, and still is. Space ticks when the key comes up, as a native checkbox
+// does, so a held Space can never go on to press whatever Today moves the focus to after the tick.
 
 type DoorEvent = SpaceKeyEvent & {
   preventDefault: () => void;
 };
+
+// The row a Space went down on, until that Space comes up or the row loses focus. A module value, not a
+// ref: the row may render again while the key is down, and its DOM node, which this holds, stays the same.
+// One at a time, as there is one Space bar.
+let armed: unknown = null;
 
 // Chrome and Firefox also turn the Menu key and Shift+F10 into a contextmenu event. By then the row has
 // become its card, so the event would land on the page and open the browser's own menu over it. The one
@@ -54,9 +60,21 @@ export function rowDoor(open: (() => void) | undefined, tap: (() => void) | unde
     const space = rowSpace(e);
     if (space === 'pass') return;
     e.preventDefault(); // a row answers Space, an inert one with nothing, so the page stays still under it
-    if (space === 'toggle') tap?.();
+    if (space === 'arm') armed = e.currentTarget ?? null;
   };
-  if (!open) return { onKeyDown };
+  // The tap runs here, from this render's handler, so it is always the row's current one.
+  const onKeyUp = (e: DoorEvent) => {
+    const up = rowSpaceUp(e, armed);
+    if (up === 'pass') return;
+    armed = null;
+    if (up === 'tap') tap?.();
+  };
+  // RN-web's Pressable calls this for the row's own blur only, never a child's.
+  const onBlur = (e: { currentTarget?: unknown }) => {
+    if (armed != null && armed === e.currentTarget) armed = null;
+  };
+  const keys = { onKeyDown, onKeyUp, onBlur };
+  if (!open) return keys;
   return {
     'aria-keyshortcuts': 'Shift+F10',
     onContextMenu: (e: DoorEvent) => {
@@ -64,6 +82,6 @@ export function rowDoor(open: (() => void) | undefined, tap: (() => void) | unde
       e.preventDefault();
       open();
     },
-    onKeyDown,
+    ...keys,
   };
 }

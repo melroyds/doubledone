@@ -7,7 +7,9 @@
 //
 // Space (the 1 Nov bug sweep, #37). RN-web's PressResponder lets Space press only a button (a <button>, or
 // role=button), and a task row is role=checkbox, so Space did nothing on it and scrolled the page instead. Enter
-// always worked: the press responder takes Enter on any role. Pure, so it is tested; the web wiring is in
+// always worked: the press responder takes Enter on any role. Space ticks when the key comes up, as a native
+// checkbox does (the #37 review, 2026-11-02): Today moves focus by itself after some ticks, and a tick on the way
+// down let the rest of a held Space press whatever took the focus. Pure, so it is tested; the web wiring is in
 // components/row-door.ts.
 
 /** The fields of a keydown this reads. A React synthetic keyboard event satisfies it. */
@@ -61,18 +63,34 @@ export function ownsSpace(target: unknown): boolean {
 }
 
 /**
- * What Space does on a row. 'toggle' runs the row's own tap. 'swallow' only keeps the page still: a held Space
- * repeats, and the row is ticked once, never on and off. 'pass' leaves the key alone, to whatever owns it.
+ * What a Space going down does on a row. 'arm' readies the row's own tap, which runs when the key comes up
+ * (`rowSpaceUp`). 'swallow' only keeps the page still: a held Space repeats, and the row is ticked once, never on
+ * and off. 'pass' leaves the key alone, to whatever owns it.
  *
  * Passed on: anything but Space, Space with Ctrl, Alt or Meta (those belong to the browser and the system), a
  * Space somebody already answered, a row that is a button (it presses itself, so Space must not press it twice),
  * and a Space typed into something inside the row, a text field above all, which keeps its own.
  */
-export function rowSpace(e: SpaceKeyEvent): 'toggle' | 'swallow' | 'pass' {
+export function rowSpace(e: SpaceKeyEvent): 'arm' | 'swallow' | 'pass' {
   if (!isSpaceKey(e)) return 'pass';
   if (e.ctrlKey || e.altKey || e.metaKey) return 'pass';
   if (e.defaultPrevented || e.nativeEvent?.defaultPrevented) return 'pass';
   if (ownsSpace(e.target)) return 'pass';
   if (e.currentTarget != null && e.target !== e.currentTarget) return 'pass';
-  return e.repeat ? 'swallow' : 'toggle';
+  return e.repeat ? 'swallow' : 'arm';
+}
+
+/**
+ * What a Space coming up does, given the row its keydown armed (null when none is). 'tap' runs the row's tap: the
+ * key went down on this row and came up on it. 'disarm' forgets an armed row whose Space came up somewhere else, so
+ * a press that wandered can never fire later. 'pass' is any other key, or no row armed.
+ *
+ * Why up, not down: with Tuck on, Today moves the focus to the Done today line after some ticks (a tucked row
+ * unticked, or a ticked one folding away). A tick on the way down let the rest of a held Space land on that line,
+ * a real button, which then clicked when the key came up, and the list opened or shut by itself.
+ */
+export function rowSpaceUp(e: SpaceKeyEvent, armed: unknown): 'tap' | 'disarm' | 'pass' {
+  if (!isSpaceKey(e) || armed == null) return 'pass';
+  if (armed !== e.currentTarget || e.target !== e.currentTarget) return 'disarm';
+  return 'tap';
 }

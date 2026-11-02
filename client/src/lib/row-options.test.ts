@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isOptionsKey, isSpaceKey, ownsSpace, rowSpace } from './row-options';
+import { isOptionsKey, isSpaceKey, ownsSpace, rowSpace, rowSpaceUp } from './row-options';
 
 describe('isOptionsKey (the keyboard twin of a long-press)', () => {
   it('opens on the Menu key, with or without Shift', () => {
@@ -73,14 +73,14 @@ describe('ownsSpace (an element that does its own thing with Space)', () => {
   });
 });
 
-describe('rowSpace (what Space does on a task row, on the web)', () => {
+describe('rowSpace (what Space going down does on a task row, on the web)', () => {
   const on = { target: ROW, currentTarget: ROW };
 
-  it('toggles the focused row, as a tap does, Shift or not', () => {
-    expect(rowSpace({ key: ' ', ...on })).toBe('toggle');
-    expect(rowSpace({ key: 'Spacebar', ...on })).toBe('toggle');
-    expect(rowSpace({ key: ' ', shiftKey: true, ...on })).toBe('toggle');
-    expect(rowSpace({ key: ' ', repeat: false, ...on })).toBe('toggle');
+  it('arms the focused row, whose tap runs when the key comes up, Shift or not', () => {
+    expect(rowSpace({ key: ' ', ...on })).toBe('arm');
+    expect(rowSpace({ key: 'Spacebar', ...on })).toBe('arm');
+    expect(rowSpace({ key: ' ', shiftKey: true, ...on })).toBe('arm');
+    expect(rowSpace({ key: ' ', repeat: false, ...on })).toBe('arm');
   });
 
   it('only swallows a held Space: the row is ticked once, never on and off, and the page stays still', () => {
@@ -122,6 +122,33 @@ describe('rowSpace (what Space does on a task row, on the web)', () => {
   });
 
   it('decides from the target alone when the event names no current target', () => {
-    expect(rowSpace({ key: ' ', target: ROW })).toBe('toggle');
+    expect(rowSpace({ key: ' ', target: ROW })).toBe('arm');
+  });
+});
+
+describe('rowSpaceUp (what Space coming up does, given the row it went down on)', () => {
+  const on = { target: ROW, currentTarget: ROW };
+  // Today's Done today line, a real <button>, where the focus can land while the key is held.
+  const LINE = el('button', 'button');
+
+  it('taps the row the key went down on, when it comes up on that row', () => {
+    expect(rowSpaceUp({ key: ' ', ...on }, ROW)).toBe('tap');
+    expect(rowSpaceUp({ key: 'Spacebar', ...on }, ROW)).toBe('tap');
+  });
+
+  it('forgets a press that came up anywhere else, and taps nothing', () => {
+    expect(rowSpaceUp({ key: ' ', target: LINE, currentTarget: LINE }, ROW)).toBe('disarm');
+    expect(rowSpaceUp({ key: ' ', target: el('div', 'checkbox'), currentTarget: el('div', 'checkbox') }, ROW)).toBe('disarm');
+    // On the armed row, but on something inside it: a field or a button the focus moved into.
+    expect(rowSpaceUp({ key: ' ', target: el('input'), currentTarget: ROW }, ROW)).toBe('disarm');
+    expect(rowSpaceUp({ key: ' ', target: ROW }, ROW)).toBe('disarm');
+  });
+
+  it('passes every other key, and a Space with no press behind it', () => {
+    for (const key of ['Enter', 'a', 'Tab', 'Escape', 'ContextMenu']) {
+      expect(rowSpaceUp({ key, ...on }, ROW)).toBe('pass');
+    }
+    expect(rowSpaceUp({ key: ' ', ...on }, null)).toBe('pass');
+    expect(rowSpaceUp({ key: ' ', ...on }, undefined)).toBe('pass');
   });
 });
