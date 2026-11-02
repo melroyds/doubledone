@@ -183,3 +183,84 @@ describe('the colour roles on every screen', () => {
     expect(Object.keys(DOT_HUES_NOT_WORDS).filter((id) => !dots.has(id))).toEqual([]);
   });
 });
+
+// Quiet's rows on the sky (#35, and its review). A Quiet row drops its card, so TaskRow's row words, its check and
+// select rings and a held task's closing band sit straight on the sky, where the card's grey and accent were 3.1 to
+// 3.2:1 and the ring 2.1 to 2.3:1 in light mode. palette.test.ts holds the values of the roles they now take; this
+// holds where TaskRow draws them, so a restyle that drops a `quiet ?` switch fails here and not on somebody's phone.
+// It does not guess what a style is drawn over (the 2026-10-19 call against that stands): the list names the styles
+// known to sit on the sky in Quiet, each with what it is, and one that goes away fails too.
+const QUIET_ROW = 'components/TaskRow.tsx';
+const QUIET_ROW_WORDS: Record<string, string> = {
+  rowNote: "the row's note, or why it cannot be ticked",
+  holdLineText: "I'm holding this one",
+  holdLineLetGoText: 'Let it go',
+  bigMark: 'the big tag',
+  originMark: '· Ours on your copy of a shared row',
+  textDone: 'a ticked title',
+  repeatMark: 'the repeat mark',
+  nudgeMark: 'the reminder time',
+  suggestHint: 'Looks big, break it down?',
+  tinyEyebrow: "a tiny step's eyebrow",
+  sliceCount: 'the n / N count',
+  sliceAdjustHint: 'Hold to adjust',
+};
+// A Quiet row's words read the sky roles: through rowSoft or rowAccent, or a `quiet ?` switch that names one first.
+const SKY_WORDS = /^(rowSoft|rowAccent|quiet \? t\.colors\.sky(Ink|Accent)\b)/;
+
+function fileLines(file: string): string[] {
+  return FILES.find((f) => f.file === file)?.lines ?? [];
+}
+
+/** What each style key of a file assigns to `prop`, e.g. every `color:` under `rowNote`, in order. */
+function assigned(file: string, prop: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const at = new RegExp(`(?<![A-Za-z])${prop}:\\s*([^,}]+)`);
+  fileLines(file).forEach((line, i, all) => {
+    const m = at.exec(line);
+    if (!m) return;
+    const key = owner(all, i);
+    (out[key] ??= []).push(m[1].trim());
+  });
+  return out;
+}
+
+describe("Quiet's rows on the sky (#35)", () => {
+  it('reads TaskRow and CheckCircle', () => {
+    expect(fileLines(QUIET_ROW).length).toBeGreaterThan(1000);
+    expect(fileLines('components/CheckCircle.tsx').length).toBeGreaterThan(20);
+  });
+
+  it('switches the row words to the sky roles in Quiet, and to the card roles otherwise', () => {
+    const src = fileLines(QUIET_ROW).join('\n');
+    expect(src).toMatch(/const quiet = t\.appearance === 'quiet';/);
+    expect(src).toMatch(/const rowSoft = quiet \? t\.colors\.skyInk : t\.colors\.inkSoft;/);
+    expect(src).toMatch(/const rowAccent = quiet \? t\.colors\.skyAccent : t\.colors\.accentText;/);
+  });
+
+  it("gives every word style of a Quiet row a sky role, and lists only what is really there", () => {
+    const colours = assigned(QUIET_ROW, 'color');
+    const missing = Object.keys(QUIET_ROW_WORDS).filter((key) => !(key in colours));
+    expect(missing).toEqual([]);
+    const wrong = Object.keys(QUIET_ROW_WORDS).flatMap((key) =>
+      (colours[key] ?? []).filter((value) => !SKY_WORDS.test(value)).map((value) => `${key}: ${value}`),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("gives the select ring Quiet's ring, and a held task's closing line Quiet's band", () => {
+    expect(assigned(QUIET_ROW, 'borderColor').selectDot?.[0]).toMatch(/^quiet \? t\.quiet\.ring\b/);
+    expect(assigned(QUIET_ROW, 'backgroundColor').holdLineClosed?.[0]).toMatch(/^quiet \? t\.quiet\.doneBand\b/);
+  });
+
+  it("draws every check ring in TaskRow for the sky, and CheckCircle gives it Quiet's ring", () => {
+    const src = fileLines(QUIET_ROW).join('\n');
+    expect(src).toMatch(/const ringOnSky = theme\.appearance === 'quiet';/);
+    const checks = [...src.matchAll(/<CheckCircle\b[^>]*>/g)].map((m) => m[0]);
+    expect(checks.length).toBeGreaterThan(0);
+    expect(checks.filter((tag) => !/\bonSky=\{ringOnSky\}/.test(tag))).toEqual([]);
+    const circle = fileLines('components/CheckCircle.tsx').join('\n');
+    expect(circle).toMatch(/onSky && styles\.checkOnSky/);
+    expect(assigned('components/CheckCircle.tsx', 'borderColor').checkOnSky).toEqual(['t.quiet.ring']);
+  });
+});
