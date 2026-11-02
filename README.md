@@ -32,7 +32,7 @@ The daily loop is free. Premium is sold through each platform's own checkout: St
 **The core loop**
 
 1. **Capture.** Tap the + and empty your head, one line per thing. Type it, speak it (on the web), share text in from another app, or photograph a written list (Premium).
-2. **Shape it.** "Sort for me" splits a brain dump into today, later and break-it-down. "Tidy this into tasks" turns one run-on line into separate tasks.
+2. **Shape it.** "Sort for me" splits a brain dump into today, later and break-it-down. "Tidy this into tasks with AI" turns one run-on line into separate tasks.
 3. **Start the hard one.** "Break it down" asks three short questions, then proposes steps you review before anything is added. The original task stays as a quiet parent and completes itself when its steps are done. "Make it tiny" offers a two-minute first step.
 4. **Work the day.** A gauge shows how full today is against the energy you chose. One "Right now" tool fits the hour, and the rest are a tap away: Plan my day, Focus on one thing (the "Just this one" view), Lighten today, Settle and Close the day.
 5. **Close the day.** A gentle wrap of what you finished, room to log anything else you did, and a place to set down thoughts for tomorrow. Unfinished things simply carry over.
@@ -48,10 +48,10 @@ The daily loop is free. Premium is sold through each platform's own checkout: St
 - **Settle.** A breathing room with an optional guide. Never gated, never opened for you.
 - **Scrapbook.** An AI still-life keepsake of a finished week, shareable as one image. One a month free, weekly with Premium.
 - **Comfort.** Light and dark, text size, reduced motion, the borderless Quiet interface, and seven colour themes (Dusk is free, the other six are Premium). Five languages: English, German, Spanish, French and Italian, picked from the device.
-- **Phones and the web.** An optional daily reminder (phone notifications, or web push), an Android home-screen widget, launcher shortcuts, and share-in from the Android share sheet, the iOS share extension or the installed web app.
+- **Phones and the web.** An optional daily reminder (phone notifications, or web push), an Android home-screen widget, launcher shortcuts, and share-in from the Android share sheet or the iOS share extension.
 - **AI off.** One switch in Settings removes every generative AI feature, and the app runs without it.
 - **Your data.** No account needed. Optional email-code sign-in syncs across devices. Export your tasks to JSON, or delete your account and data from Settings.
-- **For agents and developers.** An [MCP server](docs/mcp.md) with ten tools, including linked steps that close the big task (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.3.0, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token.
+- **For agents and developers.** An [MCP server](docs/mcp.md) with ten tools, including linked steps that close the big task (OAuth 2.1 sign-in, or a pasted token) and a [REST API](docs/api.md) (OpenAPI 3.1, v1.4.0, with [Swagger UI](https://api.doubledone.app/api/v1/docs)). Both act only on your own tasks with your own token, and on your own day: once you connect one, your account keeps your device's time zone, so an agent's "today" is your Today.
 
 **Premium** adds Scan, Pin, the colour themes, Chart a course (a goal turned into ordered steps), Plan my day, Your patterns, unlimited energy matching and weekly scrapbooks. A signed-in account can take one card-free month to try it. On the web Premium is A$5 a month or A$50 a year. The App Store and Google Play show their own local price. Break it down, Make it tiny, Lighten today, Sort for me, the Calendar, Routines, Rhythms, Ours, Settle and Quiet stay free.
 

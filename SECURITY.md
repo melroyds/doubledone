@@ -175,7 +175,8 @@ The full, plain-English policy is at [doubledone.app/privacy](https://doubledone
   it now. Its policy accepts inserts and there is no read policy, so no row can be read back through the
   API.
 - **Some server records are tied to an account, because they have to be:** subscription status, the free
-  trial, the RevenueCat delivery log, and an AI connector's encrypted custody.
+  trial, the RevenueCat delivery log, and an AI connector's encrypted custody. If you connect an AI assistant,
+  the account also keeps your device's time-zone name, so the assistant works on the same day as your Today.
 - **"Where you left off"** notes sync to your own row, and nothing else sees them. They are never sent to
   an AI feature, never returned by the REST API or the MCP tools, and never put on a shared list.
 - **Deleting your account** removes the account and, with it, your synced tasks, keepsake records and
