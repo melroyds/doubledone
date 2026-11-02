@@ -3,8 +3,9 @@
 // note in `purchases.ts` for why this split is inverted from every other one in this folder.
 //
 // All logic lives in `iap.ts` (pure, tested). This file is glue: it talks to the SDK and hands raw shapes
-// to those functions. Keep it thin, and keep it un-unit-tested on purpose (it is in vitest's
-// coverage.exclude), because it cannot run without the native module.
+// to those functions. Keep it thin. It stays out of the coverage floor (vitest's coverage.exclude) because
+// it cannot run without the native module, and purchases-split.test.ts checks only its identity, its
+// purchase proof and localPremium's cached and fresh reads, against a stubbed SDK.
 //
 // It is a copy of the iOS file with three differences that are the whole point of it:
 // 1. It reads the Android key, EXPO_PUBLIC_RC_ANDROID_KEY, and with no key it never configures (a

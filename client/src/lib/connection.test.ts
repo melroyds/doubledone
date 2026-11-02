@@ -112,3 +112,22 @@ describe('the four Premium AI screens say what happened', () => {
     expect(lookback).toContain("notePremiumMiss('reflect', r.miss);");
   });
 });
+
+// The other half of that note (2026-11-03 review). The hook the four screens note through rechecks Premium after a
+// refusal, and the recheck hands the next load ONE fresh store read (purchases-split.test.ts tests the read itself).
+// The harness renders no provider either, so this is held in its source too. Without it a lapsed or refunded iPhone
+// whose cache still says Premium meets the same refusal on every tap for the session, where it should meet the paywall.
+describe('after a refusal the screen rechecks Premium, with a fresh store read', () => {
+  const src = readFileSync(join(__dirname, 'premium-provider.tsx'), 'utf8');
+
+  it('usePremiumMiss rechecks after a refusal (not_active), and only then', () => {
+    expect(src).toContain("if (miss === 'not_active') recheck();");
+  });
+
+  it('recheck marks the next load, which reads the store fresh once, while a plain refresh never does', () => {
+    expect(src).toMatch(/const recheck = useCallback\(\(\) => \{\s*freshStore\.current = true;\s*setReloadKey\(\(k\) => k \+ 1\);/);
+    expect(src).toMatch(/const fresh = freshStore\.current;\s*freshStore\.current = false;/);
+    expect(src).toContain('localPremium({ fresh })');
+    expect(src).toContain('const refresh = useCallback(() => setReloadKey((k) => k + 1), []);');
+  });
+});

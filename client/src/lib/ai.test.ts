@@ -645,7 +645,7 @@ describe('a signed-in refusal while the store still shows Premium mends itself o
     for (const [, init] of f.mock.calls) expect(init.headers.Authorization).toBe('Bearer me');
   });
 
-  it('asks only once more: a second refusal is the answer, and the screen rechecks', async () => {
+  it('asks only once more: a second refusal is the answer, the not_active the screen rechecks on (connection.test.ts)', async () => {
     const f = answers(403);
     vi.stubGlobal('fetch', f);
     expect(await chart('run a 10k')).toEqual({ ok: false, miss: 'not_active' });

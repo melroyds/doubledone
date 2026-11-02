@@ -2017,7 +2017,7 @@ CASES = [
      "PREREQ: PREM-68's local setup with the right key. Buy test subscription A for a test uuid and cancel it immediately (the local row records A, canceled). With stripe listen stopped, create subscription B in the Stripe test dashboard on a NEW customer whose default payment method is the card 4242 4242 4242 4242, with metadata[user_id] the same uuid. On the LOCAL D1, write what a Worker from before 2026-11-01 would have: UPDATE entitlements SET premium = 1, status = 'active', stripe_customer_id = '<B's cus_ id>' WHERE user_id = '<uuid>'. Start stripe listen again, then cancel B immediately in the dashboard.",
      "B's customer.subscription.deleted answers 200 with {received:true, final:canceled, healed:true}, and the local row reads premium 0, status canceled, with stripe_sub B's id. Regression (2026-11-01 review): the stale id A refused B's ending, which after a rollback kept Premium on for a non-payer for good.",
      "Worker"),
-    # Premium without an account (2026-11-03): the Worker's store check. PREM-72, 73 and 76 are the app's cases.
+    # Premium without an account (2026-11-03): the Worker's store check. PREM-72, 73, 76, 79, 80 and 81 are the app's cases.
     ("PREM-72",
      "Premium",
      "P1",
@@ -2080,6 +2080,13 @@ CASES = [
      "Signed in, a Premium tap straight after buying works first time",
      "PREREQ: an iOS build with this change (TestFlight is fine), signed in as an account on SANDBOX_GRANT_UIDS that has no Premium (Melroy's licence-tester account, or appreview-buy@ once its sandbox month has run out), and a sandbox Apple account. Buy Premium monthly. The moment the Premium panel shows, open Chart a course and tap Suggest steps, then do the same on Plan my day.",
      "Steps, then an order, on the first tap each, even if the purchase's webhook has not landed yet: a signed-in refusal while the phone's store shows Premium now links the store, attaches the purchase once and asks again, without a word on screen. Nothing says Premium is missing. Regression (2026-11-03): a tap that beat the webhook was refused until a relaunch, and Chart said 'Try rephrasing the goal?'.",
+     "iOS"),
+    ("PREM-81",
+     "Premium",
+     "P2",
+     "After a refusal, the next tap opens the Premium screen, not the same refusal",
+     "PREREQ: an iOS build with this change (TestFlight is fine), on an install that has never signed in (Settings shows Sign in), with a sandbox month of Premium on it (buy one with a sandbox Apple account, or keep PREM-72's). It takes a day: TestFlight renews a subscription once a day, whatever its length, so with auto-renew off it ends within a day. Open the Premium screen, tap Manage subscription and turn auto-renew off in Apple's sheet. Open the Menu, then Chart a course, type 'run a 10k by March', and leave the app on that screen for a little over a day. It may go to the background but must not be closed, and open no other screen in between. Then tap Suggest steps. A few seconds later, tap Suggest steps again.",
+     "The first tap says 'We couldn't find an active Premium for you just now, so nothing went to the AI. If you've only just bought or restored it, give it a minute and try again.' and the goal stays in the box. The second tap opens the Premium screen, offering Premium: the refusal made the app ask RevenueCat again instead of trusting its cache on the phone (usePremiumMiss, then localPremium({ fresh: true })). If the first tap already opens the Premium screen, iOS restarted the app in between, which is fine for a person but did not test the recheck, so run it again. Regression guard (2026-11-03 review): nothing tested the recheck, and without it a lapsed or refunded iPhone met the same refusal on every Scan, Chart a course, Plan my day or Reflect tap for the rest of the session.",
      "iOS"),
     ("AUTH-09",
      "Auth & sync",

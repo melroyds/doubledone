@@ -6,7 +6,8 @@
 // All logic lives in `iap.ts` (pure, tested). This file is glue: it talks to the SDK and hands raw
 // shapes to those functions. Keep it thin. It stays out of the coverage floor (vitest's
 // coverage.exclude) because it cannot run without the native module, and purchases-split.test.ts
-// checks only its configure wait, its identity and its purchase proof, against a stubbed SDK.
+// checks only its configure wait, its identity, its purchase proof and localPremium's cached and
+// fresh reads, against a stubbed SDK.
 
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 

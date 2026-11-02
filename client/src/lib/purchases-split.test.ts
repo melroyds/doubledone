@@ -6,18 +6,27 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 /* eslint-disable import/no-duplicates -- ESLint's resolver reads the base and its platform files as one module */
 import { PURCHASER_HEADER } from './ai';
-import { ANON_PURCHASER_RE } from './iap';
+import { ANON_PURCHASER_RE, localEntitlement } from './iap';
 import * as web from './purchases';
 import * as android from './purchases.android';
 import * as ios from './purchases.ios';
 /* eslint-enable import/no-duplicates */
 
 // Premium without an account (2026-11-03): the proof each platform hands lib/ai, the identity the root layout
-// reconciles behind, and the two constants the phone and the Worker must agree on. The platform files are glue
-// around the RevenueCat native module, which cannot run in node, so the SDK is a stub here that answers what a phone
-// would (vi.mock is hoisted above the imports). Only the configure wait, the identity and the proof are tested
-// through it: the rest of those files stays the untested glue their headers describe.
-const sdk = vi.hoisted(() => ({ appUserId: '', throws: false }));
+// reconciles behind, the fresh store read after a refusal, and the two constants the phone and the Worker must agree
+// on. The platform files are glue around the RevenueCat native module, which cannot run in node, so the SDK is a stub
+// here that answers what a phone would (vi.mock is hoisted above the imports). Only the configure wait, the identity,
+// the proof and localPremium's cached and fresh reads are tested through it: the rest of those files stays the
+// untested glue their headers describe.
+const sdk = vi.hoisted(() => ({
+  appUserId: '',
+  throws: false,
+  // What getCustomerInfo answers, one call at a time (an Error is thrown), the last one repeating, and whether
+  // invalidating the cache fails: enough to play the cached-then-fresh read localPremium makes after a refusal.
+  infos: [] as unknown[],
+  infoCalls: 0,
+  invalidateThrows: false,
+}));
 vi.mock('react-native-purchases', () => ({
   default: {
     setLogLevel: vi.fn(async () => {}),
@@ -31,6 +40,14 @@ vi.mock('react-native-purchases', () => ({
       if (sdk.throws) throw new Error('the store is not answering');
       sdk.appUserId = id;
       return { customerInfo: {}, created: false };
+    }),
+    getCustomerInfo: vi.fn(async () => {
+      const next = sdk.infos[Math.min(sdk.infoCalls++, sdk.infos.length - 1)];
+      if (next instanceof Error) throw next;
+      return next;
+    }),
+    invalidateCustomerInfoCache: vi.fn(async () => {
+      if (sdk.invalidateThrows) throw new Error('the store is not answering');
     }),
   },
   LOG_LEVEL: { VERBOSE: 'VERBOSE', WARN: 'WARN' },
@@ -57,7 +74,12 @@ afterAll(() => {
 beforeEach(() => {
   sdk.appUserId = ANON;
   sdk.throws = false;
+  sdk.infos = [];
+  sdk.infoCalls = 0;
+  sdk.invalidateThrows = false;
   rc.logIn.mockClear();
+  rc.getCustomerInfo.mockClear();
+  rc.invalidateCustomerInfoCache.mockClear();
 });
 
 describe('purchaserProof, per platform', () => {
@@ -122,6 +144,60 @@ describe('the other platforms say whether the account is linked too', () => {
 
   it('the web: never, there is no store to link', async () => {
     expect(await web.identifyPurchaser(UID)).toBe(false);
+  });
+});
+
+// After the server refuses a Premium call, the provider's recheck loads with localPremium({ fresh: true })
+// (lib/premium-provider usePremiumMiss): RevenueCat is asked again rather than trusted from its cache on the device,
+// which can hold an active Premium long after a lapse or a refund. That is what lets the next tap open the paywall
+// instead of meeting the same refusal all session (2026-11-03 review: none of this was tested). Below the iPhone's
+// configure-wait test on purpose, which needs the iOS file still unconfigured when it starts.
+const CACHED_PREMIUM = {
+  entitlements: {
+    active: {
+      premium: { originalPurchaseDate: '2026-11-01T00:00:00Z', expirationDate: '2026-11-02T00:00:00Z', willRenew: false, store: 'APP_STORE' },
+    },
+  },
+};
+const LAPSED = { entitlements: { active: {} } };
+
+describe.each([
+  ['the iPhone', ios],
+  ['Android', android],
+] as const)("%s's Premium read after a refusal", (_platform, store) => {
+  it('without fresh: the cached answer, and the cache is never invalidated', async () => {
+    expect(localEntitlement(CACHED_PREMIUM)).not.toBeNull(); // the stub's cached answer really is Premium
+    sdk.infos = [CACHED_PREMIUM, LAPSED];
+    expect(await store.localPremium()).toEqual(localEntitlement(CACHED_PREMIUM));
+    expect(rc.getCustomerInfo).toHaveBeenCalledTimes(1);
+    expect(rc.invalidateCustomerInfoCache).not.toHaveBeenCalled();
+  });
+
+  it('fresh: invalidates the cache, then asks again, so a lapse the cache still shows as Premium reads free', async () => {
+    sdk.infos = [CACHED_PREMIUM, LAPSED];
+    expect(await store.localPremium({ fresh: true })).toBeNull();
+    expect(rc.getCustomerInfo).toHaveBeenCalledTimes(2);
+    expect(rc.invalidateCustomerInfoCache).toHaveBeenCalledTimes(1);
+    const [cachedRead, freshRead] = rc.getCustomerInfo.mock.invocationCallOrder;
+    const [invalidated] = rc.invalidateCustomerInfoCache.mock.invocationCallOrder;
+    expect(cachedRead).toBeLessThan(invalidated);
+    expect(invalidated).toBeLessThan(freshRead);
+  });
+
+  it('fresh, but the store does not answer: the cached answer stands, never free over a dead connection', async () => {
+    sdk.infos = [CACHED_PREMIUM, new Error('the store is not answering')];
+    expect(await store.localPremium({ fresh: true })).toEqual(localEntitlement(CACHED_PREMIUM));
+    sdk.infos = [CACHED_PREMIUM, LAPSED];
+    sdk.infoCalls = 0;
+    sdk.invalidateThrows = true;
+    expect(await store.localPremium({ fresh: true })).toEqual(localEntitlement(CACHED_PREMIUM));
+  });
+
+  it('no cache and no store: free, never a throw, and nothing to invalidate', async () => {
+    sdk.infos = [new Error('the store is not answering')];
+    expect(await store.localPremium()).toBeNull();
+    expect(await store.localPremium({ fresh: true })).toBeNull();
+    expect(rc.invalidateCustomerInfoCache).not.toHaveBeenCalled();
   });
 });
 
