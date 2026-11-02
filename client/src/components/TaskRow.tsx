@@ -493,6 +493,12 @@ export function TaskRow({
     if (e.nativeEvent.actionName === 'longpress') onLongPress?.();
   }
   const door = rowDoor(onLongPress, inert ? undefined : onToggle); // the held and the plain rows' tap
+  // An inert row says it cannot be ticked on the web too. RN-web's Pressable writes its own aria-disabled, from
+  // `disabled`, after every other prop, so the rows' aria-disabled reached only the phones. `disabled` itself
+  // would drop the row from the Tab order and switch off its card door, so the web takes accessibilityDisabled,
+  // the one spelling Pressable leaves alone: it becomes aria-disabled and the tab stop stays. A cast object, like
+  // PRESS_NOW, because React Native's types do not know the prop.
+  const inertWeb: object = Platform.OS === 'web' && inert ? { accessibilityDisabled: true } : {};
   const optionsEl =
     Platform.OS === 'web' && onLongPress ? (
       <Pressable
@@ -1269,7 +1275,7 @@ export function TaskRow({
           hitSlop={{ top: 8, bottom: 4 }}
           style={({ pressed }) => [styles.rowMain, pressed && !inert && styles.pressed]}
           accessibilityRole="checkbox"
-          aria-checked={done} aria-disabled={Boolean(inert)}
+          aria-checked={done} aria-disabled={Boolean(inert)} {...inertWeb}
           accessibilityLabel={rowLabel}
         >
           <CheckCircle done={done} dim={Boolean(inert)} onSky={ringOnSky} />
@@ -1307,7 +1313,7 @@ export function TaskRow({
         pressed && !inert && styles.pressed,
       ]}
       accessibilityRole="checkbox"
-      aria-checked={done} aria-disabled={Boolean(inert)}
+      aria-checked={done} aria-disabled={Boolean(inert)} {...inertWeb}
       accessibilityLabel={rowLabel}
     >
       <Animated.View pointerEvents="none" style={[styles.washLayer, { opacity: washFade }]} />
