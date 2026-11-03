@@ -42,6 +42,12 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE FRIEND'S TWO BUGS ARE CONFIRMED FIXED ON HIS PHONE (2026-11-03, Melroy).** The iOS 27 add-panel scroll is gone
+on 1.10.1 from the App Store (CAP-20 passes on the device that found it), and Chart a course answers him: he signed
+in, his App Store purchase attached to his account at 07:39 UTC (iPhone Premium accounts went from 1 to 2), and
+Chart a course answered two minutes later (4 successful calls in a day, none failed). Option 1's iPhone half still
+rides the store build, for anyone who never signs in.
+
 **PREMIUM WITHOUT AN ACCOUNT, THE AI LOG'S 90 DAYS AND THE LANGUAGE FIX ARE LIVE (2026-11-03 morning).** The
 privacy pages went out first (36e79f8, with Chart a course, Reflect on this week and Scan now sending the app's
 language), then Melroy dropped the old Supabase `ai_calls` table and deployed Worker `5389bfa1` (rollback `666a23d4`;
