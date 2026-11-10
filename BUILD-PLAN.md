@@ -42,6 +42,17 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE 1.10.7 STORE BUILDS ARE MADE, AWAITING FOUNDER TESTING (2026-11-11, on Melroy's ask).** Android 1.10.7
+versionCode 40 (an app bundle, R8 on for the first time, and the first real compile of the expo-notifications patch:
+both built clean) and iOS 1.10.7 build 50, uploaded to App Store Connect for TestFlight only (not submitted for review,
+by Melroy's call). They carry everything since the store versions (iOS 1.10.1, Android 1.10.0): Premium without an
+account's iPhone half, the AI language fix, Today in your notifications (PR #15) with the widget fixes and the new
+notification icon, and every client fix since. **Next:** Melroy's founder testing. Android goes to Play's Internal
+testing track (only him, never the closed track, which may hold a payer), for AND-11 (R8), AND-12 to AND-22 (the
+glance) and AND-16 (every notification type, because the patch touches the shared builder). iOS from TestFlight, for
+PREM-72 to 81 and I18N-03. Then the store submissions are his, and `client/public/version.json` is bumped by hand
+only once each store has it live. If R8 fails the phone test, the release ships without it (decided earlier).
+
 **THE FRIEND'S TWO BUGS ARE CONFIRMED FIXED ON HIS PHONE (2026-11-03, Melroy).** The iOS 27 add-panel scroll is gone
 on 1.10.1 from the App Store (CAP-20 passes on the device that found it), and Chart a course answers him: he signed
 in, his App Store purchase attached to his account at 07:39 UTC (iPhone Premium accounts went from 1 to 2), and
