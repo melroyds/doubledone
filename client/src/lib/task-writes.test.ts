@@ -4,18 +4,16 @@ import { type Recurrence } from './recurrence';
 import { type Task } from './tasks';
 import { addTaskForDay, clearNudgeIfAny, editSeriesIn, removeSeriesIn, restoreSeriesIn, toggleIn, updateStoredTasks, writeTasks } from './task-writes';
 
-// The seams are native (AsyncStorage, notifications, the Android widget), so they are mocked and the
-// tests assert what reaches them: which list is saved, which nudge is cancelled, what the widget is told.
-const { cancelNudge, loadTasks, loadClosedDate, saveTasks, updateWidget } = vi.hoisted(() => ({
+// The seams are native (AsyncStorage, notifications), so they are mocked and the tests assert what reaches
+// them: which list is saved and which nudge is cancelled. The Android widget is no longer told from here: it
+// follows saveTasks' change notice (lib/storage, tested there), so the save IS what the widget is told.
+const { cancelNudge, loadTasks, saveTasks } = vi.hoisted(() => ({
   cancelNudge: vi.fn(() => Promise.resolve()),
   loadTasks: vi.fn((): Promise<Task[]> => Promise.resolve([])),
-  loadClosedDate: vi.fn((): Promise<string | null> => Promise.resolve(null)),
   saveTasks: vi.fn((_tasks: Task[]) => Promise.resolve()),
-  updateWidget: vi.fn((_tasks: Task[], _closed: string | null) => Promise.resolve()),
 }));
 vi.mock('./reminders', () => ({ cancelNudge }));
-vi.mock('./storage', () => ({ loadTasks, loadClosedDate, saveTasks }));
-vi.mock('../widget/update', () => ({ updateWidget }));
+vi.mock('./storage', () => ({ loadTasks, saveTasks }));
 
 const day = new Date(2026, 8, 26);
 const iso = '2026-09-26';
@@ -28,7 +26,6 @@ function task(over: Partial<Task> & { id: string }): Task {
 beforeEach(() => {
   vi.clearAllMocks();
   loadTasks.mockImplementation(() => Promise.resolve([]));
-  loadClosedDate.mockImplementation(() => Promise.resolve(null));
 });
 
 describe('clearNudgeIfAny', () => {
@@ -53,7 +50,15 @@ describe('writeTasks (Today commit)', () => {
     const out = writeTasks(next, previous, '2026-09-25');
     expect(out[0].updatedAt).toBe(501);
     expect(saveTasks).toHaveBeenCalledWith(out);
-    expect(updateWidget).toHaveBeenCalledWith(out, '2026-09-25');
+  });
+
+  // One path to the widget, not two: a direct refresh from here as well as the save's notice rendered every
+  // commit twice, the first time without the held task's seat (2026-11-10).
+  it('leaves the widget to the save: it never refreshes the widget itself', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./task-writes.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/from '\.\.\/widget\/update'/);
+    expect(src).not.toMatch(/updateWidget\(/);
   });
 });
 
@@ -110,12 +115,10 @@ describe('updateStoredTasks', () => {
     const onScreen = [task({ id: 'r', recurrence: daily })];
     const stored = [task({ id: 'r', recurrence: daily }), task({ id: 'widget-add' })];
     loadTasks.mockImplementation(() => Promise.resolve(stored));
-    loadClosedDate.mockImplementation(() => Promise.resolve('2026-09-25'));
     const out = await updateStoredTasks((ts) => toggleIn(ts, 'r', day), onScreen);
     expect(out.map((x) => x.id)).toEqual(['r', 'widget-add']);
     expect(out[0].completedDates).toEqual([iso]);
     expect(saveTasks).toHaveBeenCalledWith(out);
-    expect(updateWidget).toHaveBeenCalledWith(out, '2026-09-25');
   });
 
   // #2: the Calendar's "Add for this day" wrote its own copy from when it opened, plus the new task, over the store,

@@ -30,6 +30,13 @@ export const DAILY_CHANNEL = 'daily-reminder';
 export const RHYTHM_CHANNEL = 'rhythm-nudge';
 export const TASK_NUDGE_CHANNEL = 'task-nudge-v2';
 
+// "Today in your notifications" (the glance, Android, opt-in, lib/glance): its own silent channel, and ONE fixed
+// id that the posted notification and its scheduled next arrival share, so an arrival that fires replaces what
+// is showing in place. Channel importance is fixed when Android creates it, so this id never changes casually:
+// a different importance would need a new id.
+export const GLANCE_CHANNEL = 'today-glance';
+export const GLANCE_ID = 'doubledone-glance';
+
 /**
  * Which delivered (visible-in-the-tray) notifications to dismiss when the app opens.
  * The never-shame rule behind it: a pile of missed reminders reads as a guilt-heap, the exact
@@ -40,9 +47,15 @@ export const TASK_NUDGE_CHANNEL = 'task-nudge-v2';
  * Matched by channel (Android) OR by the stable identifier families (iOS has no channels):
  * `rhythm-*` slots, `routine-*` checklist nudges, and the fixed daily id. Anything
  * unrecognised is kept, never over-dismissed.
+ *
+ * The glance (GLANCE_ID on GLANCE_CHANNEL) is excluded FIRST and by name: it is not an offer to
+ * open the app but today's list, there to be seen while the app is closed, and the app opening is
+ * exactly when it must not vanish. Excluded explicitly so a broader match added here later cannot
+ * sweep it by accident.
  */
 export function staleNudgeIdentifiers(presented: { identifier: string; channelId: string | null }[]): string[] {
   return presented
+    .filter((n) => n.identifier !== GLANCE_ID && n.channelId !== GLANCE_CHANNEL)
     .filter(
       (n) =>
         n.channelId === RHYTHM_CHANNEL ||

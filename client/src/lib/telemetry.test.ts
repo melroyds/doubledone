@@ -95,16 +95,28 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('task.toggled', { done: true })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty-three (growing it is a deliberate act)', () => {
+  it('sends the glance and widget counts bare, whatever rides with them', () => {
+    expect(beaconRequest('glance.on')?.init.body).toBe('{"name":"glance.on"}');
+    expect(beaconRequest('glance.off', { hour: 9, via: 'settings' })?.init.body).toBe('{"name":"glance.off"}');
+    expect(beaconRequest('widget.placed', { count: 2 })?.init.body).toBe('{"name":"widget.placed"}');
+    // The local-only neighbours stay on the device.
+    expect(beaconRequest('widget.offer_accepted')).toBeNull();
+    expect(beaconRequest('reminder.enabled', { granted: true, style: 'glance' })).toBeNull();
+  });
+
+  it('the allowlist is exactly these twenty-six (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
-    // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25) and the rest-day gate's two (2026-11-01): each addition pairs with the Worker
-    // allowlist AND the privacy policy in the same commit.
+    // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25), the rest-day gate's two (2026-11-01)
+    // and the glance and widget three (2026-11-10): each addition pairs with the Worker allowlist AND the privacy policy
+    // in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
       'breakdown.started',
       'bulk.big',
       'card.more',
       'card.opened',
       'day.closed.morning',
+      'glance.off',
+      'glance.on',
       'hold.completed',
       'hold.released',
       'hold.started',
@@ -123,6 +135,7 @@ describe('the beacon (the few events that leave the device)', () => {
       'task.renamed',
       'task.reordered',
       'tiny.made',
+      'widget.placed',
     ]);
   });
 

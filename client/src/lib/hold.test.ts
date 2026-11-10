@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DAILY_FOLLOW_UP, escalationTimes, heldOnToday, holdOutcome, holdRequiresSwap, holdStepAt, type HoldWaits, LADDER_OFFSETS_MIN, shiftOutOfQuiet } from './hold';
+import { DAILY_FOLLOW_UP, escalationTimes, heldOnToday, holdOutcome, holdRequiresSwap, holdStepAt, type HoldWaits, LADDER_OFFSETS_MIN, parseHoldContract, shiftOutOfQuiet } from './hold';
 import { type Recurrence } from './recurrence';
 
 // Local-time constructor, matching how the engine reads the clock.
@@ -197,5 +197,30 @@ describe('the watcher: heldOnToday and holdOutcome', () => {
     it('reads a stale tiny flag on a breakdown as the breakdown it is', () => {
       expect(outcome([tinyParent, pebble(), row('second', { parentId: 'held', createdAt: 3 })])).toBe('released');
     });
+  });
+});
+
+// The stored contract is read by Today (storage's loadHold) AND by the headless widget, which reads the raw value
+// itself. One parser, so the two can never disagree about whether a task is held.
+describe('parseHoldContract', () => {
+  const good = { taskId: 't1', title: 'Call the bank', heldAt: 1000, notifIds: ['n1', 'n2'] };
+
+  it('reads a well-formed contract', () => {
+    expect(parseHoldContract(JSON.stringify(good))).toEqual(good);
+  });
+
+  it('reads nothing stored as no contract', () => {
+    expect(parseHoldContract(null)).toBeNull();
+  });
+
+  it('keeps only the string notification ids, and an absent list as empty', () => {
+    expect(parseHoldContract(JSON.stringify({ ...good, notifIds: ['n1', 5, null, 'n2'] }))?.notifIds).toEqual(['n1', 'n2']);
+    expect(parseHoldContract(JSON.stringify({ taskId: 't1', title: 'x', heldAt: 1 }))?.notifIds).toEqual([]);
+  });
+
+  it('reads junk or a half-written shape as no contract, never a throw', () => {
+    for (const raw of ['not json', 'null', '5', '[]', JSON.stringify({ title: 'x', heldAt: 1 }), JSON.stringify({ taskId: 't1', heldAt: 1 }), JSON.stringify({ taskId: 't1', title: 'x', heldAt: '1' })]) {
+      expect(parseHoldContract(raw)).toBeNull();
+    }
   });
 });

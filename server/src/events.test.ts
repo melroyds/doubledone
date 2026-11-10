@@ -76,6 +76,35 @@ describe('the rest-day gate', () => {
   });
 });
 
+// "Today in your notifications" and the widget (2026-11-10): three bare names. Nothing about what the
+// notification or the widget shows can ride along, and nothing that would count a task or an hour.
+describe('the glance and widget counts', () => {
+  it('passes glance.on, glance.off and widget.placed through bare, props dropped', () => {
+    expect(parseAppEvent({ name: 'glance.on' })).toBe('glance.on');
+    expect(parseAppEvent({ name: 'glance.off', props: { hour: 9 } })).toBe('glance.off');
+    expect(parseAppEvent({ name: 'widget.placed', props: { count: 2, title: 'Call the bank' } })).toBe('widget.placed');
+  });
+
+  it('stores them as a counter per day, nothing finer', async () => {
+    const db = await sqliteD1();
+    for (const e of ['glance.on', 'widget.placed', 'glance.on', 'glance.off']) await logAppEvent({ DB: db }, e);
+    expect(db.raw.prepare('SELECT event, n FROM app_event_counts ORDER BY event').all()).toEqual([
+      { event: 'glance.off', n: 1 },
+      { event: 'glance.on', n: 2 },
+      { event: 'widget.placed', n: 1 },
+    ]);
+  });
+
+  it('drops the near names nobody declared, and an unfolded toggle', () => {
+    expect(parseAppEvent({ name: 'glance' })).toBeNull();
+    expect(parseAppEvent({ name: 'glance', props: { on: true } })).toBeNull();
+    expect(parseAppEvent({ name: 'glance.posted' })).toBeNull();
+    expect(parseAppEvent({ name: 'glance.swiped' })).toBeNull();
+    expect(parseAppEvent({ name: 'widget.removed' })).toBeNull();
+    expect(parseAppEvent({ name: 'widget.offer_accepted' })).toBeNull();
+  });
+});
+
 // The Menu's two ways into Settings (2026-10-04): rooms.opened is folded to the door, and only
 // for Settings. Every other room, and any door we did not build, is dropped unwritten.
 describe('rooms.opened folding', () => {

@@ -314,6 +314,17 @@ export const es: Catalog = {
     premiumGivenStatus: 'Corre por nuestra cuenta hasta el {date}, luego vuelves al álbum mensual gratis. Termina solo, no hay nada que cancelar.',
     premiumGivenStatusPlay: 'Corre por nuestra cuenta hasta el {date}, luego los extras se apagan solos. Tus tareas y todo lo demás siguen igual. No hay nada que cancelar.',
   },
+  glance: {
+    andMore: 'y más',
+    channelName: 'Hoy en tus notificaciones',
+    firstAndMore: '{title} y más',
+    hint: 'Se va cuando terminas el día, o a más tardar a las {time}. Tu pantalla de bloqueo la muestra si tu teléfono lo permite.',
+    optionGlance: 'Se queda desde las {time} hasta que termines',
+    optionGlanceSub: 'Espera en silencio en tus notificaciones. Nunca suena ni vibra.',
+    optionNudge: 'Un aviso a las {time}',
+    optionNudgeSub: 'Una notificación suave y luego se va.',
+    tooLate: 'Para esta opción, elige una hora antes de las {time}.',
+  },
   landing: {
     alsoOn: 'También en iPhone y Android.',
     altCal: 'El Calendario: un punto suave en cada día en que se terminó algo, y la lista del domingo, con Hacer la declaración.',

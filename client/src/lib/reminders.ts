@@ -1,12 +1,37 @@
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Notifications from 'expo-notifications';
-import { Linking, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
+import { coalesceRuns } from './coalesce';
+import { type GlanceArrival, type GlanceContent, GLANCE_SETTLE_MS } from './glance';
+import {
+  emptyGlanceMemory,
+  forgetUnlandedGlance,
+  glanceArrivalMissed,
+  glanceRequestContent,
+  glanceTimeoutVerdict,
+  halfDoneGlanceMemory,
+  planGlanceRefresh,
+  readShownGlance,
+  settleGlanceMemory,
+  wipedGlanceMemory,
+} from './glance-refresh';
 import { DAILY_FOLLOW_UP, escalationTimes, type HoldContract } from './hold';
 import { t } from './i18n-active';
-import { DAILY_CHANNEL, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL, slotTimeoutsMs } from './reminders-types';
+import { DAILY_CHANNEL, GLANCE_CHANNEL, GLANCE_ID, nextDailySlot, type ReminderResult, RHYTHM_CHANNEL, staleNudgeIdentifiers, TASK_NUDGE_CHANNEL, slotTimeoutsMs } from './reminders-types';
 import { rhythmFireTimes, rhythmSlotId, rhythmSlotIdPrefix, type Routine } from './routines';
+import {
+  loadClosedDate,
+  loadGlanceMemory,
+  loadHold,
+  loadReminderHour,
+  loadReminderOn,
+  loadReminderStyle,
+  peekTasks,
+  saveGlanceMemory,
+  subscribeStorageChange,
+} from './storage';
 
 export type { ReminderReason, ReminderResult } from './reminders-types';
 
@@ -35,13 +60,28 @@ const RHYTHM_CHANNEL_ID = RHYTHM_CHANNEL;
 // and then watched in-app never appears. Calm: a banner in the tray, no sound, no badge,
 // matching the offer-not-demand tone. Module scope so it runs once at startup (this is the
 // native variant, reminders.web.ts is the web no-op).
+//
+// "Today in your notifications" (GLANCE_ID) is the one exception: a quiet list, never a banner, so it
+// goes to the shade only, at default priority. And a glance this handler did not answer within its 3
+// seconds never reached the shade at all, so handleError forgets that delivery (its absence must not
+// read as a swipe) and posts it once more (onGlanceHandlerError, below).
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) =>
+    notification.request.identifier === GLANCE_ID
+      ? {
+          shouldShowBanner: false,
+          shouldShowList: true,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          priority: Notifications.AndroidNotificationPriority.DEFAULT,
+        }
+      : {
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        },
+  handleError: (notificationId, error) => onGlanceHandlerError(notificationId, error),
 });
 
 // Android 8+ requires a notification channel; without one a scheduled notification can
@@ -67,13 +107,23 @@ async function hasNotifPermission(quiet: boolean): Promise<boolean> {
   return status === 'granted';
 }
 
-/** Request permission and schedule a calm daily reminder at `hour`. Returns ok, or a reason it didn't. */
+/**
+ * Turn the daily reminder on at `hour`, in its stored style. Returns ok, or a reason it didn't.
+ *
+ * The nudge (everyone's style until they choose otherwise): request permission and schedule one calm notification a
+ * day. "Today in your notifications" (the glance, Android only) replaces the nudge, never both, so in that style this
+ * brings the glance instead and never arms the nudge. This is the ONE place the nudge is scheduled, so every door that
+ * turns the reminder on follows the style without knowing about it: Today's footer link, the rested-screen offer, the
+ * welcome, Settings' hour stepper and the cold-open sweep. Settings saves a new style BEFORE it calls this.
+ */
 export async function enableDailyReminder(hour = 9, opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
+  if (GLANCE_AVAILABLE && (await loadReminderStyle()) === 'glance') return enableTodayGlance(opts);
   try {
     // Channel first: on Android 13 the permission prompt does not appear until a channel
     // exists, so creating it before requesting is what lets a first-time user grant.
-    // The channel NAME localises for new installs only: Android fixes it at creation,
-    // and we never bump the channel id just to rename it.
+    // The channel NAME follows the app's language: creating an existing channel again
+    // renames it (only its importance, sound and vibration are fixed at first creation),
+    // so the id never needs bumping just to rename it.
     await ensureChannel(DAILY_CHANNEL_ID, t('settings.reminderLabel'));
     if (!(await hasNotifPermission(opts.quiet === true))) return { ok: false, reason: 'denied' };
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
@@ -393,11 +443,14 @@ export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour
  * the debug surface for "the nudge never came": if the count is zero while Rhythms exist,
  * scheduling is the problem; if the count is right and nothing arrives, the OS (battery
  * management) is. Returns zeros on web / on any failure.
+ *
+ * The glance's next arrival (GLANCE_ID) is not a nudge and is left out: counted, it would hide the
+ * Routines "nothing scheduled" warning for anyone who has the glance on.
  */
 export async function getNudgeHealth(): Promise<{ count: number; next: { hour: number; minute: number } | null }> {
   try {
     if (Platform.OS === 'web') return { count: 0, next: null };
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const scheduled = (await Notifications.getAllScheduledNotificationsAsync()).filter((n) => n.identifier !== GLANCE_ID);
     const slots: { hour: number; minute: number }[] = [];
     for (const n of scheduled) {
       const trig = n.trigger as { hour?: unknown; minute?: unknown } | null;
@@ -446,5 +499,314 @@ export async function openExactAlarmSettings(): Promise<void> {
     } catch {
       await Linking.openSettings().catch(() => {});
     }
+  }
+}
+
+// ---- "Today in your notifications" (the glance), Android only --------------------------------------------------
+//
+// The daily reminder's third choice: today's open tasks, titles only, sitting quietly in the shade from the reminder
+// hour until 21:30, never a sound or a buzz, gone when the day is closed, done or empty, and back the next day at the
+// hour. It replaces the nudge, never both. lib/glance decides what it says and when, lib/glance-refresh what one
+// refresh does; this seam only reads the phone, asks planGlanceRefresh, and carries out the answer.
+//
+// ONE fixed id (GLANCE_ID) for the posted glance and its scheduled next arrival, so an arrival that fires replaces
+// what is showing in place. Refreshes come from the storage change notice (every write of the day, and the
+// reminder's own settings), the cold open and the return to the foreground (watchTodayGlance), debounced to one a
+// second, never two at once, and in one line with the account wipe's take-down, so nothing they do can interleave.
+// Nothing here writes tasks, the closed day, the hold or the reminder settings, so no refresh can set off another.
+
+/**
+ * The glance exists on Android 8 (API 26) and later. Below that Android has no notification channels and ignores a
+ * notification's expiry, so it could neither be kept silent by its channel nor leave by 9:30 pm on its own, and an
+ * arrival with the app never opened would stay up overnight. Those phones, iOS and the web keep exactly the daily
+ * reminder they have: wherever this is false, Settings shows the two-way switch and nothing of the glance runs.
+ */
+export const GLANCE_AVAILABLE: boolean = Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version >= 26;
+
+/** A burst of saves (a cold open's sweeps, a sync merge) makes one refresh, a second after the last. */
+const GLANCE_DEBOUNCE_MS = 1000;
+
+// The glance's own channel: DEFAULT importance, because LOW is kept off the lock screen by default on stock Android
+// and MIN never shows, with no sound, no vibration, no lights and no badge, so it is silent and never puts a dot on
+// the icon. Android fixes importance, sound, vibration and badge when it first creates a channel, so these can only
+// change under a new channel id. Created before every post and every schedule: a notification whose channel is
+// missing falls back to expo-notifications' own HIGH channel, which pops up and buzzes. Creating it again does rename
+// it, so its name follows the app's language from the next refresh, with no new id.
+async function ensureGlanceChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(GLANCE_CHANNEL, {
+    name: t('glance.channelName'),
+    importance: Notifications.AndroidImportance.DEFAULT,
+    sound: null,
+    enableVibrate: false,
+    vibrationPattern: null,
+    enableLights: false,
+    showBadge: false,
+  });
+}
+
+// One step that may fail without stopping the rest: the next refresh judges again from what it can read.
+async function quietly(step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step();
+  } catch {
+    // best effort
+  }
+}
+
+/** Post (or replace in place) today's glance now. True once handed to the phone. */
+async function postGlance(content: GlanceContent, expiresAt: Date, retry: boolean): Promise<boolean> {
+  try {
+    await ensureGlanceChannel();
+    await Notifications.scheduleNotificationAsync({
+      identifier: GLANCE_ID,
+      content: glanceRequestContent(content, expiresAt, retry),
+      // Presented at once on its own channel. Never a null trigger: with no channel, expo-notifications uses its
+      // own HIGH-importance one, which pops up a banner and vibrates.
+      trigger: { channelId: GLANCE_CHANNEL },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Schedule the one next arrival, its content worked out now for its day, with that day's absolute expiry. */
+async function scheduleGlanceArrival(arrival: GlanceArrival): Promise<boolean> {
+  try {
+    await ensureGlanceChannel();
+    await Notifications.scheduleNotificationAsync({
+      identifier: GLANCE_ID,
+      content: glanceRequestContent(arrival.content, arrival.expiresAt),
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: arrival.at, channelId: GLANCE_CHANNEL },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Cancel the next arrival and take down what is showing, each tried even if the other fails. True if both went. */
+async function takeDownGlance(): Promise<boolean> {
+  let ok = true;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(GLANCE_ID);
+  } catch {
+    ok = false;
+  }
+  try {
+    await Notifications.dismissNotificationAsync(GLANCE_ID);
+  } catch {
+    ok = false;
+  }
+  return ok;
+}
+
+// The one line every glance job runs in, so a refresh, the wipe's take-down and a timed-out delivery's forgetting
+// never interleave: each reads what the one before it left.
+let glanceLine: Promise<void> = Promise.resolve();
+function inGlanceLine(job: () => Promise<void>): Promise<void> {
+  const run = glanceLine.then(job).catch(() => undefined);
+  glanceLine = run;
+  return run;
+}
+
+let glanceTimer: ReturnType<typeof setTimeout> | null = null;
+// Set by a foreground handler timeout, taken by the next refresh: that refresh's post is the one retry.
+let glanceRetryNext = false;
+
+// Look again a little later, after anything that changed the shade (a post, a take-down). A post made with the app
+// open is still in the JS handler when its refresh ends, and can land after a take-down that came next (Goodnight a
+// moment after a change, Off just after picking the glance, an account wipe), which would leave an old list up until
+// 9:30 pm, or a deleted account's titles. One more refresh GLANCE_SETTLE_MS later sees what really landed and puts it
+// right. A look again books none of its own, so it can never turn into a loop.
+let glanceLookAgainTimer: ReturnType<typeof setTimeout> | null = null;
+let glanceLookingAgain = false;
+function lookAgainLater(): void {
+  if (glanceLookAgainTimer !== null) clearTimeout(glanceLookAgainTimer);
+  glanceLookAgainTimer = setTimeout(() => {
+    glanceLookAgainTimer = null;
+    glanceLookingAgain = true;
+    refreshTodayGlance();
+  }, GLANCE_SETTLE_MS);
+}
+
+/**
+ * One refresh: read what is stored and what the phone shows, ask planGlanceRefresh, carry it out, remember the
+ * result. Reads never write, and the only write is the glance's own memory, which tells no change notice.
+ */
+async function runGlanceRefresh(): Promise<void> {
+  if (!GLANCE_AVAILABLE) return;
+  const retry = glanceRetryNext;
+  glanceRetryNext = false;
+  const lookingAgain = glanceLookingAgain;
+  glanceLookingAgain = false;
+  const [on, style, hour, memory] = await Promise.all([loadReminderOn(), loadReminderStyle(), loadReminderHour(), loadGlanceMemory()]);
+  if (!(on && style === 'glance')) {
+    // Not the chosen reminder. If nothing of it was ever set up, or it was taken down cleanly, there is nothing to
+    // touch: that is every Android user who never chose it, on every save. Otherwise take it down, and forget it
+    // only once that worked, so a failed take-down is tried again next time. A look again takes it down even when it
+    // was forgotten, because a post still in the handler can land after the take-down that forgot it.
+    if (memory.hour === null && !lookingAgain) return;
+    if (await takeDownGlance()) await saveGlanceMemory(emptyGlanceMemory());
+    // Half done: keep the hour, so the next refresh tries the take-down again, but forget every sign it went up and
+    // any verdict, so choosing it again today shows it at once rather than reading the old sighting as a swipe.
+    else if (memory.hour !== null) await saveGlanceMemory(halfDoneGlanceMemory(memory));
+    if (!lookingAgain) lookAgainLater();
+    return;
+  }
+  const tasks = await peekTasks();
+  if (tasks === null) return; // a failed read keeps what is showing, rather than drawing a day it does not know
+  const [closedISO, hold, permission, presented, scheduled] = await Promise.all([
+    loadClosedDate(),
+    loadHold(),
+    Notifications.getPermissionsAsync(),
+    Notifications.getPresentedNotificationsAsync(),
+    Notifications.getAllScheduledNotificationsAsync(),
+  ]);
+  const now = new Date();
+  const showing = presented.find((n) => n.request.identifier === GLANCE_ID);
+  const plan = planGlanceRefresh({
+    now,
+    on,
+    style,
+    hour,
+    permitted: permission.status === 'granted',
+    tasks,
+    closedISO,
+    heldId: hold?.taskId ?? null,
+    shown: showing ? readShownGlance(showing.request.content.data) : null,
+    arrivalPending: scheduled.some((n) => n.identifier === GLANCE_ID),
+    nudgeScheduled: scheduled.some((n) => n.identifier === DAILY_ID),
+    memory,
+  });
+  // The first time anything of it is set up, its marker (memory.hour) is stored BEFORE anything is posted, so a
+  // refresh cut off half way still leaves what a later Off needs to find it and take it down.
+  if (memory.hour === null && plan.memory.hour !== null) await saveGlanceMemory(plan.memory);
+  if (plan.cancelNudge) await quietly(() => Notifications.cancelScheduledNotificationAsync(DAILY_ID));
+  // Every refresh replaces the one arrival, and cancels the old one FIRST, before anything is posted, so a late
+  // alarm can never land last night's list over the post below.
+  await quietly(() => Notifications.cancelScheduledNotificationAsync(GLANCE_ID));
+  let posted = false;
+  // A take-down is the app's own leave (the day closed, finished or emptied, the window over), never a swipe: settling
+  // it forgets every sign the glance went up, so it comes back the same day once it belongs again.
+  const removed = plan.action === 'remove';
+  if (removed) await quietly(() => Notifications.dismissNotificationAsync(GLANCE_ID));
+  else if (plan.action === 'post') posted = await postGlance(plan.content, plan.expiresAt, retry);
+  const scheduledNext = plan.arrival !== null && (await scheduleGlanceArrival(plan.arrival));
+  // An arrival planned in the last moments before the hour can reach the phone after it, and is then dropped unfired
+  // while the call still succeeds (glanceArrivalMissed): never record it, and refresh, so the app posts it itself.
+  const missed = scheduledNext && glanceArrivalMissed(plan, Date.now());
+  await saveGlanceMemory(settleGlanceMemory(plan, now, { posted, scheduled: scheduledNext && !missed, removed }));
+  if (missed) refreshTodayGlance();
+  if ((posted || plan.action === 'remove') && !lookingAgain) lookAgainLater();
+}
+
+// Runs never overlap and a burst books exactly one more (lib/coalesce), inside the one line.
+const refreshGlanceInLine = coalesceRuns(() => inGlanceLine(runGlanceRefresh));
+
+/** Ask for a refresh of the glance: one runs a second after the last ask. Safe to call from anywhere, any number of
+ *  times. Does nothing wherever the glance is not available (GLANCE_AVAILABLE). */
+export function refreshTodayGlance(): void {
+  if (!GLANCE_AVAILABLE) return;
+  if (glanceTimer !== null) clearTimeout(glanceTimer);
+  glanceTimer = setTimeout(() => {
+    glanceTimer = null;
+    void refreshGlanceInLine();
+  }, GLANCE_DEBOUNCE_MS);
+}
+
+/**
+ * Keep the glance true for the life of the app: a refresh now (the cold open), on every storage change notice (every
+ * write path of the day, and the reminder's own settings), and each time the app returns to the foreground. An
+ * account wipe takes it down explicitly, the arrival that holds task titles included, and looks again a little later
+ * for a post that was still on its way. For the root layout, once. Returns the unsubscribe. A no-op wherever the
+ * glance is not available (GLANCE_AVAILABLE).
+ */
+export function watchTodayGlance(): () => void {
+  if (!GLANCE_AVAILABLE) return () => {};
+  refreshTodayGlance();
+  const unsubscribe = subscribeStorageChange((change) => {
+    if (change === 'wipe') {
+      void inGlanceLine(async () => {
+        // What the shade held just before the take-down decides what is forgotten (lib/glance-refresh's
+        // wipedGlanceMemory): a showing glance, or an unreadable shade, loses its signs; a swiped one, not yet judged,
+        // keeps them; the arrival just cancelled always goes.
+        const before = await Notifications.getPresentedNotificationsAsync().then(
+          (all) => {
+            const showing = all.find((n) => n.request.identifier === GLANCE_ID);
+            return showing ? readShownGlance(showing.request.content.data) : null;
+          },
+          () => 'unknown' as const,
+        );
+        await takeDownGlance();
+        const memory = await loadGlanceMemory();
+        if (memory.hour !== null) await saveGlanceMemory(wipedGlanceMemory(memory, before, Date.now()));
+        lookAgainLater();
+      });
+    } else {
+      refreshTodayGlance();
+    }
+  });
+  const appState = AppState.addEventListener('change', (state) => {
+    if (state === 'active') refreshTodayGlance();
+  });
+  return () => {
+    unsubscribe();
+    appState.remove();
+  };
+}
+
+/**
+ * Turn the glance on, from Settings' "Stays from {time} until done", and from enableDailyReminder whenever the glance is
+ * the stored style (Today's footer link, the offers, the hour stepper): create its channel first (Android 13 shows the
+ * permission prompt only once a channel exists), ask for permission (never with `quiet`), and cancel the nudge, which
+ * the glance replaces. The caller saves the style ('glance') and the switch (on) as with the nudge, and those saves
+ * bring the glance up through the change notice. Returns ok, or the reason it could not.
+ */
+export async function enableTodayGlance(opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
+  if (!GLANCE_AVAILABLE) return { ok: false, reason: 'unsupported' };
+  try {
+    await ensureGlanceChannel();
+    if (!(await hasNotifPermission(opts.quiet === true))) return { ok: false, reason: 'denied' };
+    await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
+    refreshTodayGlance();
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/** Take the glance down at once (what is showing, and the next arrival) and forget its memory, then look again a
+ *  little later for a post that was still on its way. Saving the style or the switch does this too, a second later,
+ *  through the change notice. Never throws. */
+export async function disableTodayGlance(): Promise<void> {
+  if (!GLANCE_AVAILABLE) return;
+  await inGlanceLine(async () => {
+    if (await takeDownGlance()) await saveGlanceMemory(emptyGlanceMemory());
+    else {
+      // Half done: as in the refresh, keep the hour for a retry, forget the signs and any verdict.
+      const memory = await loadGlanceMemory();
+      if (memory.hour !== null) await saveGlanceMemory(halfDoneGlanceMemory(memory));
+    }
+    lookAgainLater();
+  });
+}
+
+/**
+ * The foreground handler's error hook (setNotificationHandler, at the top). A glance it did not answer in time was
+ * dropped before reaching the shade: forget that delivery, in line, so its absence is never read as a swipe, then
+ * post once more, unless the one dropped was already that retry.
+ */
+function onGlanceHandlerError(notificationId: string, error: unknown): void {
+  if (!GLANCE_AVAILABLE) return;
+  const verdict = glanceTimeoutVerdict(notificationId, error);
+  if (verdict === null) return;
+  void inGlanceLine(async () => {
+    await saveGlanceMemory(forgetUnlandedGlance(await loadGlanceMemory(), Date.now()));
+  });
+  if (verdict === 'retry') {
+    glanceRetryNext = true;
+    refreshTodayGlance();
   }
 }

@@ -314,6 +314,17 @@ export const fr: Catalog = {
     premiumGivenStatus: "Offert jusqu’au {date}, puis retour à l’album souvenir gratuit du mois. Ça s’arrête tout seul, rien à résilier.",
     premiumGivenStatusPlay: "Offert jusqu’au {date}, puis les extras s’arrêtent tout seuls. Tes tâches et tout le reste ne changent pas. Rien à résilier.",
   },
+  glance: {
+    andMore: 'et d’autres',
+    channelName: 'Aujourd’hui dans tes notifications',
+    firstAndMore: '{title} et d’autres',
+    hint: 'La notification s’en va quand ta journée est terminée, ou à {time} au plus tard. Ton écran de verrouillage l’affiche si ton téléphone le permet.',
+    optionGlance: 'Reste là dès {time}, jusqu’à ce que tout soit fait',
+    optionGlanceSub: 'Se fait discrète dans tes notifications. Ne sonne et ne vibre jamais.',
+    optionNudge: 'Un rappel à {time}',
+    optionNudgeSub: 'Une notification tout en douceur, puis elle s’en va.',
+    tooLate: 'Pour celle-ci, choisis un horaire avant {time}.',
+  },
   landing: {
     alsoOn: 'Également disponible sur iPhone et Android.',
     altCal: 'Le Calendrier : un point doux sur chaque jour où quelque chose a été terminé, et la liste du dimanche, avec Faire mes impôts.',

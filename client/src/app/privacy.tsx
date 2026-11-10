@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 3 November 2026.</Text>
+        <Text style={styles.updated}>Last updated 10 November 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -129,7 +129,9 @@ export default function PrivacyScreen() {
           card, in the capture box, or when several tasks are selected, by the button’s name only, never the task),
           that a task was moved by dragging its grip, which of the Menu’s two ways into Settings you used, whether you saved or cleared a “where you left off”
           line (on the card or in Focus, never the words), that a day was closed in the morning
-          (only that it was, never what was on it), that the welcome-back note appeared after a few days away, and,
+          (only that it was, never what was on it), that the welcome-back note appeared after a few days away,
+          whether you switched “Today in your notifications” on or off (Android only), that a DoubleDone widget is on
+          your home screen (Android only, at most once a day, never what it shows), and,
           in the phone apps, that the app
           asked your app store to show its own rating card, and which store (the store decides whether the card
           appears, and the app is never told whether you rated). A review you choose to write is posted on the store,

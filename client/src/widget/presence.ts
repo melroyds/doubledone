@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import { getWidgetInfo } from 'react-native-android-widget';
 
+import { countWidgetPlaced } from '@/lib/widget-count';
+
 import { WIDGET_NAMES } from './names';
 
 /** Home-screen widgets exist on ANDROID only: this library ships no iOS widget, and web has none.
@@ -16,11 +18,17 @@ export const WIDGETS_SUPPORTED = Platform.OS === 'android';
 //
 // Fails CLOSED on any error: an unknown answer is treated as "they have one", so a hiccup produces
 // silence rather than an unwanted ask. Web has no widgets at all (see presence.web.ts).
+//
+// The launcher's real yes, and only that, also feeds the widget.placed count (lib/widget-count, at
+// most once a day on this device, 2026-11-10). The fail-closed "placed" is a guess made for the
+// offer's sake, so it is never counted, and neither is iOS's early "placed".
 export async function hasWidgetPlaced(): Promise<boolean> {
   if (!WIDGETS_SUPPORTED) return true; // iOS: nothing to place, so nothing to offer
   try {
     const found = await Promise.all(WIDGET_NAMES.map((name) => getWidgetInfo(name)));
-    return found.some((list) => list.length > 0);
+    const placed = found.some((list) => list.length > 0);
+    if (placed) void countWidgetPlaced();
+    return placed;
   } catch {
     return true;
   }

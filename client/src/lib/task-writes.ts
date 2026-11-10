@@ -6,12 +6,14 @@
 // synced row and resurrects a delete, a nudge left armed on a finished task, a widget showing
 // yesterday). So Today's commit and its series handlers live here, word for word, and both screens call
 // them. Nothing in this file knows which screen it is on.
-
-import { updateWidget } from '../widget/update';
+//
+// The home-screen widget is no longer told from here (2026-11-10): saveTasks fires lib/storage's change
+// notice, and the widget follows that (widget/update watchStorageForWidget), so it hears about every write
+// path, not only these.
 
 import { type Recurrence } from './recurrence';
 import { cancelNudge } from './reminders';
-import { loadClosedDate, loadTasks, saveTasks } from './storage';
+import { loadTasks, saveTasks } from './storage';
 import { nowMs, type Task, withMonotonicStamps } from './tasks';
 import { isDoneOn, isRecurring, toggleDoneOn } from './today';
 
@@ -29,23 +31,26 @@ export function clearNudgeIfAny(task: Task): Task {
 }
 
 /**
- * Today's commit, without the React state: stamp, save, and keep the home-screen widget in step.
+ * Today's commit, without the React state: stamp and save. The save's change notice keeps the home-screen
+ * widget in step (see the header).
  *
  * Monotonic updatedAt (see withMonotonicStamps) guarantees a task we changed beats the copy we synced,
  * even one written by the MCP Worker's clock or another device, so a delete or an edit can never lose
  * last-write-wins to a future-stamped remote row and silently resurrect on the next pull. Returns the
  * stamped list, which is what the caller must hold in state.
+ *
+ * `_closedDate` is no longer read: the widget reads the closed day from storage itself now. It stays in
+ * the signature only so Today's frozen call site is untouched.
  */
-export function writeTasks(next: Task[], previous: Task[], closedDate: string | null): Task[] {
-  return stampAndSave(next, previous, closedDate).stamped;
+export function writeTasks(next: Task[], previous: Task[], _closedDate?: string | null): Task[] {
+  return stampAndSave(next, previous).stamped;
 }
 
 // The one body both entry points share, so they cannot come apart. `saved` is there for the queued
 // path below, which must not start the next read before this save has landed.
-function stampAndSave(next: Task[], previous: Task[], closedDate: string | null): { stamped: Task[]; saved: Promise<void> } {
+function stampAndSave(next: Task[], previous: Task[]): { stamped: Task[]; saved: Promise<void> } {
   const stamped = withMonotonicStamps(next, previous);
   const saved = saveTasks(stamped);
-  void updateWidget(stamped, closedDate); // native only; a no-op on web
   return { stamped, saved };
 }
 
@@ -101,9 +106,9 @@ let queue: Promise<unknown> = Promise.resolve();
  */
 export function updateStoredTasks(change: (tasks: Task[]) => Task[], onScreen: Task[]): Promise<Task[]> {
   const run = queue.then(async () => {
-    const [stored, closedDate] = await Promise.all([loadTasks(), loadClosedDate()]);
+    const stored = await loadTasks();
     const base = stored.length === 0 && onScreen.length > 0 ? onScreen : stored;
-    const { stamped, saved } = stampAndSave(change(base), base, closedDate);
+    const { stamped, saved } = stampAndSave(change(base), base);
     await saved;
     return stamped;
   });

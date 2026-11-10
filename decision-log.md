@@ -11932,3 +11932,107 @@ one thing this policy should never hold open-ended.
   view in the dashboard would make it airtight, and the header must never be renamed to something plain (CLAUDE.md).
 - **The first purge is proven:** all 324 rows older than 90 days lost their text on the 23:00 UTC tick, and all 506
   kept their counts.
+
+## 2026-11-10: Today in your notifications, the daily reminder's third choice on Android, and the widget's two truth fixes
+
+A paying user asked to see today's list without opening the app, whenever they pick up the phone, and never with a
+sound or a buzz, because an app that buzzes gets all its notifications silenced. A read-only feasibility pass and two
+skeptics shaped it (BUILD-PLAN, the 2026-11-10 payer feedback, Gap 1). Melroy: "I think get started pretty please."
+Built on the branch `feat/today-glance`: not merged, in no build, and the Worker not deployed.
+
+**Decided:**
+- **The daily reminder's third choice, Android 8 and later only, off by default.** Off, "A nudge at {time}" or "Stays
+  from {time} until done". It replaces the nudge, never both. The style is its own key
+  (`doubledone.reminderstyle.v1`, absent means the nudge) beside the switch and the hour, so every existing reminder is
+  untouched. `enableDailyReminder`, the one place the nudge is scheduled, brings the glance when that is the stored
+  style, so Today's footer, the rested screen's offer, the welcome, the hour stepper and the cold-open sweep follow the
+  choice without knowing about it. A pick that cannot go through leaves the old choice in place and says why. iOS and
+  the web keep their two-way switch.
+- **A daytime window**, from the reminder hour to 21:30, the minute Hold me to it's quiet hours begin. Nothing shows
+  outside it, and from a 21:00 hour Settings asks for an earlier time. Today's arrival is scheduled while its hour is
+  still ahead, so picking it before the hour still brings it that day.
+- **What it says:** "Today" over the open tasks due today in Today's own order (the pin, then the held task, then the
+  manual order, from the same helper as the widget), titles only. Collapsed, the first title and ", and more".
+  Expanded, up to four titles, then "and more". Never a number. Shared Ours rows are not in it, so the copy never calls
+  it what Today shows, never says "live" and never promises the lock screen. A title past 120 characters is cut with
+  an ellipsis and the post carries a short fingerprint of its words, not the words again: the post is handed to
+  Android in one piece after every save, and a parcel too large for that crashes the app from a background thread.
+- **It leaves when the day is done, and comes back if that changes:** on Goodnight, the last tick or an empty day it
+  goes, and Reopen, an untick or a new task brings it back the same day. When a refresh takes it down, the app forgets
+  every sign that it went up (`forgetGlanceSigns`: the post, the sighting, the arrival), so its own leave never reads
+  as a swipe. An account wipe forgets them only for a glance that was showing (or a shade it could not read), and
+  keeps them for one already gone, because forgetting on every wipe would erase a swipe nobody had judged yet. A post
+  still landing is never kept, and the cancelled arrival always goes. A half-done Off forgets the signs and any
+  verdict, so choosing it again the same day shows it at once, as after a clean Off. Forgetting beat stamping the
+  moment of the take-down: a stamp compares clock times, so a clock moved back would have hidden real swipes (found
+  by the skeptic pass). The first build read the spec
+  literally ("nothing more that day") and this was changed before the PR: someone who adds a task after finishing
+  would lose the very glance they rely on to remember it. **A swipe means not today.** The app cannot see
+  a swipe, so a glance that went up today and is not showing now counts as put away until the next day's arrival. A
+  restart, an update and a force stop look the same and get the same answer: missing beats wrong. A fresh post gets ten
+  seconds to land before its absence counts, because a post made with the app open passes the JS handler first.
+- **What the shade shows outranks the verdict.** Without "Alarms & reminders" (Android 14's default) the arrival is
+  inexact and often fires as the app opens, so the cold open can read it as fired and missing while it is still in the
+  foreground handler. So today's glance showing always counts as not put away, verdict or not, and a handler timeout
+  clears a verdict unless today's glance was seen showing, so its one retry posts. One case stays the decided rule read
+  literally, for Melroy to call after the device pass: a phone restarted before the hour and first unlocked after it
+  drops that morning's arrival unfired (alarms are re-armed only at the first unlock, and expo then discards one already
+  past), and the app cannot tell that from a swipe without a native signal, so nothing shows that day (AND-22).
+- **Silent at three layers.** Its own channel, `today-glance`, at DEFAULT importance with no sound, vibration, lights
+  or badge, created before every post and every schedule (a missing channel falls back to expo-notifications' own HIGH
+  one, which pops up and buzzes). Content with the sound off. And a branch in the existing expo-notifications patch,
+  taken only when the data says `glance: true`: only-alert-once, no timestamp, the expanded list as big text, and an
+  absolute expiry at 21:30 (`expiresAtMs`), so an alarm that fires late cannot leave it up into the night. Every other
+  notification is built exactly as before. It is ongoing and not auto-dismissed, so a tap opens the app and it stays,
+  and with the app open it goes to the shade only, never as a banner.
+- **One refresh, from storage.** A change notice after every successful save of the tasks, the closed day, the held
+  task and the reminder's own settings reaches every write path (Today, the sync, the sweeps, Ours, Chart, the welcome,
+  Goodnight, Reopen) without touching the frozen Today, plus the cold open and the return to the foreground. Debounced
+  to one a second, an unchanged list is not posted again, and a foreground handler that times out gets one retry. Each
+  refresh cancels the one scheduled arrival, before any post, and schedules the next with that day's list computed
+  now. So arrivals continue only while the app is used, one morning ahead. Two seams of timing are closed: after any
+  post or take-down the app looks once more ten seconds later, because a post still in the handler can land after a
+  take-down that came next (an old list up after Goodnight, or a deleted account's titles after a wipe), and that look
+  books no other. And an arrival the phone took only after its moment, which expo drops unfired while the call still
+  succeeds, is never recorded as scheduled: the app refreshes and posts it itself.
+- **The widget's two truth fixes ride with it.** The widget lists open tasks in Today's own order, and the same notice
+  refreshes it, so Goodnight, Reopen and a sync reach it at once instead of at its 30-minute tick. Saving the held
+  task fires the notice too, because the hold moves a task in that order.
+- **A notification icon at last:** a white double tick on transparent, colour #946475, through the expo-notifications
+  config plugin, so every DoubleDone notification shows the mark in the status bar instead of whatever Android made of
+  the launcher icon. Its ink sits centred inside Material's 20dp live area, so a round template never clips it.
+- **Counted, so it reaches everyone on behaviour, not on a kind word:** `glance.on` and `glance.off` (Settings' picks
+  only: Today's footer changes the switch, not the style, and counts neither) and `widget.placed` (the launcher's real
+  yes, at most once a day per device), bare names on both allowlists and in both privacy copies. Stored once Melroy
+  deploys the Worker.
+- **The account wipe takes it down explicitly,** its scheduled arrival included, because that arrival holds task
+  titles. The app-open sweep never touches it, and the Routines health count leaves its arrival out, so the "nothing
+  scheduled" warning still shows.
+
+**Decided against:**
+- **A foreground service:** a running service, a service type and a Play declaration, for a list that only needs
+  posting.
+- **notifee:** a second notification library, with its own native code and channels, beside the one already patched,
+  for three builder calls.
+- **A LOW or MIN channel:** stock Android keeps LOW off the lock screen unless silent notifications are allowed there,
+  and MIN never shows in the status bar or on the lock screen.
+- **The channel's lock-screen option:** Android overwrites it on every channel an app creates, so it would do nothing.
+  A redacted public version waits too, because people who hide sensitive content already get Android's own redaction.
+- **Any count** ("3 left today", "+2 more"): a number in view all day reads as a debt on a bad day. The widget's own
+  "+{count} more" line is the one known exception: it predates this rule, this work fixed only the widget's order and
+  freshness, and its words wait in the BUILD-PLAN Backlog with a trigger.
+- **Offering it on Android 7 (API 24 and 25), which the app still installs on:** no channels and no expiry there, so it
+  could be kept silent only by its own content, and an arrival with the app never opened would stay up all night,
+  undismissable before Android 14. Those phones keep the two-way switch, as iOS and the web do.
+- **Midnight to midnight:** it put the list on a bedside lock screen at 00:01, and a late midnight alarm could leave
+  yesterday's list up in the morning.
+- **A refresh from the widget's handler:** the widget's 30-minute update would keep posting a lapsed user's backlog day
+  after day, so they would never meet the welcome-back card, and notifications from the headless task were untested.
+- **Android Live Updates and Samsung's Now Bar:** Google keeps Live Updates for ongoing, user-initiated, time-sensitive
+  activities and sends quick access to a widget instead, the Now Bar takes other apps only through Live Updates, and
+  expo-notifications has no support for either.
+- **Posting it again after a swipe:** the swipe is the only "not today" the shade can say, and an app that will not
+  stay put away is the kind that gets silenced.
+- From the build itself: a widget refresh inside the task writer (the notice is the one path), a notice for the tasks
+  and the closed day only (the hold and the reminder's settings change what shows), and a separately stored order for
+  the widget (it reuses Today's own helper).

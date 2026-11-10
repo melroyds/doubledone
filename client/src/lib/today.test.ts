@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { type Recurrence } from './recurrence';
-import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, groupLater, hasActiveTinyChild, LATER_NEAR_DAYS, laterFoldKey, healStuckParents, holdSecond, isDoneOn, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
+import { applyManualOrder, completeAncestors, deferTo, deferToTomorrow, groupLater, hasActiveTinyChild, LATER_NEAR_DAYS, laterFoldKey, healStuckParents, holdSecond, isDoneOn, openInTodaysOrder, pinFirst, renameTask, resurfaceOpenParent, setBig, setPin, setSequence, settleCompletions, skipOn, tasksForToday, tinyParentTitle, toggleDoneOn, type Scheduled, upcomingTasks, tuckFinished } from './today';
 
 const today = new Date(2026, 5, 17);
 const iso = '2026-06-17';
@@ -915,5 +918,32 @@ describe('tuckFinished', () => {
     const { open: shown, tucked } = tuckFinished(rows, day, [], null);
     expect(shown).toEqual(rows);
     expect(tucked).toEqual([]);
+  });
+});
+
+// The surfaces outside the app (the widget, the notification) name Today's top row, so they take Today's order
+// through one helper rather than a copy of the expression (2026-11-10). Before it, the widget kept stored order.
+describe('openInTodaysOrder', () => {
+  const t = (id: string, over: Record<string, unknown> = {}) => ({ id, title: id, done: false, createdAt: 1, updatedAt: 1, ...over });
+  const ids = (list: { id: string }[]) => list.map((x) => x.id);
+
+  it("is Today's order, pin then held then manual order then stored, less what is done today", () => {
+    const list = [t('a'), t('b', { manualOrder: 1 }), t('c', { manualOrder: 0 }), t('pin', { pinnedAt: 5 }), t('held'), t('done', { done: true, completedAt: today.getTime() })];
+    expect(ids(openInTodaysOrder(list, today, 'held'))).toEqual(['pin', 'held', 'c', 'b', 'a']);
+    expect(ids(openInTodaysOrder(list, today))).toEqual(['pin', 'c', 'b', 'a', 'held']);
+  });
+
+  it("matches Today's visible rows filtered to the open ones, for every held choice", () => {
+    const list = [t('x'), t('pin', { pinnedAt: 3, done: true, completedAt: today.getTime() }), t('r', { recurrence: daily, completedDates: [iso] }), t('y', { manualOrder: 0 }), t('z')];
+    for (const held of [null, 'x', 'pin', 'r', 'y', 'z', 'missing']) {
+      const visible = holdSecond(pinFirst(applyManualOrder(tasksForToday(list, today))), held);
+      expect(ids(openInTodaysOrder(list, today, held))).toEqual(ids(visible.filter((v) => !isDoneOn(v, today))));
+    }
+  });
+
+  // The guard on the frozen screen: if Today's order ever changes, this fails and points at the helper above.
+  it('is the expression today.tsx draws its rows with', () => {
+    const src = readFileSync(join(__dirname, '../app/today.tsx'), 'utf8');
+    expect(src).toContain('holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, today))), ');
   });
 });

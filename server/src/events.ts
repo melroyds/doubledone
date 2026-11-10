@@ -65,6 +65,13 @@ export const APP_EVENTS = new Set([
   // welcome-back note after four or more days away. Bare names, read as distinct days.
   'day.closed.morning',
   'reentry.shown',
+  // "Today in your notifications" (2026-11-10, Android, opt-in): the daily reminder's glance style
+  // chosen in Settings, or left. Whether it is kept on is what decides if it goes to everyone.
+  'glance.on',
+  'glance.off',
+  // A DoubleDone widget on this phone's home screen, at most once a day per device (the app's own
+  // check that it is really there). Read as distinct days, the demand behind both glance surfaces.
+  'widget.placed',
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.

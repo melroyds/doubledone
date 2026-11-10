@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampHour, clampMinute, formatReminderHour, reminderOffsetStale, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL, MAX_NUDGE_LIFETIME_MS, slotTimeoutsMs } from './reminders-types';
+import { clampHour, clampMinute, formatReminderHour, reminderOffsetStale, formatReminderTime, nextDailySlot, type ReminderReason, reminderReasonLine , staleNudgeIdentifiers, RHYTHM_CHANNEL, DAILY_CHANNEL, TASK_NUDGE_CHANNEL, GLANCE_CHANNEL, GLANCE_ID, MAX_NUDGE_LIFETIME_MS, slotTimeoutsMs } from './reminders-types';
 
 describe('reminderOffsetStale (the web reminder across daylight saving)', () => {
   it('is stale with nothing recorded, so every older subscription is refreshed once', () => {
@@ -146,6 +146,21 @@ describe('staleNudgeIdentifiers (the app-open guilt-pile sweep)', () => {
   it('keeps anything unrecognised: never over-dismiss', () => {
     expect(staleNudgeIdentifiers([n('x', null), n('y', 'some-future-channel'), n('nudge-task1', null)])).toEqual([]);
     expect(staleNudgeIdentifiers([])).toEqual([]);
+  });
+
+  // "Today in your notifications" is today's list, there to be seen with the app closed. Opening the app is
+  // exactly when it must NOT vanish, so the sweep never returns it, by id or by channel, whatever else matches.
+  it('never returns the glance, by its id or its channel, even beside a sweep-matching channel', () => {
+    const presented = [n(GLANCE_ID, GLANCE_CHANNEL), n(GLANCE_ID, null), n(GLANCE_ID, DAILY_CHANNEL), n('other', GLANCE_CHANNEL), n('d1', DAILY_CHANNEL)];
+    expect(staleNudgeIdentifiers(presented)).toEqual(['d1']);
+  });
+
+  it('gives the glance an id and a channel of its own, distinct from every other family', () => {
+    expect(GLANCE_CHANNEL).toBe('today-glance');
+    expect(GLANCE_ID).toBe('doubledone-glance');
+    for (const channel of [DAILY_CHANNEL, RHYTHM_CHANNEL, TASK_NUDGE_CHANNEL]) expect(GLANCE_CHANNEL).not.toBe(channel);
+    expect(GLANCE_ID).not.toBe('doubledone-daily');
+    expect(GLANCE_ID.startsWith('rhythm-') || GLANCE_ID.startsWith('routine-')).toBe(false);
   });
 });
 

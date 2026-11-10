@@ -23,6 +23,14 @@ phones with the store build in the week of 16 to 22 Nov. The entries marked **(o
 an account (2026-11-03): built and reviewed, but not yet on the web, the Worker or any phone._
 
 ### Added
+- **Today in your notifications** (Android 8 and later, on branch `feat/today-glance` only: not merged, in no build).
+  The daily reminder becomes three choices there: Off, a nudge at your hour, or today's open tasks sitting quietly in the
+  notifications from your hour until the day is done or 9:30 pm, in Today's own order, titles only, never a sound, a
+  buzz or a count. It leaves on Goodnight, the last tick or an empty day, and a swipe means not today. Off by default,
+  so nothing changes for anyone who does not pick it. Every DoubleDone notification gets a white double-tick icon, and
+  two bare counts (`glance.on` / `glance.off`, `widget.placed`) are named in both privacy copies. iOS and the web keep
+  the reminder they have ([`client/src/lib/glance.ts`](client/src/lib/glance.ts),
+  [`client/src/lib/reminders.ts`](client/src/lib/reminders.ts)).
 - **Premium works on an iPhone without an account** (on main only). Apple lets an iPhone buy Premium signed
   out, but Scan, Chart a course, Plan my day and Reflect on this week check Premium on our server, which needed an
   account, so they refused a paying customer. Now the phone sends its anonymous RevenueCat id, the Worker checks it
@@ -65,6 +73,9 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   "the Lookback".
 
 ### Fixed
+- **The Android widget lists Today's open tasks in Today's own order** (the pin, then the held task, then your order)
+  **and updates at once on Goodnight, Reopen and a sync**, where only Today's own edits used to reach it, so a closed
+  day could show as open for up to half an hour (on branch `feat/today-glance` only).
 - **Chart a course, Reflect on this week and Scan answer in the app's language.** They sent none, so a German,
   French, Spanish or Italian app got English answers (web now, the phones with the store build).
 - **A Premium feature that cannot run says why** (on main only). Scan, Chart a course, Plan my day and Reflect on
