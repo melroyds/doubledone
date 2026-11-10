@@ -323,6 +323,19 @@ export const en = {
     premiumGivenStatus: 'On us until {date}, then back to the free monthly scrapbook. It ends by itself, nothing to cancel.',
     premiumGivenStatusPlay: 'On us until {date}, then the extras switch off on their own. Your tasks and everything else stay as they are. Nothing to cancel.',
   },
+  // "Today in your notifications" (lib/glance, Android). Titles only, never a number. The copy never says "live"
+  // and never promises the lock screen: the phone's own settings decide that.
+  glance: {
+    andMore: 'and more',
+    channelName: 'Today in your notifications',
+    firstAndMore: '{title}, and more',
+    hint: "It leaves when the day's done, or by {time}. Your lock screen shows it if your phone allows.",
+    optionGlance: 'Stays from {time} until done',
+    optionGlanceSub: 'Sits quietly in your notifications. Never sounds or buzzes.',
+    optionNudge: 'A nudge at {time}',
+    optionNudgeSub: "One gentle notification, then it's gone.",
+    tooLate: 'Pick a time before {time} for this one.',
+  },
   landing: {
     alsoOn: 'Also on iPhone and Android.',
     altCal: "The Calendar: a soft dot on each day something was finished, and Sunday's list, with Do my taxes.",

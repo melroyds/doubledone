@@ -26,6 +26,19 @@ import type * as StorefrontAndroid from './storefront.android';
 // ESLint's resolver reads the bare './store-review' as the .web.ts file, and this pair as a duplicate.
 import type * as StoreReviewBase from './store-review';
 import type * as StoreReviewWeb from './store-review.web';
+// The widget's updater has store-review's shape (native base, web stub). Added 2026-11-10, when it gained
+// refreshWidget and watchStorageForWidget, which the root layout imports on every platform.
+import type * as WidgetUpdateBase from '../widget/update';
+import type * as WidgetUpdateWeb from '../widget/update.web';
+// The reminders seam has the same shape (native base for iPhone and Android, web stub). Added 2026-11-10 with the
+// glance (GLANCE_AVAILABLE, enableTodayGlance, disableTodayGlance, refreshTodayGlance, watchTodayGlance), which
+// Settings and the root layout import on every platform. Adding it found dismissStaleNudges missing on the web.
+import type * as RemindersBase from './reminders';
+import type * as RemindersWeb from './reminders.web';
+// The widget's presence check, the same shape again (native base, web stub that always answers "placed"). Added
+// 2026-11-10, when its real yes began feeding the widget.placed count: Today imports it on every platform.
+import type * as WidgetPresenceBase from '../widget/presence';
+import type * as WidgetPresenceWeb from '../widget/presence.web';
 /* eslint-enable import/no-duplicates */
 
 type Widen<T> = T extends boolean ? boolean : T;
@@ -39,9 +52,15 @@ export type PurchasesIosKeys = Holds<SameKeys<typeof PurchasesBase, typeof Purch
 export type PurchasesAndroidKeys = Holds<SameKeys<typeof PurchasesBase, typeof PurchasesAndroid>>;
 export type StorefrontAndroidKeys = Holds<SameKeys<typeof StorefrontBase, typeof StorefrontAndroid>>;
 export type StoreReviewWebKeys = Holds<SameKeys<typeof StoreReviewBase, typeof StoreReviewWeb>>;
+export type WidgetUpdateWebKeys = Holds<SameKeys<typeof WidgetUpdateBase, typeof WidgetUpdateWeb>>;
+export type RemindersWebKeys = Holds<SameKeys<typeof RemindersBase, typeof RemindersWeb>>;
+export type WidgetPresenceWebKeys = Holds<SameKeys<typeof WidgetPresenceBase, typeof WidgetPresenceWeb>>;
 
 // Same types for every shared name. A mismatch makes the union `boolean`, which is not `true`.
 export type PurchasesIosTypes = Holds<SameTypes<typeof PurchasesBase, typeof PurchasesIos>>;
 export type PurchasesAndroidTypes = Holds<SameTypes<typeof PurchasesBase, typeof PurchasesAndroid>>;
 export type StorefrontAndroidTypes = Holds<SameTypes<typeof StorefrontBase, typeof StorefrontAndroid>>;
 export type StoreReviewWebTypes = Holds<SameTypes<typeof StoreReviewBase, typeof StoreReviewWeb>>;
+export type WidgetUpdateWebTypes = Holds<SameTypes<typeof WidgetUpdateBase, typeof WidgetUpdateWeb>>;
+export type RemindersWebTypes = Holds<SameTypes<typeof RemindersBase, typeof RemindersWeb>>;
+export type WidgetPresenceWebTypes = Holds<SameTypes<typeof WidgetPresenceBase, typeof WidgetPresenceWeb>>;

@@ -233,7 +233,7 @@ Set or rotate the token (pick any long random string; it lives only in the Worke
 
 Unset, the page answers 503, never an open dashboard. Stripe and RevenueCat's own dashboards
 remain the deep-dive for money; Play Console and App Store Connect for installs. The client's
-`track()` calls stay on the device, except a closed list of twenty feature names, which post to
+`track()` calls stay on the device, except a closed list of twenty-six feature names, which post to
 `/event` and land in D1 `app_event_counts` as one counter per name per day
 ([`client/src/lib/telemetry.ts`](../client/src/lib/telemetry.ts),
 [`server/src/events.ts`](../server/src/events.ts)).

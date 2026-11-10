@@ -7,8 +7,10 @@ import { DEFAULT_SETTINGS, parseSettings, serializeSettings, type Settings } fro
 import { deserialize, SEED, serialize, type Task } from './tasks';
 import { track } from './telemetry';
 import { NO_RENEWAL_MEMORY, type RenewalMemory } from './renewal';
-import { type HoldContract } from './hold';
+import { type HoldContract, parseHoldContract } from './hold';
 import { FRESH_REVIEW_MEMORY, parseReviewMemory, type ReviewMemory, serializeReviewMemory } from './review';
+import { parseReminderStyle, type ReminderStyle } from './glance';
+import { emptyGlanceMemory, type GlanceMemory, parseGlanceMemory, serializeGlanceMemory } from './glance-refresh';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
@@ -25,11 +27,14 @@ const ACCOUNT_KEY = 'doubledone.account.v1';
 const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, so the footer can tell the truth
 const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const WIDGETOFFER_KEY = 'doubledone.widgetoffer.v1'; // one-time "offer the home-screen widget" on the rested screen
+const WIDGETCOUNT_KEY = 'doubledone.widgetcount.v1'; // the last day (YYYY-MM-DD) this device counted a placed widget (lib/widget-count)
 const SCRAPBOOKOFFER_KEY = 'doubledone.scrapbookoffer.v1'; // one-time "your week could be a keepsake" mention, the ladder's last rung
 const SETTLEGUIDE_KEY = 'doubledone.settleguide.v1'; // the breathing room's ONE remembered toggle (never a settings screen)
 const RENEWAL_KEY = 'doubledone.renewal.v1'; // what this device knows about an annual subscription's shape (see lib/renewal)
 const WHATSNEW_KEY = 'doubledone.whatsnew.v1'; // the last What's New content id this device has seen
 const REMINDERHOUR_KEY = 'doubledone.reminderhour.v1'; // the hour (0-23) the daily reminder fires; default 9am
+const REMINDERSTYLE_KEY = 'doubledone.reminderstyle.v1'; // 'nudge' (absent = nudge) or 'glance' (Android): see lib/glance
+const GLANCE_KEY = 'doubledone.glance.v1'; // what the glance's native seam remembers between refreshes, no content (lib/glance-refresh)
 const DEV_PREMIUM_KEY = 'doubledone.devPremium.v1'; // DEV/preview only: the premium-flag override (see premium-flag.ts)
 const TRIALUSED_KEY = 'doubledone.trialused.v1'; // + '.' + user id: this account has had its free month (Android, lib/storefront)
 const HOLD_KEY = 'doubledone.hold.v1'; // the ONE live "Hold me to it" contract, or absent (see lib/hold)
@@ -54,6 +59,55 @@ const OFFERCARD_KEY = 'doubledone.offercard.v1'; // 'retired' once Not now or an
 const GIFTOFFER_KEY = 'doubledone.giftoffer.v1'; // the last successful "can get a month" answer: { canGet, at }
 const MONTHEND_KEY = 'doubledone.monthend.v1'; // a free month's end, so its end line can fire once: { end, kind, shown, due }
 
+// ---- The storage change notice (2026-11-10, "Today in your notifications").
+//
+// Every write path for the day already ends here: Today's commit, the sync merge, the resume and focus sweeps,
+// the shared settle, Chart, the welcome, Ours, Goodnight and Reopen all finish in saveTasks or saveClosedDate.
+// So the surfaces that live OUTSIDE the app (the home-screen widget, the notification) hear about a change from
+// this one hook rather than from each screen, and no screen has to remember to tell them. Until this, only
+// Today's commit refreshed the widget, so Goodnight, Reopen and a sync left it showing the old day.
+//
+// A notice fires only after a write SUCCEEDED (a failed save changed nothing to show), and synchronously, so
+// listeners must only start their work: a refresh that reads storage again, never a long job in line. A
+// listener's failure, thrown or rejected, never reaches the save that triggered it. Saving the held task fires
+// one too, because the hold decides Today's order (holdSecond), and so the order those surfaces show.
+//
+// The daily reminder's settings (on, hour, style) fire 'reminder', because the notification IS the reminder in its
+// glance style: whichever screen switches it off, moves its hour or changes its style (Settings, or Today's own
+// footer link, which only saves the switch), the notification follows from the save itself, so it can never act on
+// a setting that has not landed yet. The widget does not depend on them and ignores it.
+
+/** What changed: the task list, the closed day, the held task, the daily reminder's settings, or everything at once
+ *  (an account wipe). */
+export type StorageChange = 'tasks' | 'closed' | 'hold' | 'reminder' | 'wipe';
+export type StorageChangeListener = (change: StorageChange) => void;
+
+// An entry per subscription, so subscribing the same function twice needs two unsubscribes, as it should.
+const changeListeners = new Set<{ listener: StorageChangeListener }>();
+
+/** Hear about every successful write of the tasks, the closed day or the held task, and every wipe. Returns the
+ *  unsubscribe, which is safe to call more than once. */
+export function subscribeStorageChange(listener: StorageChangeListener): () => void {
+  const entry = { listener };
+  changeListeners.add(entry);
+  return () => {
+    changeListeners.delete(entry);
+  };
+}
+
+function noticeChange(change: StorageChange): void {
+  // A copy, so a listener that unsubscribes (or subscribes another) mid-notice cannot disturb this round.
+  for (const { listener } of [...changeListeners]) {
+    try {
+      const out: unknown = listener(change);
+      // An async listener's rejection is swallowed here too, never left to surface as an unhandled one.
+      if (out != null && typeof (out as PromiseLike<unknown>).then === 'function') (out as Promise<unknown>).then(undefined, () => undefined);
+    } catch {
+      // a listener's failure never reaches the save that triggered it
+    }
+  }
+}
+
 /**
  * Load Today's tasks. On a brand-new install (nothing ever stored) seed once so
  * the first open is not an empty void. An explicit empty list, the user cleared
@@ -74,13 +128,29 @@ export async function loadTasks(): Promise<Task[]> {
   return deserialize(raw);
 }
 
-/** Persist Today's tasks. Storage failures are logged, never thrown at the UI. */
+/**
+ * The stored tasks for a reader that must never write: no seeding on a fresh install (that is loadTasks' job, on
+ * Today's first open), and null when the read FAILS, so a surface outside the app (the widget, the notification)
+ * keeps what it shows rather than drawing an empty day it does not know is empty. Nothing stored reads as [].
+ */
+export async function peekTasks(): Promise<Task[] | null> {
+  try {
+    return deserialize(await AsyncStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** Persist Today's tasks. Storage failures are logged, never thrown at the UI. A successful save tells the
+ *  change notice ('tasks'), which is how the widget and the notification follow every write path. */
 export async function saveTasks(tasks: Task[]): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, serialize(tasks));
   } catch {
     track('store.save_failed', { count: tasks.length });
+    return;
   }
+  noticeChange('tasks');
 }
 
 /** Whether the daily reminder is on (persisted toggle). */
@@ -92,12 +162,54 @@ export async function loadReminderOn(): Promise<boolean> {
   }
 }
 
-/** Persist the daily-reminder toggle. */
+/** Persist the daily-reminder toggle. A successful save tells the change notice ('reminder'), so the notification
+ *  follows an Off from any screen. */
 export async function saveReminderOn(on: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, on ? 'on' : 'off');
   } catch {
-    // best effort
+    return; // best effort
+  }
+  noticeChange('reminder');
+}
+
+/** The daily reminder's style: the one gentle nudge, or "Today in your notifications" (the glance, Android). Anything
+ *  but a stored 'glance' is the nudge, so every existing user is unchanged. Off is the toggle, never a style. */
+export async function loadReminderStyle(): Promise<ReminderStyle> {
+  try {
+    return parseReminderStyle(await AsyncStorage.getItem(REMINDERSTYLE_KEY));
+  } catch {
+    return 'nudge';
+  }
+}
+
+/** Persist the daily reminder's style. A successful save tells the change notice ('reminder'). */
+export async function saveReminderStyle(style: ReminderStyle): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDERSTYLE_KEY, style);
+  } catch {
+    return; // best effort
+  }
+  noticeChange('reminder');
+}
+
+/** What the glance's native seam remembers between refreshes (lib/glance-refresh): moments and a day, never task
+ *  content. Unreadable reads as empty, which costs at most one glance shown again on a day it was put away. */
+export async function loadGlanceMemory(): Promise<GlanceMemory> {
+  try {
+    return parseGlanceMemory(await AsyncStorage.getItem(GLANCE_KEY));
+  } catch {
+    return emptyGlanceMemory();
+  }
+}
+
+/** Persist the seam's memory. Best effort, and deliberately silent: it is the notification's own bookkeeping, so it
+ *  tells no change notice (a notice here would set the notification refreshing itself). */
+export async function saveGlanceMemory(memory: GlanceMemory): Promise<void> {
+  try {
+    await AsyncStorage.setItem(GLANCE_KEY, serializeGlanceMemory(memory));
+  } catch {
+    // best effort: the next refresh judges again from what it can read
   }
 }
 
@@ -112,13 +224,15 @@ export async function loadReminderHour(): Promise<number> {
   }
 }
 
-/** Persist the daily-reminder hour (0-23). Best effort. */
+/** Persist the daily-reminder hour (0-23). Best effort. A successful save tells the change notice ('reminder'): the
+ *  hour opens the glance's window. */
 export async function saveReminderHour(hour: number): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDERHOUR_KEY, String(Math.max(0, Math.min(23, Math.round(hour)))));
   } catch {
-    // best effort
+    return; // best effort
   }
+  noticeChange('reminder');
 }
 
 /**
@@ -156,14 +270,16 @@ export async function loadClosedDate(): Promise<string | null> {
   }
 }
 
-/** Persist (or clear, when null) the closed-day date. Best effort. */
+/** Persist (or clear, when null) the closed-day date. Best effort. Goodnight and Reopen both land here, so a
+ *  successful write tells the change notice ('closed'). */
 export async function saveClosedDate(iso: string | null): Promise<void> {
   try {
     if (iso) await AsyncStorage.setItem(CLOSED_KEY, iso);
     else await AsyncStorage.removeItem(CLOSED_KEY);
   } catch {
-    // best effort
+    return; // best effort
   }
+  noticeChange('closed');
 }
 
 /** The ISO date the user marked a low-capacity day on, or null. Per-day, like the
@@ -443,6 +559,21 @@ export async function saveWidgetOfferMade(): Promise<void> {
     await AsyncStorage.setItem(WIDGETOFFER_KEY, 'yes');
   } catch {
     // best effort
+  }
+}
+
+/**
+ * Claim `day`'s one widget.placed count for this device (lib/widget-count): true for the first claim of a day, which
+ * stamps it, false for every later claim that day. A failed read or write answers false, so a storage hiccup can only
+ * miss a count, never send two. Device bookkeeping, not personal content, so the account wipe leaves it.
+ */
+export async function claimWidgetCountDay(day: string): Promise<boolean> {
+  try {
+    if ((await AsyncStorage.getItem(WIDGETCOUNT_KEY)) === day) return false;
+    await AsyncStorage.setItem(WIDGETCOUNT_KEY, day);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -843,6 +974,10 @@ export async function untuckPair(pairId: string): Promise<void> {
  * motion, the reminder toggle, the onboarded flag), which are not personal content. Tasks
  * are set to an explicit empty rather than removed, so loadTasks does not re-seed the
  * welcome examples onto a just-cleared device.
+ *
+ * Ends with a 'wipe' change notice, after everything is gone, so the surfaces outside the app (the
+ * widget, the notification and its scheduled next arrival, which holds task titles) can clear
+ * themselves explicitly rather than work it out from an empty list.
  */
 export async function wipeLocalData(): Promise<void> {
   await saveTasks([]);
@@ -855,31 +990,33 @@ export async function wipeLocalData(): Promise<void> {
   } catch {
     // best effort, like the per-key savers above
   }
+  noticeChange('wipe');
 }
 
 /** The one live "Hold me to it" contract, or null. A malformed stored value reads as null:
- *  losing a contract to corruption is recoverable (the user holds again), a crash is not. */
+ *  losing a contract to corruption is recoverable (the user holds again), a crash is not.
+ *  The parse is lib/hold's parseHoldContract, which the headless widget shares. */
 export async function loadHold(): Promise<HoldContract | null> {
   try {
-    const raw = await AsyncStorage.getItem(HOLD_KEY);
-    if (raw === null) return null;
-    const v = JSON.parse(raw) as Partial<HoldContract>;
-    if (typeof v?.taskId !== 'string' || typeof v?.title !== 'string' || typeof v?.heldAt !== 'number') return null;
-    return { taskId: v.taskId, title: v.title, heldAt: v.heldAt, notifIds: Array.isArray(v.notifIds) ? v.notifIds.filter((x): x is string => typeof x === 'string') : [] };
+    return parseHoldContract(await AsyncStorage.getItem(HOLD_KEY));
   } catch {
     return null;
   }
 }
 
 /** Persist the contract; null clears it. Failures are silent, matching every save here: the
- *  in-memory state stays correct for this session either way. */
+ *  in-memory state stays correct for this session either way. A successful write tells the
+ *  change notice ('hold'): the held task sits under the pin on Today, so it moves the order the
+ *  widget and the notification show. */
 export async function saveHold(contract: HoldContract | null): Promise<void> {
   try {
     if (contract === null) await AsyncStorage.removeItem(HOLD_KEY);
     else await AsyncStorage.setItem(HOLD_KEY, JSON.stringify(contract));
   } catch {
     track('store.save_failed', { what: 'hold' });
+    return;
   }
+  noticeChange('hold');
 }
 
 // ---- "A month on us" (2026-10-25). Every reader here falls back calmly: a lost value only delays a card or a line.

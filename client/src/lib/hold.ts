@@ -61,6 +61,23 @@ export type HoldContract = {
   notifIds: string[];
 };
 
+/**
+ * The stored contract (storage key doubledone.hold.v1) read defensively: null for nothing stored, junk, or a
+ * half-written shape. Losing a contract to corruption is recoverable (the user holds again), a crash is not.
+ * Shared by storage's loadHold and the headless widget, which reads the raw value itself, so Today and the
+ * widget always agree on whether a task is held.
+ */
+export function parseHoldContract(raw: string | null): HoldContract | null {
+  if (raw === null) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<HoldContract> | null;
+    if (typeof v?.taskId !== 'string' || typeof v?.title !== 'string' || typeof v?.heldAt !== 'number') return null;
+    return { taskId: v.taskId, title: v.title, heldAt: v.heldAt, notifIds: Array.isArray(v.notifIds) ? v.notifIds.filter((x): x is string => typeof x === 'string') : [] };
+  } catch {
+    return null;
+  }
+}
+
 const minutesIntoDay = (d: Date): number => d.getHours() * 60 + d.getMinutes();
 
 /** Shift a time out of quiet hours: anything from 21:30 lands on the NEXT 08:30. */

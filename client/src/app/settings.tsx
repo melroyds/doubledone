@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
 import { Segmented } from '@/components/Segmented';
+import { radioDoor } from '@/components/radio-door';
 import { border, fonts, layout, PREMIUM_GRADIENT, PREMIUM_GRADIENT_LOCATIONS, PRESSED_OPACITY, radius, spacing, THEME_PRESETS, type Theme } from '@/constants/theme';
 import { billedByStore, deleteAccount } from '@/lib/account';
 import { forgetZone, tokenForAssistant } from '@/lib/account-zone';
@@ -16,6 +17,7 @@ import { useSession } from '@/lib/auth';
 import { copyWhenReady } from '@/lib/copy-later';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
+import { type ReminderStyle } from '@/lib/glance';
 import { spoken } from '@/lib/i18n';
 import { deviceTimeZone, t } from '@/lib/locale';
 import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
@@ -26,11 +28,33 @@ import { accountKeepsakeImages } from '@/lib/scrapbook-sync';
 import { SELLS_HERE } from '@/lib/storefront';
 import { usePremium } from '@/lib/premium-provider';
 import { STORE_SOURCE } from '@/lib/purchases';
+import {
+  applyReminderChoice,
+  glanceSettingsLine,
+  onePickAtATime,
+  type ReminderChoice,
+  reminderChoiceOf,
+  type ReminderChoiceSteps,
+  reminderOptions,
+} from '@/lib/reminder-choice';
 import { hourReapply } from '@/lib/reminder-hour';
-import { disableDailyReminder, enableDailyReminder } from '@/lib/reminders';
+import { disableDailyReminder, disableTodayGlance, enableDailyReminder, enableTodayGlance, GLANCE_AVAILABLE } from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
-import { loadGiftOffer, loadLastSyncOk, loadReminderHour, loadReminderOn, loadScrapbooks, loadTasks, saveGiftOffer, saveReminderHour, saveReminderOn, wipeLocalData } from '@/lib/storage';
+import {
+  loadGiftOffer,
+  loadLastSyncOk,
+  loadReminderHour,
+  loadReminderOn,
+  loadReminderStyle,
+  loadScrapbooks,
+  loadTasks,
+  saveGiftOffer,
+  saveReminderHour,
+  saveReminderOn,
+  saveReminderStyle,
+  wipeLocalData,
+} from '@/lib/storage';
 import { authHeader, supabase } from '@/lib/supabase';
 import { checkForUpdate, currentPlatform } from '@/lib/update-check';
 import { runningVersion, type UpdateStatus, updateUrl } from '@/lib/updates';
@@ -46,6 +70,17 @@ const MCP_URL = `${process.env.EXPO_PUBLIC_AI_URL ?? 'https://api.doubledone.app
 
 // The dev premium override exposed as a 3-way Choice; 'auto' defers to the real entitlement.
 type DevPremiumChoice = 'auto' | 'on' | 'off';
+
+// What a pick of Android's three reminder choices touches (lib/reminder-choice decides the order): the stored switch
+// and style, and the native seam. enableDailyReminder reads the stored style, which the pick saves first.
+const REMINDER_STEPS: ReminderChoiceSteps = {
+  saveOn: saveReminderOn,
+  saveStyle: saveReminderStyle,
+  enableNudge: enableDailyReminder,
+  enableGlance: () => enableTodayGlance(),
+  disableNudge: disableDailyReminder,
+  disableGlance: disableTodayGlance,
+};
 
 // The one deliberate Settings surface. Scoped to comfort and access (theme, text
 // size, motion), never open-ended config: that is the line that keeps "remove
@@ -88,7 +123,12 @@ export default function SettingsScreen() {
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderNote, setReminderNote] = useState<string | null>(null);
   const [reminderHour, setReminderHour] = useState(9); // the hour the daily nudge fires (free for all, an access need)
-  // The debounced re-subscribe on +/-, which the switch always lands after (lib/reminder-hour, #16).
+  // Android only: the nudge, or "Today in your notifications" (the glance). iOS and the web never read it.
+  const [reminderStyle, setReminderStyle] = useState<ReminderStyle>('nudge');
+  // One pick of the three at a time: a tap while one is going through is dropped (lib/reminder-choice).
+  const [reminderPickLine] = useState(onePickAtATime);
+  // The debounced re-subscribe on +/-, which the switch always lands after (lib/reminder-hour, #16). It follows the
+  // reminder's style by itself: enableDailyReminder brings the glance, never the nudge, when the glance is chosen.
   const [hourReapplier] = useState(() => hourReapply((h) => enableDailyReminder(h)));
   const [syncOk, setSyncOk] = useState<boolean | null>(null); // last sync result; false = saved local-only
   // "A month on us": whether Help's row says a month is on offer (the last real answer, then a fresh one), and the
@@ -139,9 +179,19 @@ export default function SettingsScreen() {
     useCallback(() => {
       let active = true;
       refresh();
-      void loadReminderOn().then((on) => {
-        if (active) setReminderOn(on);
-      });
+      if (GLANCE_AVAILABLE) {
+        // The switch and the style land together, so the row never shows the nudge checked for a moment before the
+        // glance it really is.
+        void Promise.all([loadReminderOn(), loadReminderStyle()]).then(([on, style]) => {
+          if (!active) return;
+          setReminderOn(on);
+          setReminderStyle(style);
+        });
+      } else {
+        void loadReminderOn().then((on) => {
+          if (active) setReminderOn(on);
+        });
+      }
       void loadReminderHour().then((h) => {
         if (active) setReminderHour(h);
       });
@@ -190,6 +240,26 @@ export default function SettingsScreen() {
     }
   }
 
+  // Android's three choices (2026-11-10, "Today in your notifications"): Off, a nudge at the hour, or the glance, which
+  // stays in the notifications from the hour until the day is done. The glance replaces the nudge, never both, and Off
+  // cancels both. What a pick does, and in what order (what is stored first, the phone after), is lib/reminder-choice,
+  // node-tested. iOS and the web keep the two-way switch above, untouched. A tap on the choice already made, or while
+  // a pick is going through, changes nothing. A pick that cannot go through says why, as the switch always has.
+  function pickReminder(next: ReminderChoice) {
+    // The choice already made returns before anything else, above all before settle(), which would drop an hour
+    // change still waiting to be applied: the nudge would then keep its old hour until the next cold open.
+    if (next === reminderChoiceOf({ on: reminderOn, style: reminderStyle })) return;
+    void reminderPickLine(async () => {
+      // A waiting hour change lands first, as it does for the switch (#16).
+      await hourReapplier.settle();
+      const out = await applyReminderChoice({ on: reminderOn, style: reminderStyle }, next, reminderHour, REMINDER_STEPS);
+      if (out === null) return;
+      setReminderOn(out.on);
+      setReminderStyle(out.style);
+      setReminderNote(out.reason ? reminderReasonLine(out.reason) : null);
+    });
+  }
+
   // Change the hour the daily reminder fires. The displayed time and the saved value update instantly; the
   // actual re-subscribe (web push) / re-schedule (native) is debounced so a flurry of +/- taps makes ONE
   // re-apply at the final hour, never a burst, and the last write is the one that lands.
@@ -200,6 +270,11 @@ export default function SettingsScreen() {
     void saveReminderHour(h);
     hourReapplier.schedule(h);
   }
+
+  // Android's three choices, in the order the row reads (Off, the nudge, the glance), with the hour in both labels.
+  const reminderChoice = reminderChoiceOf({ on: reminderOn, style: reminderStyle });
+  const glanceChosen = GLANCE_AVAILABLE && reminderChoice === 'glance';
+  const reminderChoices = reminderOptions(reminderHour);
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
   // tasks + completions. Works with no account, the data is local.
@@ -438,17 +513,55 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <Choice<'off' | 'on'>
-              label={t('settings.reminderLabel')}
-              hint={t('settings.reminderHint')}
-              value={reminderOn ? 'on' : 'off'}
-              options={[
-                { value: 'off', label: t('common.off') },
-                { value: 'on', label: t('common.on') },
-              ]}
-              onChange={(v) => setReminder(v === 'on')}
-            />
-            {reminderNote && <Text style={styles.rowHint}>{reminderNote}</Text>}
+            {GLANCE_AVAILABLE ? (
+              // Android: three radios, stacked because each says what it does. The row's old hint ("One gentle nudge
+              // a day... Nothing more.") is not drawn here: each choice carries its own line, and that one would
+              // contradict the glance.
+              <View>
+                <Text style={styles.rowLabel}>{t('settings.reminderLabel')}</Text>
+                <View style={styles.reminderChoices} accessibilityRole="radiogroup" accessibilityLabel={t('settings.reminderLabel')}>
+                  {reminderChoices.map((c, i, all) => {
+                    const on = reminderChoice === c.value;
+                    return (
+                      <Pressable
+                        key={c.value}
+                        onPress={() => void pickReminder(c.value)}
+                        accessibilityRole="radio"
+                        aria-checked={on}
+                        // The visible words first, then what the choice does (label in name, WCAG 2.5.3).
+                        accessibilityLabel={c.sub ? `${c.label}. ${c.sub}` : c.label}
+                        // The repo's radio group (components/radio-door): one tab stop and the arrow keys on the web. It
+                        // adds nothing on a phone, where TalkBack already reads the radios, so it is inert while the
+                        // glance is Android only, and kept so this stays a whole radio group anywhere it renders.
+                        {...radioDoor(i, all.length, on, (n) => void pickReminder(all[n].value))}
+                        style={({ pressed }) => [styles.reminderChoice, on && styles.reminderChoiceOn, pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.reminderChoiceLabel, on && styles.reminderChoiceLabelOn]}>{c.label}</Text>
+                        {c.sub ? <Text style={[styles.reminderChoiceSub, on && styles.reminderChoiceSubOn]}>{c.sub}</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <Choice<'off' | 'on'>
+                label={t('settings.reminderLabel')}
+                hint={t('settings.reminderHint')}
+                value={reminderOn ? 'on' : 'off'}
+                options={[
+                  { value: 'off', label: t('common.off') },
+                  { value: 'on', label: t('common.on') },
+                ]}
+                onChange={(v) => setReminder(v === 'on')}
+              />
+            )}
+            {/* Polite on Android, where a pick refused with notifications blocked brings no system dialog and leaves the
+                radio as it was, so TalkBack hears why. iOS and the web keep exactly what they had. */}
+            {reminderNote && (
+              <Text style={styles.rowHint} accessibilityLiveRegion={GLANCE_AVAILABLE ? 'polite' : undefined}>
+                {reminderNote}
+              </Text>
+            )}
             {reminderOn && (
               <View style={styles.reminderTimeRow}>
                 <Text style={styles.reminderTimeLabel}>{t('settings.remindMeAt')}</Text>
@@ -482,6 +595,14 @@ export default function SettingsScreen() {
                 </View>
               </View>
             )}
+            {/* The glance's own line, under the hour that shapes it: when it leaves, and that the lock screen is the
+                phone's call, never a promise. From 9 pm it would have no window at all, so it asks, calmly, for an
+                earlier time instead. Polite, so a screen reader hears the switch as the hour crosses 9 pm. */}
+            {glanceChosen ? (
+              <Text style={styles.reminderGlanceNote} accessibilityLiveRegion="polite">
+                {glanceSettingsLine(reminderHour)}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -983,6 +1104,26 @@ const makeStyles = (t: Theme) =>
     swatchName: { color: t.colors.inkSoft, fontSize: 12 * t.scale, fontFamily: fonts.sans },
     reminderTimeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.three, gap: spacing.three },
     reminderTimeLabel: { ...t.type.body, color: t.colors.ink },
+    // Android's three reminder choices: the shared Segmented look (a hairline box, the chosen one with the mauve edge
+    // and tint and its words in ink), stacked, because each choice says what it does under its name.
+    reminderChoices: { gap: spacing.two, marginTop: spacing.three },
+    reminderChoice: {
+      borderWidth: border.hair,
+      borderColor: t.colors.line,
+      backgroundColor: t.colors.surface,
+      borderRadius: radius.md,
+      paddingVertical: spacing.three,
+      paddingHorizontal: spacing.four,
+      gap: spacing.half,
+      minHeight: 48,
+      justifyContent: 'center',
+    },
+    reminderChoiceOn: { borderWidth: border.thin, borderColor: t.colors.accent, backgroundColor: t.colors.accentSoft },
+    reminderChoiceLabel: { ...t.type.label, color: t.colors.inkSoft },
+    reminderChoiceLabelOn: { color: t.colors.ink },
+    reminderChoiceSub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
+    reminderChoiceSubOn: { color: t.colors.ink }, // soft ink falls under AA on the chosen tint (as the welcome's cards)
+    reminderGlanceNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.three },
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     stepBtn: { width: 36, height: 36, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     stepBtnOff: { opacity: 0.4 },

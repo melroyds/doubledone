@@ -186,6 +186,18 @@ export function applyManualOrder<T extends Orderable>(tasks: T[]): T[] {
 }
 
 /**
+ * Today's OPEN rows in Today's own order, for the surfaces outside the app (the home-screen widget, the
+ * notification): exactly the order today.tsx draws, holdSecond(pinFirst(applyManualOrder(tasksForToday(...)))),
+ * keeping only what is not done on `date`. The order is taken first and the finished rows dropped after, so a
+ * done pin or a done held task never moves an open row. Without this, a surface that read the stored order
+ * named a different "next thing" than Today's top row after a pin, a drag or a hold. A source test holds
+ * today.tsx to the same expression, so the two cannot drift apart unnoticed.
+ */
+export function openInTodaysOrder<T extends Scheduled & Pinnable & Orderable>(tasks: T[], date: Date, heldId: string | null = null): T[] {
+  return holdSecond(pinFirst(applyManualOrder(tasksForToday(tasks, date))), heldId).filter((t) => !isDoneOn(t, date));
+}
+
+/**
  * Apply an accepted sequence: stamp manualOrder = position for each id in `orderedIds` and bump updatedAt
  * (so the local copy wins last-write-wins and the order survives a sync), and CLEAR any stale manualOrder
  * off tasks not in the new order. Pure and unit-tested. manualOrder is a LOCAL-ONLY leaf field (deliberately

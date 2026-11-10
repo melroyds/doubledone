@@ -1,16 +1,39 @@
 diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
-index 610d303..daf1ff3 100644
+index 610d303..f928173 100644
 --- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
 +++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
-@@ -121,6 +121,12 @@ open class ExpoNotificationBuilder(
+@@ -121,6 +121,35 @@ open class ExpoNotificationBuilder(
        builder.setExtras(extras)
      }
  
++    // DoubleDone (patch-package): "Today in your notifications" (the glance, client/src/lib/glance).
++    // Only a notification whose JS data says `glance: true` is touched here, so every other
++    // notification is built exactly as before. The glance shows no time (a standing list, not an
++    // event), never alerts again when it is updated in place, even if someone raises its channel,
++    // and its expanded view is `bigText`, the day one task per line, while the collapsed line
++    // keeps the first.
++    val glance = content.body?.takeIf { it.optBoolean("glance", false) }
++    if (glance != null) {
++      builder.setOnlyAlertOnce(true)
++      builder.setShowWhen(false)
++      glance.optString("bigText", "").takeIf { it.isNotEmpty() }?.let {
++        builder.setStyle(NotificationCompat.BigTextStyle().bigText(it))
++      }
++    }
++
 +    // DoubleDone (patch-package): a notification may carry its own shelf life in the JS data
 +    // payload as `timeoutAfterMs`. Android then removes it from the tray after that long, so a
 +    // missed nudge expires quietly even when the app is never reopened (the closed-app half of
 +    // "missed nudges never stack"; the app-open sweep is the other). Ignored below API 26.
-+    content.body?.optLong("timeoutAfterMs", 0L)?.takeIf { it > 0L }?.let { builder.setTimeoutAfter(it) }
++    // The glance carries an ABSOLUTE expiry instead, `expiresAtMs` (21:30 on its day), which wins:
++    // a relative one would count from whenever a late alarm posted it, so the list could outlive
++    // its evening. One posted after its expiry lasts a millisecond.
++    val glanceExpiresAtMs = glance?.optLong("expiresAtMs", 0L) ?: 0L
++    if (glanceExpiresAtMs > 0L) {
++      builder.setTimeoutAfter(max(1L, glanceExpiresAtMs - System.currentTimeMillis()))
++    } else {
++      content.body?.optLong("timeoutAfterMs", 0L)?.takeIf { it > 0L }?.let { builder.setTimeoutAfter(it) }
++    }
 +
      // Save the notification request in extras for later usage
      // eg. in ExpoPresentationDelegate when we fetch active notifications.

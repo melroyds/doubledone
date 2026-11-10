@@ -180,6 +180,11 @@ export async function rescheduleAllNudges(routines: Routine[], dailyReminderHour
   // nothing scheduled on web
 }
 
+/** No-op on web: the stale-pile sweep clears NATIVE delivered nudges; the web's push leaves none in an app tray. */
+export async function dismissStaleNudges(): Promise<void> {
+  // nothing delivered here to sweep
+}
+
 /** No-op on web: the nudge health line is a native (this-phone) truth; web shows nothing. */
 export async function getNudgeHealth(): Promise<{ count: number; next: { hour: number; minute: number } | null }> {
   return { count: 0, next: null };
@@ -202,3 +207,26 @@ export async function scheduleHold(_taskId: string, _title: string, _heldAt: Dat
 }
 export async function cancelHold(): Promise<void> {}
 export async function resyncHold(_contract: import('./hold').HoldContract | null): Promise<void> {}
+
+// "Today in your notifications" (the glance) is Android only: the web keeps exactly the daily reminder it has, so
+// Settings offers no third choice here, and every call is a no-op. Same names as reminders.ts (held to it by
+// lib/platform-split.contract.ts).
+
+/** The glance exists on Android 8 and later only. */
+export const GLANCE_AVAILABLE = false;
+
+/** Never on the web. */
+export async function enableTodayGlance(_opts: { quiet?: boolean } = {}): Promise<ReminderResult> {
+  return { ok: false, reason: 'unsupported' };
+}
+
+/** Nothing to take down on the web. */
+export async function disableTodayGlance(): Promise<void> {}
+
+/** Nothing to refresh on the web. */
+export function refreshTodayGlance(): void {}
+
+/** Nothing to watch on the web. Returns a no-op unsubscribe. */
+export function watchTodayGlance(): () => void {
+  return () => {};
+}

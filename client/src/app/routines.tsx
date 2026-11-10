@@ -11,6 +11,7 @@ import { rowDoor } from '@/components/row-door';
 import { Segmented } from '@/components/Segmented';
 import { border, cardShadow, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { toISODate } from '@/lib/day';
+import { dailyNudgeHour } from '@/lib/glance-refresh';
 import { t } from '@/lib/locale';
 import { picked } from '@/lib/picked';
 import { cancelRhythm, cancelRoutineNudge, exactAlarmDoorRelevant, getNudgeHealth, openExactAlarmSettings, rescheduleAllNudges, scheduleRhythm, scheduleRoutineNudge } from '@/lib/reminders';
@@ -31,7 +32,7 @@ import {
   type RoutineWhen,
   toggleStep,
 } from '@/lib/routines';
-import { loadReminderHour, loadReminderOn, loadRoutines, saveRoutines } from '@/lib/storage';
+import { loadReminderHour, loadReminderOn, loadReminderStyle, loadRoutines, saveRoutines } from '@/lib/storage';
 import { parseDump } from '@/lib/tasks';
 import { track } from '@/lib/telemetry';
 import { useTheme, useThemedStyles } from '@/lib/theme-provider';
@@ -344,8 +345,9 @@ export default function RoutinesScreen() {
   async function grantExactAlarms() {
     await openExactAlarmSettings();
     try {
-      const [rts, reminderOn, reminderHour] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour()]);
-      await rescheduleAllNudges(rts, reminderOn ? reminderHour : null);
+      // The daily nudge only when it is the reminder's style: the glance replaces it, never both.
+      const [rts, reminderOn, reminderHour, reminderStyle] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour(), loadReminderStyle()]);
+      await rescheduleAllNudges(rts, dailyNudgeHour(reminderOn, reminderStyle, reminderHour));
       setNudgeHealth(await getNudgeHealth());
     } catch {
       // best effort; the cold-start sweep remains the backstop

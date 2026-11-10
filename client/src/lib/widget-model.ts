@@ -5,7 +5,7 @@
 import { toISODate } from './day';
 import { t } from './i18n-active';
 import type { Task } from './tasks';
-import { isDoneOn, tasksForToday } from './today';
+import { openInTodaysOrder, tasksForToday } from './today';
 
 export type WidgetState = 'tasks' | 'done' | 'empty' | 'closed';
 
@@ -69,13 +69,24 @@ export function widgetLineCapacity(heightDp: number, fontScale: number = 1): num
  * date. Reuses the app's today-filter, so the widget shows exactly what Today shows:
  * unfinished tasks first, then a calm rested line when the day is clear or closed.
  *
+ * The titles come in TODAY'S OWN ORDER (openInTodaysOrder): the pin first, the held task under it,
+ * then any accepted manual order. Until 2026-11-10 they came in stored order, so after a pin, a drag
+ * or a hold the widget's first line was not Today's top row. `heldId` is the "Hold me to it" task
+ * (the stored contract's taskId), null when nothing is held.
+ *
  * `maxLines` is the height-derived budget (see widgetLineCapacity); it counts every RENDERED row,
  * so when there are more tasks than fit, one slot is spent on the "+n more" line rather than added
  * on top of a full card. Omitted, it falls back to the fixed MAX_WIDGET_LINES.
  */
-export function buildWidgetModel(tasks: Task[], today: Date, closedISO: string | null, maxLines: number = MAX_WIDGET_LINES): WidgetModel {
+export function buildWidgetModel(
+  tasks: Task[],
+  today: Date,
+  closedISO: string | null,
+  maxLines: number = MAX_WIDGET_LINES,
+  heldId: string | null = null,
+): WidgetModel {
   const todays = tasksForToday(tasks, today);
-  const undone = todays.filter((t) => !isDoneOn(t, today));
+  const undone = openInTodaysOrder(tasks, today, heldId);
   const remaining = undone.length;
 
   if (closedISO === toISODate(today)) {

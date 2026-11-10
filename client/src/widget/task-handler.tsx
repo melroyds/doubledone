@@ -15,8 +15,10 @@ import { LIGHT_WIDGET } from './names';
 // caught and its message is drawn ON the widget instead of vanishing into a silent blank. The next
 // device test needs no adb: tasks render (fixed), an error string renders (we have the cause), or
 // the widget stays fully blank (the headless task is not firing at all -> a registration issue).
+// These three literals mirror lib/storage's keys, and src/widget/widget-wiring.test.ts holds them equal.
 const TASKS_KEY = 'doubledone.tasks.v1';
 const CLOSED_KEY = 'doubledone.closed.v1';
+const HOLD_KEY = 'doubledone.hold.v1'; // the "Hold me to it" contract: its task sits under the pin, as on Today
 
 // A bulletproof fallback: depends ONLY on the widget library + inline hex, never on an app module,
 // so it still renders even if an app import (model / locale / TodayWidget) is exactly what threw.
@@ -48,14 +50,17 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
   if (props.widgetAction === 'WIDGET_DELETED' || props.widgetAction === 'WIDGET_CLICK') return;
   try {
     // Imported here, not at module top, so a headless-context load throw is caught (see header).
-    const [{ deserialize }, { buildWidgetModel, widgetLineCapacity }, { TodayWidget }] = await Promise.all([
+    const [{ deserialize }, { buildWidgetModel, widgetLineCapacity }, { parseHoldContract }, { TodayWidget }] = await Promise.all([
       import('@/lib/tasks'),
       import('@/lib/widget-model'),
+      import('@/lib/hold'),
       import('./TodayWidget'),
     ]);
-    const [rawTasks, closedISO] = await Promise.all([
+    const [rawTasks, closedISO, rawHold] = await Promise.all([
       AsyncStorage.getItem(TASKS_KEY),
       AsyncStorage.getItem(CLOSED_KEY),
+      // The held task only decides where one line sits, so a failed read costs that seat, never the widget.
+      AsyncStorage.getItem(HOLD_KEY).catch(() => null),
     ]);
     // The card is `wrap_content`, so it never stretches into a taller slot. Instead the HEIGHT the
     // launcher gives us decides how many tasks to show: drag the widget taller and more of today
@@ -74,11 +79,13 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
     } catch {
       // Keep 1. widgetLineCapacity's safety margin still applies, so the card stays inside its slot.
     }
+    // Today's own order (pin, then the held task, then any manual order), the same as the app's refresh.
     const model = buildWidgetModel(
       rawTasks ? deserialize(rawTasks) : [],
       new Date(),
       closedISO,
       widgetLineCapacity(props.widgetInfo.height, fontScale),
+      parseHoldContract(rawHold)?.taskId ?? null,
     );
     // Two widgets share this handler, told apart by name. "Today" follows the phone's light/dark
     // setting (the sensible default). "TodayLight" is ALWAYS the light card, because a widget's

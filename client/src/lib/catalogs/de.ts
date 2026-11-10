@@ -318,6 +318,17 @@ export const de: Catalog = {
     premiumGivenStatus: 'Premium geht bis {date} auf uns, danach wieder das kostenlose monatliche Erinnerungsalbum. Der Monat endet von selbst, nichts zu kündigen.',
     premiumGivenStatusPlay: 'Premium geht bis {date} auf uns, danach schalten sich die Extras von selbst ab. Deine Aufgaben und alles andere bleiben, wie sie sind. Nichts zu kündigen.',
   },
+  glance: {
+    andMore: 'und mehr',
+    channelName: 'Heute in deinen Benachrichtigungen',
+    firstAndMore: '{title} und mehr',
+    hint: 'Die Benachrichtigung verschwindet, sobald dein Tag erledigt ist, spätestens um {time}. Dein Sperrbildschirm zeigt sie, wenn dein Handy es erlaubt.',
+    optionGlance: 'Bleibt ab {time}, bis alles erledigt ist',
+    optionGlanceSub: 'Liegt ruhig in deinen Benachrichtigungen. Klingelt und vibriert nie.',
+    optionNudge: 'Ein Stupser um {time}',
+    optionNudgeSub: 'Eine sanfte Benachrichtigung, dann ist sie wieder weg.',
+    tooLate: 'Wähl dafür eine Uhrzeit vor {time}.',
+  },
   landing: {
     alsoOn: 'Auch für iPhone und Android.',
     altCal: 'Der Kalender: ein sanfter Punkt an jedem Tag, an dem etwas geschafft wurde, und die Liste vom Sonntag, mit „Steuererklärung machen“.',

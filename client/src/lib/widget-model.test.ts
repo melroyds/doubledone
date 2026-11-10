@@ -47,6 +47,41 @@ describe('buildWidgetModel', () => {
   });
 });
 
+// The widget's first line is Today's top row (2026-11-10). It used to list tasks in STORED order, so after a pin,
+// a drag (Plan my order) or a hold, the widget named a different "next thing" than the app.
+describe("buildWidgetModel follows Today's own order", () => {
+  const list = (): Task[] => [
+    task('1', 'stored first'),
+    { ...task('2', 'second by plan'), manualOrder: 1 },
+    { ...task('3', 'first by plan'), manualOrder: 0 },
+    { ...task('4', 'the pin'), pinnedAt: 5 },
+    task('5', 'held'),
+  ];
+
+  it('puts the pin first, then the held task, then the accepted order, then the rest as stored', () => {
+    const m = buildWidgetModel(list(), TODAY, null, 8, '5');
+    expect(m.lines).toEqual(['the pin', 'held', 'first by plan', 'second by plan', 'stored first']);
+    expect(m.remaining).toBe(5);
+  });
+
+  it('defaults to nothing held, so existing callers keep the same order less the hold', () => {
+    expect(buildWidgetModel(list(), TODAY, null, 8).lines).toEqual(['the pin', 'first by plan', 'second by plan', 'stored first', 'held']);
+  });
+
+  it('spends the budget on the top of that order', () => {
+    const m = buildWidgetModel(list(), TODAY, null, 3, '5');
+    expect(m.lines).toEqual(['the pin', 'held']); // two titles + the "+3 more" row
+    expect(m.remaining - m.lines.length).toBe(3);
+  });
+
+  it('never gives a finished pin or held task a line, and never lets it move an open one', () => {
+    const tasks = list().map((x) => (x.id === '4' || x.id === '5' ? { ...x, done: true, completedAt: TODAY.getTime() } : x));
+    const m = buildWidgetModel(tasks, TODAY, null, 8, '5');
+    expect(m.lines).toEqual(['first by plan', 'second by plan', 'stored first']);
+    expect(m.remaining).toBe(3);
+  });
+});
+
 // A vertical resize must change WHAT THE WIDGET SAYS, not just its frame: the card is
 // `wrap_content` so it never stretches, and without a height-derived budget a taller widget would
 // simply show the same four tasks with dead space under them (reported on device 2026-07-25).

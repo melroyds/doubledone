@@ -15,15 +15,17 @@ import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useSessionState } from '@/lib/auth';
+import { dailyNudgeHour } from '@/lib/glance-refresh';
 import { setInbound } from '@/lib/inbound';
 import { t } from '@/lib/locale';
 import { PremiumProvider } from '@/lib/premium-provider';
 import { configurePurchases, forgetPurchaser, IAP_AVAILABLE, identifyPurchaser } from '@/lib/purchases';
 import { reconcileApple } from '@/lib/stripe';
-import { rescheduleAllNudges, resyncHold } from '@/lib/reminders';
+import { rescheduleAllNudges, resyncHold, watchTodayGlance } from '@/lib/reminders';
 import { useShareInbound } from '@/lib/share-intent';
-import { loadHold, loadReminderHour, loadReminderOn, loadRoutines } from '@/lib/storage';
+import { loadHold, loadReminderHour, loadReminderOn, loadReminderStyle, loadRoutines } from '@/lib/storage';
 import { ThemeProvider, useTheme } from '@/lib/theme-provider';
+import { watchStorageForWidget } from '@/widget/update';
 
 // Hold the native splash until the Dusk fonts load. On web the families come from
 // the global.css @import, so we never block the first paint there.
@@ -114,16 +116,28 @@ function RootStack() {
   // active Rhythm, checklist nudge, and the daily reminder from their stored config.
   // Heals OEM alarm wipes and migrates Rhythms onto their HIGH-importance channel;
   // quiet, so it can never surprise anyone with a permission prompt. Best effort.
+  // The daily nudge only when it is the reminder's style: the glance replaces it, never both.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     void (async () => {
-      const [routines, reminderOn, reminderHour] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour()]);
-      await rescheduleAllNudges(routines, reminderOn ? reminderHour : null);
+      const [routines, reminderOn, reminderHour, reminderStyle] = await Promise.all([loadRoutines(), loadReminderOn(), loadReminderHour(), loadReminderStyle()]);
+      await rescheduleAllNudges(routines, dailyNudgeHour(reminderOn, reminderStyle, reminderHour));
       // The Hold-me-to-it contract heals here too: re-asserted from storage, or its orphaned
       // knocks cancelled if the contract is gone.
       await resyncHold(await loadHold());
     })();
   }, []);
+
+  // The home-screen widget follows every saved change through the storage change notice
+  // (lib/storage), so Goodnight, Reopen, a sync and the sweeps reach it at once, not only Today's
+  // own commits. Subscribed once for the app's life. Android only, and a no-op everywhere else.
+  useEffect(() => watchStorageForWidget(), []);
+
+  // "Today in your notifications" (the glance, Android, opt-in): refreshed now (the cold open), on every saved change
+  // (the same notice, which also carries the reminder's own settings), and each time the app comes back to the
+  // foreground; taken down explicitly on an account wipe. Subscribed once for the app's life. A no-op off Android
+  // and for everyone who never chose it.
+  useEffect(() => watchTodayGlance(), []);
 
   // Paint the native window background to match the theme so launch, transitions, and
   // overscroll never flash the wrong colour. Native only; web has its own page background.

@@ -1,7 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  claimWidgetCountDay,
+  loadGlanceMemory,
+  loadHold,
+  loadReminderStyle,
+  saveGlanceMemory,
+  saveReminderHour,
+  saveReminderOn,
+  saveReminderStyle,
   loadOursCache,
   loadOursTasks,
   clearOursMine,
@@ -10,12 +18,19 @@ import {
   loadTuckedPairs,
   markOursSeen,
   noteOursMine,
+  peekTasks,
   pruneOursCache,
+  saveClosedDate,
+  saveHold,
   saveOursTasks,
+  saveTasks,
+  type StorageChange,
+  subscribeStorageChange,
   tuckPair,
   untuckPair,
   wipeLocalData,
 } from './storage';
+import { serialize, type Task } from './tasks';
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -289,5 +304,292 @@ describe('shared rows you changed from outside the room', () => {
     stubMine(null);
     await wipeLocalData();
     expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursMine.v1');
+  });
+});
+
+// The storage change notice (2026-11-10): the one hook every write path for the day passes through, so the
+// widget and the notification follow Goodnight, Reopen, a sync and the sweeps, not only Today's commit.
+describe('the storage change notice', () => {
+  const offs: (() => void)[] = [];
+  const listen = (listener: (c: StorageChange) => void) => {
+    const off = subscribeStorageChange(listener);
+    offs.push(off);
+    return off;
+  };
+  const heardAll = () => {
+    const heard: StorageChange[] = [];
+    listen((c) => heard.push(c));
+    return heard;
+  };
+  const task = (id: string): Task => ({ id, title: id, done: false, createdAt: 1, updatedAt: 1 });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(null));
+  });
+  afterEach(() => {
+    while (offs.length > 0) offs.pop()!();
+  });
+
+  it('saves exactly as before for existing callers: same key, same value, nothing thrown', async () => {
+    heardAll();
+    const tasks = [task('a')];
+    await expect(saveTasks(tasks)).resolves.toBeUndefined();
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.tasks.v1', serialize(tasks));
+  });
+
+  it('tells every listener once a task save has landed, and stops telling one that unsubscribed', async () => {
+    const first = heardAll();
+    const second: StorageChange[] = [];
+    const off = listen((c) => second.push(c));
+    await saveTasks([task('a')]);
+    off();
+    off(); // safe twice
+    await saveTasks([task('b')]);
+    expect(first).toEqual(['tasks', 'tasks']);
+    expect(second).toEqual(['tasks']);
+  });
+
+  it('tells only AFTER the write landed, never while it is in flight', async () => {
+    const heard = heardAll();
+    let land: () => void = () => {};
+    vi.mocked(AsyncStorage.setItem).mockImplementationOnce(() => new Promise<void>((resolve) => (land = resolve)));
+    const saving = saveTasks([task('a')]);
+    await Promise.resolve();
+    expect(heard).toEqual([]);
+    land();
+    await saving;
+    expect(heard).toEqual(['tasks']);
+  });
+
+  it('says nothing when a save failed, because nothing changed to show', async () => {
+    const heard = heardAll();
+    vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    await expect(saveTasks([task('a')])).resolves.toBeUndefined();
+    vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    await saveClosedDate('2026-11-10');
+    vi.mocked(AsyncStorage.removeItem).mockRejectedValueOnce(new Error('disk full'));
+    await saveHold(null);
+    expect(heard).toEqual([]);
+  });
+
+  it('tells about the closed day, which is how Goodnight and Reopen reach the widget', async () => {
+    const heard = heardAll();
+    await saveClosedDate('2026-11-10');
+    await saveClosedDate(null);
+    expect(heard).toEqual(['closed', 'closed']);
+  });
+
+  it('tells about the held task, because the hold moves the order the widget and the notification show', async () => {
+    const heard = heardAll();
+    await saveHold({ taskId: 't1', title: 'x', heldAt: 1, notifIds: [] });
+    await saveHold(null);
+    expect(heard).toEqual(['hold', 'hold']);
+  });
+
+  it('ends an account wipe with one wipe notice, once everything is gone', async () => {
+    const order: string[] = [];
+    listen((c) => order.push(c));
+    vi.mocked(AsyncStorage.multiRemove).mockImplementationOnce(() => {
+      order.push('removed');
+      return Promise.resolve();
+    });
+    await wipeLocalData();
+    expect(order).toEqual(['tasks', 'removed', 'wipe']);
+  });
+
+  it('still says wipe when part of the wipe failed, so nothing outside the app keeps the old day', async () => {
+    const heard = heardAll();
+    vi.mocked(AsyncStorage.multiRemove).mockRejectedValueOnce(new Error('disk'));
+    await wipeLocalData();
+    expect(heard.at(-1)).toBe('wipe');
+  });
+
+  it('a listener that throws or rejects never reaches the save and never silences the others', async () => {
+    listen(() => {
+      throw new Error('boom');
+    });
+    listen(async () => {
+      throw new Error('async boom'); // must not surface as an unhandled rejection either
+    });
+    const heard = heardAll();
+    await expect(saveTasks([task('a')])).resolves.toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(heard).toEqual(['tasks']);
+    expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('a listener leaving mid-notice does not disturb that round', async () => {
+    const heard: string[] = [];
+    let offB: () => void = () => {};
+    listen(() => {
+      heard.push('a');
+      offB();
+    });
+    offB = listen(() => heard.push('b'));
+    await saveTasks([]);
+    await saveTasks([]);
+    expect(heard).toEqual(['a', 'b', 'a']);
+  });
+
+  it('one function subscribed twice is two subscriptions, each with its own unsubscribe', async () => {
+    const heard: StorageChange[] = [];
+    const fn = (c: StorageChange) => heard.push(c);
+    const off1 = listen(fn);
+    listen(fn);
+    off1();
+    await saveClosedDate(null);
+    expect(heard).toEqual(['closed']);
+  });
+});
+
+// A reader that must never write: the widget and the notification read the day, they never seed it.
+describe('peekTasks', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads nothing stored as an empty day and writes nothing (no seed: that is Today's first open)", async () => {
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(null));
+    expect(await peekTasks()).toEqual([]);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('reads the stored tasks defensively', async () => {
+    const stored = [{ id: 'a', title: 'a', done: false, createdAt: 1, updatedAt: 2 }];
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(JSON.stringify([...stored, { junk: true }])));
+    expect(await peekTasks()).toEqual(stored);
+  });
+
+  it('answers null when the read FAILS, so a surface keeps what it shows rather than drawing an empty day', async () => {
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.reject(new Error('disk')));
+    expect(await peekTasks()).toBeNull();
+  });
+});
+
+describe('loadHold', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reads the contract through the shared parser, and a failed or junk read as none', async () => {
+    const contract = { taskId: 't1', title: 'x', heldAt: 1, notifIds: ['n1'] };
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) => Promise.resolve(key === 'doubledone.hold.v1' ? JSON.stringify(contract) : null));
+    expect(await loadHold()).toEqual(contract);
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve('not json'));
+    expect(await loadHold()).toBeNull();
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.reject(new Error('disk')));
+    expect(await loadHold()).toBeNull();
+  });
+});
+
+// The daily reminder's settings tell the change notice too (2026-11-10): the notification IS the reminder in its glance
+// style, so an Off, a new hour or a new style from any screen reaches it from the save itself, never ahead of it.
+describe("the reminder's settings and the glance's memory", () => {
+  const offs: (() => void)[] = [];
+  const heardAll = () => {
+    const heard: StorageChange[] = [];
+    offs.push(subscribeStorageChange((c) => heard.push(c)));
+    return heard;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(null));
+  });
+  afterEach(() => {
+    while (offs.length > 0) offs.pop()!();
+  });
+
+  it('tells "reminder" once the switch, the hour or the style has landed, with the values stored as before', async () => {
+    const heard = heardAll();
+    await saveReminderOn(false);
+    await saveReminderHour(7.6);
+    await saveReminderStyle('glance');
+    expect(heard).toEqual(['reminder', 'reminder', 'reminder']);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.reminder.v1', 'off');
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.reminderhour.v1', '8');
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.reminderstyle.v1', 'glance');
+  });
+
+  it('says nothing when the save failed, and never throws', async () => {
+    const heard = heardAll();
+    vi.mocked(AsyncStorage.setItem)
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockRejectedValueOnce(new Error('disk full'));
+    await expect(saveReminderOn(true)).resolves.toBeUndefined();
+    await expect(saveReminderHour(9)).resolves.toBeUndefined();
+    await expect(saveReminderStyle('nudge')).resolves.toBeUndefined();
+    expect(heard).toEqual([]);
+  });
+
+  it('reads the style as the nudge unless the glance was chosen, so every existing user is unchanged', async () => {
+    expect(await loadReminderStyle()).toBe('nudge');
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) => Promise.resolve(key === 'doubledone.reminderstyle.v1' ? 'glance' : null));
+    expect(await loadReminderStyle()).toBe('glance');
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve('GLANCE'));
+    expect(await loadReminderStyle()).toBe('nudge');
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.reject(new Error('disk')));
+    expect(await loadReminderStyle()).toBe('nudge');
+  });
+
+  it("keeps the glance's memory under its own key, and saving it tells no notice (no refresh can set off another)", async () => {
+    const heard = heardAll();
+    const memory = { hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: '2026-11-10', takenDownAt: 4 };
+    await saveGlanceMemory(memory);
+    expect(heard).toEqual([]);
+    const [key, raw] = vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)!;
+    expect(key).toBe('doubledone.glance.v1');
+    vi.mocked(AsyncStorage.getItem).mockImplementation((k: string) => Promise.resolve(k === 'doubledone.glance.v1' ? (raw as string) : null));
+    expect(await loadGlanceMemory()).toEqual(memory);
+  });
+
+  it('reads a missing, junk or unreadable memory as empty', async () => {
+    const empty = { hour: null, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null, takenDownAt: null };
+    expect(await loadGlanceMemory()).toEqual(empty);
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve('{oops'));
+    expect(await loadGlanceMemory()).toEqual(empty);
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.reject(new Error('disk')));
+    expect(await loadGlanceMemory()).toEqual(empty);
+  });
+
+  it('a failed memory save never throws', async () => {
+    vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    await expect(saveGlanceMemory({ hour: 9, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null, takenDownAt: null })).resolves.toBeUndefined();
+  });
+});
+
+// The widget.placed count's once-a-day claim (lib/widget-count): the first claim of a day stamps it, every later one
+// that day is refused, and a storage failure refuses too, so a hiccup can only miss a count, never send two.
+describe('claimWidgetCountDay', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(null));
+  });
+
+  it('claims a day nothing has counted, and stamps it under its own key', async () => {
+    expect(await claimWidgetCountDay('2026-11-10')).toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.widgetcount.v1', '2026-11-10');
+  });
+
+  it('refuses the day already stamped, without writing, and claims the next one', async () => {
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) => Promise.resolve(key === 'doubledone.widgetcount.v1' ? '2026-11-10' : null));
+    expect(await claimWidgetCountDay('2026-11-10')).toBe(false);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(await claimWidgetCountDay('2026-11-11')).toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.widgetcount.v1', '2026-11-11');
+  });
+
+  it('refuses when storage cannot be read or written, and never throws', async () => {
+    vi.mocked(AsyncStorage.getItem).mockImplementationOnce(() => Promise.reject(new Error('disk')));
+    expect(await claimWidgetCountDay('2026-11-10')).toBe(false);
+    vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    expect(await claimWidgetCountDay('2026-11-10')).toBe(false);
+  });
+
+  it('is device bookkeeping, so the account wipe leaves it', async () => {
+    await wipeLocalData();
+    const removed = [
+      ...vi.mocked(AsyncStorage.removeItem).mock.calls.map(([k]) => k),
+      ...vi.mocked(AsyncStorage.multiRemove).mock.calls.flatMap(([ks]) => ks as string[]),
+    ];
+    expect(removed).not.toContain('doubledone.widgetcount.v1');
   });
 });

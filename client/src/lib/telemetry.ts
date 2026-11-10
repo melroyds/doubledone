@@ -61,6 +61,15 @@ export const BEACON_EVENTS = new Set([
   // welcome-back note after four or more days away. Neither door is built until the count says so.
   'day.closed.morning',
   'reentry.shown',
+  // "Today in your notifications" (2026-11-10, Android, opt-in): picked in Settings (glance.on) or left
+  // for Off or the nudge (glance.off). Whether people keep it on, not one person's kind word, is what
+  // decides if it goes to everyone. Bare names: never the hour, never a task.
+  'glance.on',
+  'glance.off',
+  // A DoubleDone widget really on this phone's home screen (the launcher said so; the offer's
+  // fail-closed guess is never counted), at most once a day per device (lib/widget-count). The one
+  // number that best predicts demand for both glance surfaces.
+  'widget.placed',
 ]);
 
 // What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the

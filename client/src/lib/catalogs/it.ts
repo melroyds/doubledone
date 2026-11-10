@@ -314,6 +314,17 @@ export const it: Catalog = {
     premiumGivenStatus: "Offerto da noi fino al {date}, poi si torna all'album mensile gratuito. Finisce da solo, niente da disdire.",
     premiumGivenStatusPlay: 'Offerto da noi fino al {date}, poi gli extra si spengono da soli. Le tue attività e tutto il resto restano come sono. Niente da disdire.',
   },
+  glance: {
+    andMore: 'e altro',
+    channelName: 'Oggi nelle tue notifiche',
+    firstAndMore: '{title} e altro',
+    hint: 'Se ne va quando la giornata è finita, o al più tardi alle {time}. La schermata di blocco la mostra se il telefono lo consente.',
+    optionGlance: 'Resta dalle {time} finché non hai finito',
+    optionGlanceSub: 'Sta in silenzio tra le tue notifiche. Non suona e non vibra mai.',
+    optionNudge: 'Un promemoria alle {time}',
+    optionNudgeSub: 'Una notifica gentile, poi sparisce.',
+    tooLate: 'Per questa, scegli un orario prima delle {time}.',
+  },
   landing: {
     alsoOn: 'Anche su iPhone e Android.',
     altCal: 'Il Calendario: un punto tenue su ogni giorno in cui hai finito qualcosa, e la lista della domenica, con Fare la dichiarazione dei redditi.',

@@ -186,12 +186,12 @@ flowchart TB
 |---|---|---|---|
 | Purchases | Inert stub, `IAP_AVAILABLE = false` | Apple IAP through RevenueCat. An anonymous purchase is allowed | Play Billing through RevenueCat. An account is required before buying |
 | Storefront switches ([`storefront.ts`](../client/src/lib/storefront.ts), [`storefront.android.ts`](../client/src/lib/storefront.android.ts)) | Stripe allowed | Stripe allowed | No Stripe surface and none of our own fixed prices. Prices come only from Play's own price string |
-| Reminders | One daily Web Push nudge | Local notifications | Local notifications on their own channels |
+| Reminders | One daily Web Push nudge | Local notifications | Local notifications on their own channels, and by choice "Today in your notifications" (Android 8 and later), a silent list from the reminder hour to 21:30 on the `today-glance` channel ([`glance.ts`](../client/src/lib/glance.ts)) |
 | Speak (dictation) | Web Speech API | Not offered | Not offered |
 | Share into the app | PWA share target | Share extension (text and links) | Android share sheet (`text/*`) |
 | Home-screen widget | None | None | Today widget |
 
-TypeScript only reads the base file of a split, so a name missing from a platform file would compile clean and be `undefined` on a phone. [`platform-split.contract.ts`](../client/src/lib/platform-split.contract.ts) closes that gap for `purchases` and `storefront`: `npm run typecheck` fails unless each pair exports the same names with compatible types.
+TypeScript only reads the base file of a split, so a name missing from a platform file would compile clean and be `undefined` on a phone. [`platform-split.contract.ts`](../client/src/lib/platform-split.contract.ts) closes that gap for `purchases`, `storefront`, `store-review`, `reminders` and the widget's `update` and `presence`: `npm run typecheck` fails unless each pair exports the same names with compatible types.
 
 ### 2.2 Cloudflare Pages, the web host
 
@@ -362,7 +362,7 @@ flowchart LR
 
 ### Telemetry
 
-- **Feature counts.** [`telemetry.ts`](../client/src/lib/telemetry.ts) writes every `track()` call to the console. Twenty allowlisted names also post to `/event`, with props stripped on the device to a handful of safe values, no auth header, and nothing sent from development builds. The Worker folds each into a daily counter in `app_event_counts` and drops any name it does not recognise ([`events.ts`](../server/src/events.ts)).
+- **Feature counts.** [`telemetry.ts`](../client/src/lib/telemetry.ts) writes every `track()` call to the console. Twenty-six allowlisted names also post to `/event`, with props stripped on the device to a handful of safe values, no auth header, and nothing sent from development builds. The Worker folds each into a daily counter in `app_event_counts` and drops any name it does not recognise ([`events.ts`](../server/src/events.ts)).
 - **The completion flywheel.** `/plan` logs the offered breakdown to `ai_calls` with a pseudonymous `corr_id`. When a step from that breakdown is finished, the app posts only the id, the step total and the days elapsed to `/outcome` ([`outcome.ts`](../client/src/lib/outcome.ts)). Joining the two on `corr_id` shows which breakdowns actually get done, without knowing who did them.
 - **Not collected:** session lengths, who ticked a shared item (`shared_tasks` has no "done by" column), task text in alerts or event counts, RevenueCat subscriber attributes or IPs.
 
