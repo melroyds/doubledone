@@ -389,23 +389,9 @@ describe('glanceDismissedToday: posted today and not showing means not today', (
     expect(glanceDismissedToday(now, 9, trail({ postedAt: at(10, 0).getTime() }))).toBe(true);
   });
 
-  // The app's own leave (the day closed, finished or emptied) is not a swipe: it remembers taking it down, so Reopen,
-  // an untick or a new task brings it back the same day.
-  it('the app taking it down itself is not put away: every sign from before the take-down is explained by it', () => {
-    const down = at(14, 0).getTime();
-    expect(glanceDismissedToday(at(15, 0), 9, trail({ seenAt: down, postedAt: at(10, 0).getTime(), takenDownAt: down }))).toBe(false);
-    expect(glanceDismissedToday(at(15, 0), 9, trail({ arrival: { at: at(9, 0).getTime(), pending: false }, takenDownAt: down }))).toBe(false);
-  });
-
-  it('a sign from after the take-down counts as usual: re-posted, then swiped, is put away', () => {
-    const down = at(14, 0).getTime();
-    expect(glanceDismissedToday(at(16, 0), 9, trail({ postedAt: at(15, 0).getTime(), takenDownAt: down }))).toBe(true);
-    expect(glanceDismissedToday(at(16, 0), 9, trail({ seenAt: at(15, 30).getTime(), takenDownAt: down }))).toBe(true);
-  });
-
-  it("a take-down from an earlier day changes nothing about today's signs", () => {
-    expect(glanceDismissedToday(now, 9, trail({ postedAt: at(10, 0).getTime(), takenDownAt: at(20, 0, 9).getTime() }))).toBe(true);
-  });
+  // The app's own leave (the day closed, finished or emptied) is never judged here as a swipe: its take-down forgets
+  // every sign that it went up (lib/glance-refresh's forgetGlanceSigns, tested there), so the trail it leaves counts
+  // nothing, and Reopen, an untick or a new task brings it back the same day.
 
   it('one that is showing is not put away', () => {
     expect(glanceDismissedToday(now, 9, trail({ presented: true, postedAt: at(10, 0).getTime() }))).toBe(false);

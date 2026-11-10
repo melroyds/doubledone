@@ -130,11 +130,19 @@ describe('the native seam (lib/reminders)', () => {
 
   // A post made with the app open is still in the JS handler when its refresh ends, and can land after a take-down
   // that came next: an old list up until 9:30 pm, or a deleted account's titles.
-  // The app's own take-downs are remembered, so its own leave is never read as a swipe: the refresh settles `removed`,
-  // and the wipe marks the moment it took the glance down.
-  it("remembers the app's own take-downs, in a refresh and on an account wipe", () => {
-    expect(fnBody(src, 'runGlanceRefresh')).toMatch(/settleGlanceMemory\(plan, now, \{[^}]*\bremoved\b[^}]*\}\)/);
-    expect(fnBody(src, 'watchTodayGlance')).toMatch(/await takeDownGlance\(\);[\s\S]*?takenDownAt: Date\.now\(\)[\s\S]*?lookAgainLater\(\);/);
+  // The app's own take-downs forget every sign the glance went up, so its own leave is never read as a swipe: the
+  // refresh settles `removed`, the wipe forgets them when it took a showing glance down (and always forgets the arrival
+  // it cancelled), and a half-done take-down after Off forgets them and any verdict.
+  it("forgets the signs on the app's own take-downs: a refresh, an account wipe, and a half-done Off", () => {
+    const refresh = fnBody(src, 'runGlanceRefresh');
+    expect(refresh).toMatch(/settleGlanceMemory\(plan, now, \{[^}]*\bremoved\b[^}]*\}\)/);
+    expect(refresh).toContain('else if (memory.hour !== null) await saveGlanceMemory(halfDoneGlanceMemory(memory));');
+    // The shade is read BEFORE the take-down (what it held decides what is forgotten), an unreadable one is 'unknown'.
+    expect(fnBody(src, 'watchTodayGlance')).toMatch(
+      /getPresentedNotificationsAsync\(\)[\s\S]*?'unknown' as const[\s\S]*?await takeDownGlance\(\);[\s\S]*?wipedGlanceMemory\(memory, before, Date\.now\(\)\)[\s\S]*?lookAgainLater\(\);/,
+    );
+    expect(fnBody(src, 'disableTodayGlance')).toContain('halfDoneGlanceMemory(memory)');
+    expect(src).not.toMatch(/takenDownAt/);
   });
 
   it('looks again a little later after every post and every take-down, and a look again books none of its own', () => {

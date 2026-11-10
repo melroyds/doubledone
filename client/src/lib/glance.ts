@@ -246,11 +246,6 @@ export type GlanceTrail = {
    *  opened): today's glance showing after all, because what is in the shade is fact, and that delivery timing out
    *  (lib/glance-refresh's forgetUnlandedGlance), unless today's glance had been seen showing. */
   dismissedOn?: string | null;
-  /** The last time the app itself took the glance down (epoch ms): the day closed, finished or emptied, the window
-   *  ended, or the account was wiped. Every sign that it went up from before that moment is explained by the app's own
-   *  take-down, so it never counts as a swipe, and the glance comes back the same day once it belongs again (Reopen,
-   *  an untick, a new task). A sign from after it (a fresh post, a sighting) counts as usual. */
-  takenDownAt?: number | null;
 };
 
 function presentedToday(now: Date, trail: GlanceTrail): boolean {
@@ -258,11 +253,12 @@ function presentedToday(now: Date, trail: GlanceTrail): boolean {
 }
 
 /**
- * Whether today's glance was put away: it went up today, inside today's window, after the app last took it down
- * itself (`takenDownAt`), and it is not showing now. That covers a swipe, a reboot, an update or a force stop
- * (missing beats wrong), and it stays away until the next day's arrival: once judged (`dismissedOn`) the answer
- * holds for the rest of the day while it stays away. The app's own leave (the day closed, finished or emptied) is
- * NOT put away: the app knows it took it down, so Reopen, an untick or a new task brings it back the same day.
+ * Whether today's glance was put away: it went up today, inside today's window, and it is not showing now. That
+ * covers a swipe, a reboot, an update or a force stop (missing beats wrong), and it stays away until the next day's
+ * arrival: once judged (`dismissedOn`) the answer holds for the rest of the day while it stays away. The app's own
+ * leave (the day closed, finished or emptied) is NOT put away: when the app takes the glance down it forgets every
+ * sign that it went up (lib/glance-refresh's forgetGlanceSigns), so Reopen, an untick or a new task brings it back
+ * the same day. Forgetting leaves no stamp, so a clock moved back after a take-down cannot hide later swipes.
  * Today's glance showing always reads as not put away, a verdict included: the shade is the fact, and a verdict
  * made while a late delivery was still in the foreground handler must not take that delivery down once it lands.
  *
@@ -278,16 +274,8 @@ export function glanceDismissedToday(now: Date, hour: number, trail: GlanceTrail
   const w = glanceWindow(now, hour);
   if (w === null) return false;
   const ms = now.getTime();
-  const down = trail.takenDownAt != null && Number.isFinite(trail.takenDownAt) ? trail.takenDownAt : null;
-  // Strictly after the app's own take-down: a sighting in the very refresh that took it down carries the same moment.
   const upToday = (at: number | null | undefined, settle: number) =>
-    at != null &&
-    Number.isFinite(at) &&
-    at >= w.start.getTime() &&
-    at < w.end.getTime() &&
-    at <= ms &&
-    ms - at >= settle &&
-    (down === null || at > down);
+    at != null && Number.isFinite(at) && at >= w.start.getTime() && at < w.end.getTime() && at <= ms && ms - at >= settle;
   const fired = trail.arrival !== null && !trail.arrival.pending && upToday(trail.arrival.at, GLANCE_SETTLE_MS);
   return upToday(trail.seenAt, 0) || upToday(trail.postedAt, GLANCE_SETTLE_MS) || fired;
 }

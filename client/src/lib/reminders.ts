@@ -11,9 +11,11 @@ import {
   glanceArrivalMissed,
   glanceRequestContent,
   glanceTimeoutVerdict,
+  halfDoneGlanceMemory,
   planGlanceRefresh,
   readShownGlance,
   settleGlanceMemory,
+  wipedGlanceMemory,
 } from './glance-refresh';
 import { DAILY_FOLLOW_UP, escalationTimes, type HoldContract } from './hold';
 import { t } from './i18n-active';
@@ -647,6 +649,9 @@ async function runGlanceRefresh(): Promise<void> {
     // was forgotten, because a post still in the handler can land after the take-down that forgot it.
     if (memory.hour === null && !lookingAgain) return;
     if (await takeDownGlance()) await saveGlanceMemory(emptyGlanceMemory());
+    // Half done: keep the hour, so the next refresh tries the take-down again, but forget every sign it went up and
+    // any verdict, so choosing it again today shows it at once rather than reading the old sighting as a swipe.
+    else if (memory.hour !== null) await saveGlanceMemory(halfDoneGlanceMemory(memory));
     if (!lookingAgain) lookAgainLater();
     return;
   }
@@ -683,8 +688,8 @@ async function runGlanceRefresh(): Promise<void> {
   // alarm can never land last night's list over the post below.
   await quietly(() => Notifications.cancelScheduledNotificationAsync(GLANCE_ID));
   let posted = false;
-  // A take-down is the app's own leave (the day closed, finished or emptied, the window over), never a swipe: it is
-  // remembered (takenDownAt), so the glance comes back the same day once it belongs again.
+  // A take-down is the app's own leave (the day closed, finished or emptied, the window over), never a swipe: settling
+  // it forgets every sign the glance went up, so it comes back the same day once it belongs again.
   const removed = plan.action === 'remove';
   if (removed) await quietly(() => Notifications.dismissNotificationAsync(GLANCE_ID));
   else if (plan.action === 'post') posted = await postGlance(plan.content, plan.expiresAt, retry);
@@ -724,10 +729,19 @@ export function watchTodayGlance(): () => void {
   const unsubscribe = subscribeStorageChange((change) => {
     if (change === 'wipe') {
       void inGlanceLine(async () => {
+        // What the shade held just before the take-down decides what is forgotten (lib/glance-refresh's
+        // wipedGlanceMemory): a showing glance, or an unreadable shade, loses its signs; a swiped one, not yet judged,
+        // keeps them; the arrival just cancelled always goes.
+        const before = await Notifications.getPresentedNotificationsAsync().then(
+          (all) => {
+            const showing = all.find((n) => n.request.identifier === GLANCE_ID);
+            return showing ? readShownGlance(showing.request.content.data) : null;
+          },
+          () => 'unknown' as const,
+        );
         await takeDownGlance();
-        // The app took it down, not the person, so its absence must never read as a swipe (takenDownAt).
         const memory = await loadGlanceMemory();
-        if (memory.hour !== null) await saveGlanceMemory({ ...memory, takenDownAt: Date.now() });
+        if (memory.hour !== null) await saveGlanceMemory(wipedGlanceMemory(memory, before, Date.now()));
         lookAgainLater();
       });
     } else {
@@ -770,6 +784,11 @@ export async function disableTodayGlance(): Promise<void> {
   if (!GLANCE_AVAILABLE) return;
   await inGlanceLine(async () => {
     if (await takeDownGlance()) await saveGlanceMemory(emptyGlanceMemory());
+    else {
+      // Half done: as in the refresh, keep the hour for a retry, forget the signs and any verdict.
+      const memory = await loadGlanceMemory();
+      if (memory.hour !== null) await saveGlanceMemory(halfDoneGlanceMemory(memory));
+    }
     lookAgainLater();
   });
 }

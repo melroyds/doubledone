@@ -532,7 +532,7 @@ describe("the reminder's settings and the glance's memory", () => {
 
   it("keeps the glance's memory under its own key, and saving it tells no notice (no refresh can set off another)", async () => {
     const heard = heardAll();
-    const memory = { hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: '2026-11-10', takenDownAt: 4 };
+    const memory = { hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: '2026-11-10' };
     await saveGlanceMemory(memory);
     expect(heard).toEqual([]);
     const [key, raw] = vi.mocked(AsyncStorage.setItem).mock.calls.at(-1)!;
@@ -542,7 +542,7 @@ describe("the reminder's settings and the glance's memory", () => {
   });
 
   it('reads a missing, junk or unreadable memory as empty', async () => {
-    const empty = { hour: null, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null, takenDownAt: null };
+    const empty = { hour: null, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null };
     expect(await loadGlanceMemory()).toEqual(empty);
     vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve('{oops'));
     expect(await loadGlanceMemory()).toEqual(empty);
@@ -552,7 +552,7 @@ describe("the reminder's settings and the glance's memory", () => {
 
   it('a failed memory save never throws', async () => {
     vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
-    await expect(saveGlanceMemory({ hour: 9, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null, takenDownAt: null })).resolves.toBeUndefined();
+    await expect(saveGlanceMemory({ hour: 9, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null })).resolves.toBeUndefined();
   });
 });
 

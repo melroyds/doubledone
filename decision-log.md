@@ -11958,8 +11958,14 @@ Built on the branch `feat/today-glance`: not merged, in no build, and the Worker
   an ellipsis and the post carries a short fingerprint of its words, not the words again: the post is handed to
   Android in one piece after every save, and a parcel too large for that crashes the app from a background thread.
 - **It leaves when the day is done, and comes back if that changes:** on Goodnight, the last tick or an empty day it
-  goes, and Reopen, an untick or a new task brings it back the same day. The app remembers taking it down itself
-  (`takenDownAt` in the glance's memory), so its own leave never reads as a swipe. The first build read the spec
+  goes, and Reopen, an untick or a new task brings it back the same day. When a refresh takes it down, the app forgets
+  every sign that it went up (`forgetGlanceSigns`: the post, the sighting, the arrival), so its own leave never reads
+  as a swipe. An account wipe forgets them only for a glance that was showing (or a shade it could not read), and
+  keeps them for one already gone, because forgetting on every wipe would erase a swipe nobody had judged yet. A post
+  still landing is never kept, and the cancelled arrival always goes. A half-done Off forgets the signs and any
+  verdict, so choosing it again the same day shows it at once, as after a clean Off. Forgetting beat stamping the
+  moment of the take-down: a stamp compares clock times, so a clock moved back would have hidden real swipes (found
+  by the skeptic pass). The first build read the spec
   literally ("nothing more that day") and this was changed before the PR: someone who adds a task after finishing
   would lose the very glance they rely on to remember it. **A swipe means not today.** The app cannot see
   a swipe, so a glance that went up today and is not showing now counts as put away until the next day's arrival. A

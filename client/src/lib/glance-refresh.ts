@@ -22,6 +22,7 @@ import {
   glanceDismissedToday,
   glanceExpiry,
   glanceHasWindow,
+  GLANCE_SETTLE_MS,
   planGlanceArrival,
   type ReminderStyle,
 } from './glance';
@@ -35,10 +36,10 @@ import type { Task } from './tasks';
  * - `hour`: the reminder hour this memory was kept under. Null means nothing of the glance is set up (never chosen,
  *   or taken down cleanly), which is what lets a refresh for everyone who never chose it skip the phone entirely.
  *   A different hour starts a fresh memory, as switching the glance on does, so a new choice can show at once.
- * - `postedAt`, `seenAt`, `arrivalAt`, `dismissedOn` and `takenDownAt`: the kept half of lib/glance's GlanceTrail.
- *   `arrivalAt` is the one arrival the last refresh scheduled (every refresh cancels the old one and schedules
- *   anew). `takenDownAt` is the last time the app itself took the glance down, so its own leave is never read as a
- *   swipe and the glance can come back the same day.
+ * - `postedAt`, `seenAt`, `arrivalAt` and `dismissedOn`: the kept half of lib/glance's GlanceTrail. `arrivalAt` is
+ *   the one arrival the last refresh scheduled (every refresh cancels the old one and schedules anew). When the app
+ *   takes the glance down itself, `postedAt`, `seenAt` and `arrivalAt` are forgotten (forgetGlanceSigns), so its own
+ *   leave is never read as a swipe and the glance can come back the same day.
  */
 export type GlanceMemory = {
   hour: number | null;
@@ -46,12 +47,55 @@ export type GlanceMemory = {
   seenAt: number | null;
   arrivalAt: number | null;
   dismissedOn: string | null;
-  takenDownAt: number | null;
 };
 
 /** A fresh, empty memory (a new object each time, so no caller can change another's). */
 export function emptyGlanceMemory(): GlanceMemory {
-  return { hour: null, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null, takenDownAt: null };
+  return { hour: null, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null };
+}
+
+/**
+ * The app took the glance down itself (the day closed, finished or emptied, the window over, an account wipe, or Off
+ * when the take-down only half worked): forget every sign that it went up, the post, the sighting and the arrival,
+ * so its absence can never read as a swipe and it comes back the same day once it belongs again. The hour stays, so
+ * a later refresh can still find what is left of it. Forgetting leaves no stamp, so a clock moved back after a
+ * take-down cannot hide later swipes. `dismissedOn` stays here (a swipe already judged today still means not today);
+ * the half-done Off and the account wipe decide about it themselves (halfDoneGlanceMemory, wipedGlanceMemory).
+ */
+export function forgetGlanceSigns(memory: GlanceMemory): GlanceMemory {
+  return { ...memory, postedAt: null, seenAt: null, arrivalAt: null };
+}
+
+/**
+ * The memory after Off (or a change of style) whose take-down only half worked: the hour stays, so the next refresh
+ * tries the take-down again, and every sign and any verdict go, so choosing the glance again the same day shows it at
+ * once, exactly as after a clean Off (which empties the memory).
+ */
+export function halfDoneGlanceMemory(memory: GlanceMemory): GlanceMemory {
+  return { ...forgetGlanceSigns(memory), dismissedOn: null };
+}
+
+/**
+ * The memory to keep after an account wipe took the glance down. `before` is what the shade held just before the
+ * take-down: the glance's own data (ShownGlance), null when it was not showing, or 'unknown' when the shade could not
+ * be read, which counts as showing, because forgetting errs toward showing the glance again, never toward a false
+ * swipe.
+ * - Showing (or unknown): the app took it down, so every sign is forgotten. A verdict goes too when today's glance was
+ *   positively seen showing, because the shade had already overturned it. An unknown shade keeps a verdict, so a
+ *   swipe judged today still means not today.
+ * - Not showing: its signs stay, so a swipe nobody has judged yet still means not today. The one exception is a post
+ *   still landing (younger than GLANCE_SETTLE_MS), which nobody can have swiped: it may land just before the take-down.
+ * The arrival the take-down cancelled is always forgotten, so it can never read as fired and missing. A memory with
+ * nothing set up (hour null) is returned as it was.
+ */
+export function wipedGlanceMemory(memory: GlanceMemory, before: ShownGlance | null | 'unknown', now: number): GlanceMemory {
+  if (memory.hour === null) return { ...memory };
+  if (before !== null) {
+    const overturned = before !== 'unknown' && (before.day === null || before.day === toISODate(new Date(now)));
+    return { ...forgetGlanceSigns(memory), dismissedOn: overturned ? null : memory.dismissedOn };
+  }
+  const landing = memory.postedAt !== null && now - memory.postedAt >= 0 && now - memory.postedAt < GLANCE_SETTLE_MS;
+  return { ...memory, arrivalAt: null, postedAt: landing ? null : memory.postedAt };
 }
 
 const finiteOrNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -72,7 +116,6 @@ export function parseGlanceMemory(raw: string | null | undefined): GlanceMemory 
       seenAt: finiteOrNull(o.seenAt),
       arrivalAt: finiteOrNull(o.arrivalAt),
       dismissedOn: isoDayOrNull(o.dismissedOn),
-      takenDownAt: finiteOrNull(o.takenDownAt),
     };
   } catch {
     return emptyGlanceMemory();
@@ -86,7 +129,6 @@ export function serializeGlanceMemory(memory: GlanceMemory): string {
     seenAt: memory.seenAt,
     arrivalAt: memory.arrivalAt,
     dismissedOn: memory.dismissedOn,
-    takenDownAt: memory.takenDownAt,
   });
 }
 
@@ -168,7 +210,6 @@ export function planGlanceRefresh(o: GlanceRefreshInput): GlanceRefreshPlan {
     seenAt: memory.seenAt,
     arrival: memory.arrivalAt === null ? null : { at: memory.arrivalAt, pending: o.arrivalPending },
     dismissedOn: memory.dismissedOn,
-    takenDownAt: memory.takenDownAt,
   });
   // Today's verdict sticks for the rest of today, unless today's glance is showing after all (a delivery that was
   // still on its way when it was judged, lib/glance). An older day's means nothing now, so it is not kept.
@@ -185,20 +226,21 @@ export function planGlanceRefresh(o: GlanceRefreshInput): GlanceRefreshPlan {
   return { action, content, expiresAt, arrival, cancelNudge, memory };
 }
 
-/** The memory to store after the seam carried out `plan`: the post counts only if it went out, the arrival only if it
- *  was scheduled and will still fire (see glanceArrivalMissed), and a take-down (`removed`) marks the moment the app
- *  itself took the glance down, so its absence is never read as a swipe. A memory with nothing chosen stays empty. */
+/** The memory to store after the seam carried out `plan`: the post counts only if it went out, and the arrival only
+ *  if it was scheduled and will still fire (see glanceArrivalMissed). A take-down (`removed`) is the app's own leave:
+ *  every sign that it went up is forgotten (forgetGlanceSigns), so its absence is never read as a swipe. A memory
+ *  with nothing chosen stays empty. */
 export function settleGlanceMemory(
   plan: GlanceRefreshPlan,
   now: Date,
   done: { posted: boolean; scheduled: boolean; removed?: boolean },
 ): GlanceMemory {
   if (plan.memory.hour === null) return { ...plan.memory };
+  const kept = done.removed === true ? forgetGlanceSigns(plan.memory) : plan.memory;
   return {
-    ...plan.memory,
-    postedAt: done.posted ? now.getTime() : plan.memory.postedAt,
+    ...kept,
+    postedAt: done.posted ? now.getTime() : kept.postedAt,
     arrivalAt: done.scheduled && plan.arrival !== null ? plan.arrival.at.getTime() : null,
-    takenDownAt: done.removed === true ? now.getTime() : plan.memory.takenDownAt,
   };
 }
 

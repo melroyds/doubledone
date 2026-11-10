@@ -4,6 +4,7 @@ import { buildGlance, GLANCE_SETTLE_MS, glanceExpiry } from './glance';
 import {
   dailyNudgeHour,
   emptyGlanceMemory,
+  forgetGlanceSigns,
   forgetUnlandedGlance,
   glanceArrivalMissed,
   glanceData,
@@ -12,12 +13,14 @@ import {
   type GlanceRefreshInput,
   type GlanceRefreshPlan,
   glanceTimeoutVerdict,
+  halfDoneGlanceMemory,
   parseGlanceMemory,
   planGlanceRefresh,
   readShownGlance,
   serializeGlanceMemory,
   settleGlanceMemory,
   type ShownGlance,
+  wipedGlanceMemory,
 } from './glance-refresh';
 import { GLANCE_ID } from './reminders-types';
 import type { Task } from './tasks';
@@ -98,7 +101,7 @@ describe('planGlanceRefresh: posting, leaving it, replacing it', () => {
     expect(plan.expiresAt.getTime()).toBe(at(21, 30).getTime());
     expect(plan.arrival?.at.getTime()).toBe(at(9, 0, 11).getTime());
     expect(plan.arrival?.content.day).toBe(TOMORROW);
-    expect(memory).toEqual({ hour: 9, postedAt: at(10).getTime(), seenAt: null, arrivalAt: at(9, 0, 11).getTime(), dismissedOn: null, takenDownAt: null });
+    expect(memory).toEqual({ hour: 9, postedAt: at(10).getTime(), seenAt: null, arrivalAt: at(9, 0, 11).getTime(), dismissedOn: null });
   });
 
   it('before the window posts nothing and plans today at the hour, with today computed now', () => {
@@ -148,7 +151,8 @@ describe('planGlanceRefresh: it leaves when the day is done, and comes back if t
     const closed = refresh(input({ now: at(20), closedISO: ISO, shown: shownFrom(first.plan), memory: first.memory }));
     expect(closed.plan.action).toBe('remove');
     expect(closed.plan.arrival?.content.day).toBe(TOMORROW);
-    expect(closed.memory.takenDownAt).toBe(at(20).getTime());
+    expect(closed.memory.postedAt).toBeNull(); // the take-down forgot every sign it went up
+    expect(closed.memory.seenAt).toBeNull();
     const reopened = refresh(input({ now: at(20, 5), closedISO: null, shown: null, memory: closed.memory }));
     expect(reopened.plan.action).toBe('post');
     expect(reopened.memory.dismissedOn).toBeNull();
@@ -282,11 +286,41 @@ describe('settleGlanceMemory', () => {
     expect(settleGlanceMemory(plan, at(10), { posted: true, scheduled: true })).toEqual({ ...plan.memory, postedAt: at(10).getTime(), arrivalAt: at(9, 0, 11).getTime() });
   });
 
-  it("marks the app's own take-down, and keeps an earlier one when this refresh took nothing down", () => {
-    const plan = planGlanceRefresh(input());
-    expect(settleGlanceMemory(plan, at(10), { posted: false, scheduled: false, removed: true }).takenDownAt).toBe(at(10).getTime());
-    const withEarlier = { ...plan, memory: { ...plan.memory, takenDownAt: at(9, 30).getTime() } };
-    expect(settleGlanceMemory(withEarlier, at(10), { posted: true, scheduled: true }).takenDownAt).toBe(at(9, 30).getTime());
+  it('a take-down forgets every sign it went up, and still records the next arrival', () => {
+    const first = refresh(input());
+    const plan = planGlanceRefresh(input({ now: at(12), closedISO: ISO, shown: shownFrom(first.plan), memory: first.memory }));
+    expect(plan.action).toBe('remove');
+    const m = settleGlanceMemory(plan, at(12), { posted: false, scheduled: true, removed: true });
+    expect(m.postedAt).toBeNull();
+    expect(m.seenAt).toBeNull();
+    expect(m.arrivalAt).toBe(at(9, 0, 11).getTime());
+    expect(m.dismissedOn).toBeNull();
+    expect(m.hour).toBe(9);
+  });
+
+  it('forgetGlanceSigns keeps the hour and a verdict already made (a swipe judged today still means not today)', () => {
+    expect(forgetGlanceSigns({ hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: ISO })).toEqual({
+      hour: 9,
+      postedAt: null,
+      seenAt: null,
+      arrivalAt: null,
+      dismissedOn: ISO,
+    });
+  });
+
+  // An hour moved later takes the showing glance down before the new window; the new hour's arrival then fires late
+  // (no "Alarms & reminders") as the app opens and the handler drops it. With a sighting left over from before the
+  // take-down, the forget kept the verdict and the retry posted nothing, so the day was lost without a swipe.
+  it('a late arrival after a take-down, dropped by the handler, still gets its one retry', () => {
+    const down = refresh(input({ now: at(8), shown: { day: ISO, key: 'old' }, memory: { ...emptyGlanceMemory(), hour: 9 } }));
+    expect(down.plan.action).toBe('remove');
+    expect(down.memory.seenAt).toBeNull();
+    expect(down.memory.arrivalAt).toBe(at(9).getTime());
+    const open = refresh(input({ now: at(9, 40), shown: null, arrivalPending: false, memory: down.memory }));
+    expect(open.memory.dismissedOn).toBe(ISO);
+    const forgot = forgetUnlandedGlance(open.memory, at(9, 40).getTime() + 3000);
+    expect(forgot.dismissedOn).toBeNull();
+    expect(planGlanceRefresh(input({ now: new Date(at(9, 40).getTime() + 4000), shown: null, memory: forgot })).action).toBe('post');
   });
 
   it('keeps an earlier post when this refresh posted nothing', () => {
@@ -301,10 +335,61 @@ describe('settleGlanceMemory', () => {
   });
 });
 
+describe('the account wipe and a half-done Off', () => {
+  const seen: GlanceMemory = { hour: 9, postedAt: at(9).getTime(), seenAt: at(10).getTime(), arrivalAt: at(9, 0, 11).getTime(), dismissedOn: null };
+
+  it('a glance showing at the wipe was taken down by the app: every sign goes, and a verdict the shade overturned', () => {
+    const forgotten = { hour: 9, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null };
+    expect(wipedGlanceMemory({ ...seen, dismissedOn: ISO }, { day: ISO, key: 'k' }, at(11).getTime())).toEqual(forgotten);
+    expect(wipedGlanceMemory({ ...seen, dismissedOn: ISO }, { day: null, key: null }, at(11).getTime())).toEqual(forgotten);
+  });
+
+  it("yesterday's glance showing at the wipe does not overturn today's verdict", () => {
+    expect(wipedGlanceMemory({ ...seen, dismissedOn: ISO }, { day: YESTERDAY, key: 'k' }, at(11).getTime()).dismissedOn).toBe(ISO);
+  });
+
+  it('an unreadable shade counts as showing for the signs, but keeps a verdict already made', () => {
+    expect(wipedGlanceMemory({ ...seen, dismissedOn: ISO }, 'unknown', at(11).getTime())).toEqual({
+      hour: 9,
+      postedAt: null,
+      seenAt: null,
+      arrivalAt: null,
+      dismissedOn: ISO,
+    });
+  });
+
+  it('a glance not showing keeps its signs, so a swipe nobody judged yet still means not today, but never the cancelled arrival', () => {
+    const kept = wipedGlanceMemory(seen, null, at(11).getTime());
+    expect(kept).toEqual({ ...seen, arrivalAt: null });
+    expect(planGlanceRefresh(input({ now: at(11, 30), shown: null, memory: kept })).action).toBe('none');
+  });
+
+  it('a post still landing at the wipe can never have been swiped, so it is not kept', () => {
+    const landing = { ...seen, seenAt: null, postedAt: at(11).getTime() - 300 };
+    const m = wipedGlanceMemory(landing, null, at(11).getTime());
+    expect(m.postedAt).toBeNull();
+    expect(planGlanceRefresh(input({ now: at(11, 30), shown: null, memory: m })).action).toBe('post');
+  });
+
+  it('a memory with nothing set up stays as it was', () => {
+    expect(wipedGlanceMemory(emptyGlanceMemory(), { day: ISO, key: 'k' }, at(11).getTime())).toEqual(emptyGlanceMemory());
+  });
+
+  it('a half-done Off forgets every sign and any verdict, so choosing it again the same day shows it at once', () => {
+    const half = halfDoneGlanceMemory({ ...seen, dismissedOn: ISO });
+    expect(half).toEqual({ hour: 9, postedAt: null, seenAt: null, arrivalAt: null, dismissedOn: null });
+    expect(planGlanceRefresh(input({ now: at(12, 5), shown: null, memory: half })).action).toBe('post');
+    // Kept as it was, the old sighting would read as a swipe.
+    expect(planGlanceRefresh(input({ now: at(12, 5), shown: null, memory: seen })).action).toBe('none');
+  });
+});
+
 describe('the stored memory', () => {
   it('round-trips', () => {
-    const m: GlanceMemory = { hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: ISO, takenDownAt: 4 };
+    const m: GlanceMemory = { hour: 9, postedAt: 1, seenAt: 2, arrivalAt: 3, dismissedOn: ISO };
     expect(parseGlanceMemory(serializeGlanceMemory(m))).toEqual(m);
+    // A field this version does not keep (an earlier draft's takenDownAt) is read past, never carried.
+    expect(parseGlanceMemory(JSON.stringify({ ...m, takenDownAt: 4 }))).toEqual(m);
     expect(parseGlanceMemory(serializeGlanceMemory(emptyGlanceMemory()))).toEqual(emptyGlanceMemory());
   });
 
@@ -386,7 +471,7 @@ describe('glanceTimeoutVerdict and forgetUnlandedGlance (a foreground handler th
 
   it('forgets the post and the fired arrival, keeps what was seen, the verdict and a future arrival', () => {
     const now = at(12).getTime();
-    const m: GlanceMemory = { hour: 9, postedAt: at(12).getTime() - 3000, seenAt: at(10).getTime(), arrivalAt: at(9).getTime(), dismissedOn: null, takenDownAt: null };
+    const m: GlanceMemory = { hour: 9, postedAt: at(12).getTime() - 3000, seenAt: at(10).getTime(), arrivalAt: at(9).getTime(), dismissedOn: null };
     expect(forgetUnlandedGlance(m, now)).toEqual({ ...m, postedAt: null, arrivalAt: null });
     const future = { ...m, arrivalAt: at(9, 0, 11).getTime() };
     expect(forgetUnlandedGlance(future, now).arrivalAt).toBe(at(9, 0, 11).getTime());
