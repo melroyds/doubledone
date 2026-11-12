@@ -10,7 +10,8 @@ import { glanceData } from './glance-refresh';
 // lib/reminders and the root layout. Each check below guards a failure that would be silent on a phone: a key the
 // patch reads that the seam never writes (no expiry, so last night's list could stay up), a channel created with
 // sound or at the wrong importance (fixed for good on first creation), a post with no channel (expo's HIGH fallback
-// pops up and buzzes), the nudge re-armed beside the glance, or the wiring gone.
+// pops up and buzzes), the nudge re-armed beside the glance, a post to a category turned off in Android's settings
+// read as a swipe, or the wiring gone (the status line Settings shows under the glance included).
 const read = (path: string) => readFileSync(join(__dirname, path), 'utf8');
 
 /** A top-level function's source in `src`, from its declaration to the closing brace at column 0. */
@@ -98,6 +99,7 @@ describe('the native seam (lib/reminders)', () => {
     }
     expect(fnBody(src, 'watchTodayGlance')).toContain('if (!GLANCE_AVAILABLE) return () => {};');
     expect(fnBody(src, 'enableTodayGlance')).toContain("if (!GLANCE_AVAILABLE) return { ok: false, reason: 'unsupported' };");
+    expect(fnBody(src, 'readGlanceStatus')).toContain('if (!GLANCE_AVAILABLE) return null;');
   });
 
   it("leaves the glance's arrival out of the nudge count, so the Routines warning still shows", () => {
@@ -145,9 +147,11 @@ describe('the native seam (lib/reminders)', () => {
     expect(src).not.toMatch(/takenDownAt/);
   });
 
-  it('looks again a little later after every post and every take-down, and a look again books none of its own', () => {
+  // A post that failed is looked at again too, so a passing failure is posted once more rather than left missing (and
+  // Settings saying "Showing now.") until the next save.
+  it('looks again a little later after every post (a failed one too) and every take-down, and a look again books none of its own', () => {
     const refresh = fnBody(src, 'runGlanceRefresh');
-    expect(refresh).toContain("if ((posted || plan.action === 'remove') && !lookingAgain) lookAgainLater();");
+    expect(refresh).toContain("if ((plan.action === 'post' || plan.action === 'remove') && !lookingAgain) lookAgainLater();");
     expect(refresh).toContain('if (memory.hour === null && !lookingAgain) return;');
     expect(refresh).toContain('if (!lookingAgain) lookAgainLater();');
     expect(fnBody(src, 'watchTodayGlance')).toMatch(/await takeDownGlance\(\);[\s\S]*?lookAgainLater\(\);/);
@@ -166,6 +170,37 @@ describe('the native seam (lib/reminders)', () => {
     expect(refresh).toContain('scheduled: scheduledNext && !missed');
     expect(refresh).toContain('if (missed) refreshTodayGlance();');
   });
+
+  // Android keeps a person's "off" for the glance's category when the app creates the channel again, and drops every
+  // post to it without a word: posted anyway, the post would then read as a swipe (2026-11-12). So the refresh reads
+  // the channel each time and hands it to the plan on its own, which posts nothing and counts nothing while it is NONE
+  // and keeps the next arrival armed (lib/glance-refresh, tested there). An unreadable channel never hides the glance.
+  it("hands the glance's category turned off in Android's settings to the plan, on its own", () => {
+    const off = fnBody(src, 'glanceChannelOff');
+    expect(off).toContain('getNotificationChannelAsync(GLANCE_CHANNEL)');
+    expect(off).toContain('return channel?.importance === Notifications.AndroidImportance.NONE;');
+    expect(off).toMatch(/catch \{\s*return false;\s*\}/);
+    const refresh = fnBody(src, 'runGlanceRefresh');
+    expect(refresh).toContain('glanceChannelOff(),');
+    expect(refresh).toContain("permitted: permission.status === 'granted',");
+    expect(refresh).toMatch(/\n\s+channelOff,\n/);
+  });
+
+  // The status line must say what the refresh does, so it reads what the refresh reads (the memory, the shade, the
+  // permission, the channel, the stored day), never a refresh half done, and it never changes anything itself.
+  it('reads the status line from what the refresh reads, in the one line, and writes nothing', () => {
+    const body = fnBody(src, 'readGlanceStatus');
+    expect(body).toContain('await inGlanceLine(');
+    for (const call of ['loadGlanceMemory()', 'peekTasks()', 'loadClosedDate()', 'getPermissionsAsync()', 'getPresentedNotificationsAsync()', 'glanceChannelOff()']) {
+      expect(body, call).toContain(call);
+    }
+    expect(body).toContain('readShownGlance(showing.request.content.data)');
+    expect(body).toContain("permitted: permission.status === 'granted',");
+    expect(body).toContain('exactAlarms: exactAlarmDoorRelevant() ? null : true,');
+    for (const write of ['saveGlanceMemory', 'scheduleNotificationAsync', 'dismissNotificationAsync', 'cancelScheduledNotificationAsync', 'refreshTodayGlance', 'loadTasks(']) {
+      expect(body, write).not.toContain(write);
+    }
+  });
 });
 
 describe('the wiring', () => {
@@ -174,11 +209,46 @@ describe('the wiring', () => {
   });
 
   it('no path that re-arms the nudge from storage re-arms it beside the glance', () => {
-    for (const path of ['../app/_layout.tsx', '../app/routines.tsx']) {
+    // Settings' "Alarms & reminders" door under the glance (2026-11-12) re-arms as the Routines screen's does.
+    for (const path of ['../app/_layout.tsx', '../app/routines.tsx', '../app/settings.tsx']) {
       const src = read(path);
       expect(src, path).toContain('dailyNudgeHour(reminderOn, reminderStyle, reminderHour)');
       expect(src, path).not.toContain('reminderOn ? reminderHour : null');
     }
+  });
+
+  // The glance's status line (2026-11-12): only while the glance is chosen, read again on focus, on the return to the
+  // foreground, when the window gets focus back (the shade let go over Settings sends only that) and whenever the
+  // choice or the hour changes, once more after a "Showing now." with nothing in the shade yet, and polite, so TalkBack
+  // hears it change.
+  it("Settings shows the glance's status line only while it is chosen, and reads it again on focus, on return and after the shade", () => {
+    const src = read('../app/settings.tsx');
+    expect(src).toContain('const read = () => (glanceChosen ? readGlanceStatus(reminderHour) : Promise.resolve<GlanceStatus | null>(null));');
+    expect(src).toContain('}, [glanceChosen, reminderHour, glanceLook]);');
+    expect(src).toMatch(/useCallback\(\(\) => \{\s*if \(!GLANCE_AVAILABLE\) return;\s*setGlanceLook\(\(n\) => n \+ 1\);/);
+    expect(src).toMatch(/AppState\.addEventListener\('change', \(state\) => \{\s*if \(state === 'active'\) setGlanceLook\(\(n\) => n \+ 1\);/);
+    expect(src).toContain("const shade = AppState.addEventListener('focus', () => setGlanceLook((n) => n + 1));");
+    expect(src).toMatch(/appState\.remove\(\);\s*shade\.remove\(\);/);
+    // Once more after a post has had time to land, from the first read only, and never after the screen moved on.
+    expect(src).toMatch(
+      /if \(status\?\.lookAgain\) \{\s*again = setTimeout\(\(\) => \{\s*void read\(\)\.then\(\(next\) => \{\s*if \(current\) setGlanceStatusNow\(next\);\s*\}\);\s*\}, GLANCE_SETTLE_MS \+ 1500\);/,
+    );
+    expect(src).toMatch(/current = false;\s*if \(again !== null\) clearTimeout\(again\);/);
+    expect(src).toMatch(
+      /\{glanceChosen && glanceStatusNow \? \(\s*<View style=\{styles\.glanceStatus\}>\s*<Text style=\{styles\.glanceStatusLine\} accessibilityLiveRegion="polite">\s*\{glanceStatusNow\.line\}/,
+    );
+  });
+
+  // The door is the Routines screen's own (its words, its opener and its re-arm on the way back), shown only when the
+  // status asks for it, and the glance's next arrival is scheduled again on return, exact now if it was allowed.
+  it("Settings offers the Routines screen's own Alarms & reminders door under the glance, and re-arms on return", () => {
+    const src = read('../app/settings.tsx');
+    expect(src).toMatch(/\{glanceStatusNow\.alarmDoor \? \(/);
+    expect(src).toContain("<Text style={styles.glanceDoor}>{t('routines.exactOpen')}</Text>");
+    expect(src).toContain("accessibilityLabel={t('routines.exactOpen')}");
+    expect(src).toMatch(
+      /async function grantExactAlarmsForGlance\(\) \{\s*await openExactAlarmSettings\(\);[\s\S]*?rescheduleAllNudges\(await loadRoutines\(\), dailyNudgeHour\(reminderOn, reminderStyle, reminderHour\)\);[\s\S]*?refreshTodayGlance\(\);\s*setGlanceLook\(\(n\) => n \+ 1\);\s*\}/,
+    );
   });
 
   it("the widget skips the reminder's settings, which change nothing it shows", () => {
@@ -189,5 +259,6 @@ describe('the wiring', () => {
     const web = read('reminders.web.ts');
     expect(web).toContain('export const GLANCE_AVAILABLE = false;');
     expect(fnBody(web, 'enableTodayGlance')).toContain("reason: 'unsupported'");
+    expect(fnBody(web, 'readGlanceStatus')).toContain('return null;');
   });
 });

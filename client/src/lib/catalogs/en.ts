@@ -324,16 +324,29 @@ export const en = {
     premiumGivenStatusPlay: 'On us until {date}, then the extras switch off on their own. Your tasks and everything else stay as they are. Nothing to cancel.',
   },
   // "Today in your notifications" (lib/glance, Android). Titles only, never a number. The copy never says "live"
-  // and never promises the lock screen: the phone's own settings decide that.
+  // and never promises the lock screen: the phone's own settings decide that. The status* lines sit under the choice
+  // in Settings (lib/glance-refresh's glanceStatus) and name a time, never a count. exactHint sits over the Routines
+  // screen's own "Alarms & reminders" door (routines.exactOpen) when it shows under them: routines.exactHint names
+  // nudges, which here is the other choice. It is worded to be true whether or not access is already allowed,
+  // because the app cannot read the grant and the door never goes away: an instruction that can never be finished
+  // would nag the very people this is for.
   glance: {
     andMore: 'and more',
     channelName: 'Today in your notifications',
+    exactHint: 'If it ever comes late, allow "Alarms & reminders" for DoubleDone.',
     firstAndMore: '{title}, and more',
     hint: "It leaves when the day's done, or by {time}. Your lock screen shows it if your phone allows.",
     optionGlance: 'Stays from {time} until done',
     optionGlanceSub: 'Sits quietly in your notifications. Never sounds or buzzes.',
     optionNudge: 'A nudge at {time}',
     optionNudgeSub: "One gentle notification, then it's gone.",
+    statusOff: "Turned off in Android's settings for DoubleDone.",
+    statusPutAway: 'Put away for today. Back tomorrow at {time}.',
+    statusPutAwayOnly: 'Put away for today.',
+    statusResting: 'Resting while today is clear.',
+    statusShowing: 'Showing now.',
+    statusToday: 'Comes at {time}.',
+    statusTomorrow: 'Comes tomorrow at {time}.',
     tooLate: 'Pick a time before {time} for this one.',
   },
   landing: {
