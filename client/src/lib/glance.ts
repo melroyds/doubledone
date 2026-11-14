@@ -15,6 +15,12 @@
 // - It leaves when the day is closed (Goodnight), every task is done, or the day is empty, and it comes back the
 //   same day if that changes (Reopen, an untick, a new task): the app took it down itself, so its absence is no
 //   swipe. A swipe means "not today": it stays away until the next day's arrival at the hour.
+// - Only a glance the app knows went up can be put away: one a refresh saw in the shade, or one the app posted
+//   itself. A scheduled arrival nobody saw counts for nothing, because Android can lose one without a word, so the
+//   next open inside the window posts it. The cost, accepted 2026-11-12: a swipe made before any refresh has seen the
+//   glance comes back once, at the next refresh, and a second swipe sticks. In practice that is a swipe before the
+//   day's first open, or, when it arrives with the app already open, one before the next save or return to the app.
+// - From 21:30 its absence is the window's end (its own expiry, or a refresh taking it down), never a swipe.
 // - Every post carries an absolute expiry, 21:30 that day, so a late alarm can never show it past 21:30.
 //
 // Date maths is local and safe across daylight-saving nights: every moment is built with the Date constructor
@@ -174,7 +180,13 @@ export function nextGlanceArrival(after: Date, hour: number): Date | null {
   const today = glanceWindow(after, hour);
   if (!today) return null;
   if (today.start.getTime() > after.getTime()) return today.start;
-  return wallClock(new Date(after.getFullYear(), after.getMonth(), after.getDate() + 1), clampHour(hour), 0);
+  return tomorrowsGlanceArrival(after, hour);
+}
+
+/** Hour:00 local on the calendar date after `day`'s: tomorrow's arrival, whether or not the hour leaves a window
+ *  (callers check that first). By the calendar, never `day` plus 24 hours. */
+export function tomorrowsGlanceArrival(day: Date, hour: number): Date {
+  return wallClock(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1), clampHour(hour), 0);
 }
 
 export type GlanceArrival = {
@@ -220,10 +232,13 @@ export function planGlanceArrival(o: {
  * What the native seam knows when it asks whether today's glance was put away. The app cannot see a swipe
  * (Android 14+ lets an unlocked phone swipe even an ongoing notification), a reboot, an app update or a force
  * stop. It can only see that a glance it knows went up is no longer there. On every refresh the seam reads
- * `presented` and the arrival's `pending` fresh, keeps the rest between refreshes, and then, in this order:
- * sets `dismissedOn` to today when this says put away, sets `seenAt` to now when today's glance is showing, sets
- * `postedAt` when it posts, and only then replaces the arrival (so a fired arrival is judged before it is lost).
- * Switching the glance on, or changing its hour, starts from an empty trail, so the new choice can show at once.
+ * `presented` fresh, keeps the rest between refreshes, and then, in this order: sets `dismissedOn` to today when
+ * this says put away, sets `seenAt` to now when today's glance is showing, and sets `postedAt` when it posts.
+ * While Android will not show it (notifications or its category off) and nothing is in the shade, the seam forgets
+ * `postedAt` and `seenAt` before asking, because the switch that blocked it took it down (lib/glance-refresh).
+ * The scheduled arrival is not part of it: an arrival is only ever known to have gone up once a refresh sees it
+ * showing (glanceDismissedToday). Switching the glance on, or changing its hour, starts from an empty trail, so the
+ * new choice can show at once.
  */
 export type GlanceTrail = {
   /** A glance is in the shade right now (getPresentedNotificationsAsync, by GLANCE_ID). */
@@ -235,16 +250,13 @@ export type GlanceTrail = {
    *  absence counts, because one made with the app open passes through the JS handler first. */
   postedAt: number | null;
   /** The last time a refresh found today's glance showing (epoch ms), or null. It was certainly up then, so its
-   *  absence counts at once. */
+   *  absence counts at once. This is the only way an arrival counts as having gone up. */
   seenAt?: number | null;
-  /** The arrival the app last scheduled (epoch ms), and whether it is still waiting to fire (still among the
-   *  scheduled requests). One no longer waiting whose time has passed has posted. Null when none is scheduled. */
-  arrival: { at: number; pending: boolean } | null;
   /** The day (YYYY-MM-DD) a refresh already judged put away. It stays put away until that day ends, whatever is
-   *  rescheduled meanwhile: "do not post it again until the next day's arrival". Two things undo it, both for a
-   *  delivery still in the foreground handler when the verdict was made (a late, inexact arrival that fired as the app
-   *  opened): today's glance showing after all, because what is in the shade is fact, and that delivery timing out
-   *  (lib/glance-refresh's forgetUnlandedGlance), unless today's glance had been seen showing. */
+   *  rescheduled meanwhile: "do not post it again until the next day's arrival". Two things undo it: today's glance
+   *  showing after all, because what is in the shade is fact, whatever the verdict was made from, and a post the
+   *  foreground handler dropped (lib/glance-refresh's forgetUnlandedGlance), unless today's glance had been seen
+   *  showing. */
   dismissedOn?: string | null;
 };
 
@@ -254,19 +266,32 @@ function presentedToday(now: Date, trail: GlanceTrail): boolean {
 
 /**
  * Whether today's glance was put away: it went up today, inside today's window, and it is not showing now. That
- * covers a swipe, a reboot, an update or a force stop (missing beats wrong), and it stays away until the next day's
- * arrival: once judged (`dismissedOn`) the answer holds for the rest of the day while it stays away. The app's own
- * leave (the day closed, finished or emptied) is NOT put away: when the app takes the glance down it forgets every
- * sign that it went up (lib/glance-refresh's forgetGlanceSigns), so Reopen, an untick or a new task brings it back
- * the same day. Forgetting leaves no stamp, so a clock moved back after a take-down cannot hide later swipes.
- * Today's glance showing always reads as not put away, a verdict included: the shade is the fact, and a verdict
- * made while a late delivery was still in the foreground handler must not take that delivery down once it lands.
+ * covers a swipe, a reboot, an update or a force stop (for a glance the app knows went up, missing beats wrong), and
+ * it stays away until the next day's arrival: once judged (`dismissedOn`) the answer holds for the rest of the day
+ * while it stays away. The app's own leave (the day closed, finished or emptied) is NOT put away: when the app takes
+ * the glance down it forgets every sign that it went up (lib/glance-refresh's forgetGlanceSigns), so Reopen, an
+ * untick or a new task brings it back the same day. Forgetting leaves no stamp, so a clock moved back after a
+ * take-down cannot hide later swipes. Today's glance showing always reads as not put away, a verdict included: the
+ * shade is the fact, whatever the verdict was made from.
  *
- * "Went up" is any of: seen showing by a refresh (`seenAt`), posted by the app at least GLANCE_SETTLE_MS ago
- * (`postedAt`; a post still landing is not a swipe), or an arrival that has fired at least that long ago. Two
- * cases deliberately do NOT count: an arrival still waiting to fire (a late, inexact alarm has posted nothing
- * yet, so the app may post on open), and a moment from outside today's window (a glance left from yesterday, or
- * an hour moved later mid-day), so the window can still open today. An empty trail counts nothing.
+ * "Went up" is only what the app knows reached the shade: seen showing by a refresh (`seenAt`, which counts at once),
+ * or posted by the app itself at least GLANCE_SETTLE_MS ago (`postedAt`; a post still landing is not a swipe). A
+ * scheduled arrival NEVER counts on its own, whether or not its time has passed and whether or not it is still
+ * waiting: an arrival can leave the schedule without ever reaching the shade. Android holds an inexact alarm and can
+ * release it during the app's cold start, before anything is listening, and expo-notifications then drops it without
+ * a word; a restart can discard one that came due while the phone was off. Read as a swipe, that silence kept the
+ * glance away for a whole day (found 2026-11-12: chosen the night before, nothing at the hour, nothing on opening).
+ * So an arrival nobody saw counts for nothing, and the next refresh inside the window posts it. The cost, accepted on
+ * 2026-11-12: a swipe made before any refresh has seen the glance cannot be told from a lost arrival, so that glance
+ * comes back once, at the next refresh, and a second swipe sticks, because by then a refresh has seen it. In practice
+ * that is a swipe before the day's first open, or, for one that arrives while the app is already open (no refresh runs
+ * for an arrival), a swipe before the next save or return to the app.
+ *
+ * From 21:30 the answer is no, unless a verdict was already made inside the window: the window's end takes the glance
+ * down (its own expiry at 21:30, or a refresh after it), so a glance seen in the evening and gone after 21:30 left with
+ * the window, and reading that as a swipe would say "put away" over an ordinary evening. A moment from outside today's
+ * window does not count either (a glance left from yesterday, or an hour moved later mid-day), so the window can still
+ * open today. An empty trail counts nothing.
  */
 export function glanceDismissedToday(now: Date, hour: number, trail: GlanceTrail): boolean {
   if (presentedToday(now, trail)) return false;
@@ -274,10 +299,10 @@ export function glanceDismissedToday(now: Date, hour: number, trail: GlanceTrail
   const w = glanceWindow(now, hour);
   if (w === null) return false;
   const ms = now.getTime();
+  if (ms >= w.end.getTime()) return false; // the window's end took it down: a verdict made inside it stands (above)
   const upToday = (at: number | null | undefined, settle: number) =>
     at != null && Number.isFinite(at) && at >= w.start.getTime() && at < w.end.getTime() && at <= ms && ms - at >= settle;
-  const fired = trail.arrival !== null && !trail.arrival.pending && upToday(trail.arrival.at, GLANCE_SETTLE_MS);
-  return upToday(trail.seenAt, 0) || upToday(trail.postedAt, GLANCE_SETTLE_MS) || fired;
+  return upToday(trail.seenAt, 0) || upToday(trail.postedAt, GLANCE_SETTLE_MS);
 }
 
 export type GlanceAction = 'post' | 'remove' | 'none';

@@ -33,6 +33,7 @@ import type * as WidgetUpdateWeb from '../widget/update.web';
 // The reminders seam has the same shape (native base for iPhone and Android, web stub). Added 2026-11-10 with the
 // glance (GLANCE_AVAILABLE, enableTodayGlance, disableTodayGlance, refreshTodayGlance, watchTodayGlance), which
 // Settings and the root layout import on every platform. Adding it found dismissStaleNudges missing on the web.
+// readGlanceStatus (2026-11-12, the glance's status line in Settings) is held to it the same way: null on the web.
 import type * as RemindersBase from './reminders';
 import type * as RemindersWeb from './reminders.web';
 // The widget's presence check, the same shape again (native base, web stub that always answers "placed"). Added

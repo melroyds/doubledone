@@ -4,6 +4,7 @@
 // task content ever reaches the browser). Native uses reminders.ts (local scheduling);
 // Metro resolves this .web.ts on web. Per-task nudges stay native-only (no-op here).
 
+import type { GlanceStatus } from './glance-refresh';
 import { reminderOffsetStale, type ReminderResult } from './reminders-types';
 import { type Routine } from './routines';
 
@@ -229,4 +230,9 @@ export function refreshTodayGlance(): void {}
 /** Nothing to watch on the web. Returns a no-op unsubscribe. */
 export function watchTodayGlance(): () => void {
   return () => {};
+}
+
+/** No status line on the web: the glance never runs here. */
+export async function readGlanceStatus(_hour: number): Promise<GlanceStatus | null> {
+  return null;
 }
