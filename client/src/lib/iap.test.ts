@@ -194,7 +194,7 @@ describe('purchaseGate (the double-charge guard)', () => {
 // The device-local entitlement (2026-08-19). `localPremium()` answered a bare boolean, so an
 // ANONYMOUS Apple subscriber kept `since: null` from FREE_ENTITLEMENT, and weeklyAllowance(null)
 // is 1 keepsake a week where a signed-in subscriber gets 4. Identical money, a quarter of the
-// product, and it had been true for one of our two real Apple customers since 9 August.
+// product, and it had been true for one of our real Apple customers since 9 August.
 describe('localEntitlement', () => {
   const info = (over: Record<string, unknown> = {}) => ({
     entitlements: {

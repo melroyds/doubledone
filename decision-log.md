@@ -2,6 +2,8 @@
 
 *The why-trail. Newest entries at the bottom of each section. Written contemporaneously so the dead ends stay honest. Updated on every major commit (see the CLAUDE.md rule): record what was decided, and what was decided against.*
 
+*From 14 Nov 2026 this log states no actual subscriber, revenue, install or usage figures, because the repo is public and commercial numbers stay private. Entries that stated them were reworded that day, keeping each decision and its reasoning, and the originals are kept in a private record.*
+
 ---
 
 ## 2026-06-17, Project founded
@@ -3893,7 +3895,7 @@ After the revoke fix, the tester's friend got further (past the token loop) but 
 
 Fix: make the carry STATELESS. The session (email + access + refresh + a timestamp) is AES-GCM-encrypted (the same MCP_GRANT_KEY that guards custody) into an opaque token that rides the consent page directly, then base64-wrapped so it is quote-free and safe inside the value="..." attribute and the form POST (encryptSecret returns JSON with quotes, which would otherwise break the HTML attribute, that was the first green-tests-but-wrong iteration, caught before deploy). Allow decrypts it. No KV write-then-read, so nothing to be inconsistent; ciphertext, so the refresh token is never exposed even though it rides the page (the property the security panel required). A timestamp bounds it to 10 minutes. Trade-off vs the KV nonce: the carry is NOT single-use (a verbatim replayed consent POST within the window could mint a second grant), a minor, PKCE-and-state-bound risk accepted for a carry that never fails on KV propagation; the security-relevant property (a forged/tampered carry does not decrypt and mints nothing) is preserved and tested. The two "went stale" branches were split into distinct copy ("went stale" for a missing/expired carry vs "could not be verified" for a JWKS failure) so a future recurrence names its own cause.
 
-Both DoubleDone-side OAuth failures were the same mistake, trusting Cloudflare KV for a read immediately after a write in the SAME connect flow: the provider grant (hotfix 1, revokeExistingGrants) and now our session carry. Both are now off that path. The library's own /token grant lookup is still KV-backed and outside our control, but the earlier revoke fix removed the self-inflicted races there. Verified three ways: 35 oauth unit tests (incl. the tampered-carry rejection), a full scripted production flow driven end to end through the new carry (code 200 -> Allow 302 -> token 200 -> /mcp 200, 9 tools, refresh never in the HTML), and the live grant table (2 distinct people connected post-fix, was 1). Gate green (370 server). Deployed (version 800d54a0).
+Both DoubleDone-side OAuth failures were the same mistake, trusting Cloudflare KV for a read immediately after a write in the SAME connect flow: the provider grant (hotfix 1, revokeExistingGrants) and now our session carry. Both are now off that path. The library's own /token grant lookup is still KV-backed and outside our control, but the earlier revoke fix removed the self-inflicted races there. Verified three ways: 35 oauth unit tests (incl. the tampered-carry rejection), a full scripted production flow driven end to end through the new carry (code 200 -> Allow 302 -> token 200 -> /mcp 200, 9 tools, refresh never in the HTML), and the live grant table (new people connected after the fix). Gate green (370 server). Deployed (version 800d54a0).
 
 ## 2026-07-07 HOTFIX 3: claude.ai web "completes but shows Connect", missing Mcp-Session-Id
 
@@ -7396,7 +7398,7 @@ compounded:
 2. The `entitlements` table is one row per user, last-write-wins. It says what access somebody has
    NOW and nothing about how it got there.
 3. An **anonymous** Apple purchase (the path App Review 5.1.1(v) forces on us) resolves to no
-   Supabase id, so `handleRcWebhook` drops the event entirely. One of our two real Apple subscribers
+   Supabase id, so `handleRcWebhook` drops the event entirely. One of our real Apple subscribers
    is exactly that: paying, and existing nowhere in our own data.
 
 **Decided: an append-only `rc_events` log, written on EVERY delivery including the ignored ones.**
@@ -7424,10 +7426,10 @@ observability, and a test asserts premium is still granted when the log store th
 
 ### What this investigation established, recorded because nothing else records it
 
-- **Two real Apple subscribers**, both Australian, both Premium Monthly, one charge each at A$5
-  (~USD 3.54 net of Apple's commission), ~$7 lifetime Apple revenue.
+- **The real Apple subscribers** were all Australian and all on Premium Monthly at A$5. Their count
+  and revenue are kept privately (see the note at the top of this log).
 - **One of them is anonymous** and has no entitlements row. They bought on 9 August.
-- **A third RevenueCat customer was SANDBOX/TestFlight**, with a fake 2013 first-seen and daily
+- **Another RevenueCat customer was SANDBOX/TestFlight**, with a fake 2013 first-seen and daily
   accelerated renewals, and **its events were written into the production entitlements table**. That
   is the next commit.
 - The App Store product has **no introductory offer**, and RevenueCat reports **zero** trialing
@@ -7452,8 +7454,8 @@ with no money moving, were processed identically to real charges and wrote the p
 `entitlements` table.
 
 Two consequences, one embarrassing and one worse. The embarrassing one: a TestFlight customer with a
-fake 2013 first-seen and daily accelerated renewals sat in our data among two genuine subscribers,
-so the dashboard could show three Apple subscribers where there were two. The worse one: **anybody
+fake 2013 first-seen and daily accelerated renewals sat in our data among the genuine subscribers,
+so the dashboard could count a test buyer as a real Apple subscriber. The worse one: **anybody
 with a TestFlight build could grant themselves real Premium.**
 
 **Decided: ignore sandbox events outright.** Acknowledged with a 200, logged with `outcome:
@@ -7490,7 +7492,7 @@ measurably worse off rather than merely invisible.
 the FREE entitlement. So for an ANONYMOUS Apple subscriber, the one App Review 5.1.1(v) forces us to
 support and who has no server row at all, `since` stayed **null**. `weeklyAllowance(null, now)`
 returns 1. A six-month anonymous subscriber therefore got **one keepsake a week where a signed-in
-one gets four**: identical money, a quarter of the product. One of our two real Apple customers has
+one gets four**: identical money, a quarter of the product. One of our real Apple customers has
 been in exactly that state since 9 August.
 
 `currentPeriodEnd` stayed null for the same reason, so our app also never told them when they would
@@ -7564,7 +7566,7 @@ weeks.
 The last and worst of the four defects. App Review 5.1.1(v) forbids requiring registration before
 purchase, so an iOS user can buy while signed out. RevenueCat gives them an `$RCAnonymousID:`, and
 `appUserIdFromRcEvent` refuses anything that is not a UUID, so **every webhook for that purchase is
-dropped**. One of our two real Apple subscribers bought on 9 August and had existed nowhere in our
+dropped**. One of our real Apple subscribers bought on 9 August and had existed nowhere in our
 database for ten days when we found them.
 
 What that costs them, concretely: no renewal date anywhere in our app, the tenure-scaled keepsake
@@ -7585,7 +7587,7 @@ RevenueCat already agrees is theirs.
 
 **Decided against verifying Apple receipts ourselves** via the App Store Server API. Technically
 sound, and it would make an anonymous purchase resolvable without RevenueCat at all, but it is a
-whole verification stack plus a key-rotation story for two customers. Backlog, trigger: more than
+whole verification stack plus a key-rotation story at today's scale. Backlog, trigger: more than
 roughly twenty anonymous iOS subscribers.
 
 **v1 and not v2**, deliberately. `GET /v1/subscribers/{id}` returns `subscriptions` keyed by product
@@ -8831,8 +8833,8 @@ PRODUCTION Play purchase of A$5.00 wrote a `google` row, the web named Google as
 Console refund-and-revoke switched Premium off in seconds. It arrives as EXPIRATION then CANCELLATION one
 second apart (the runbook's open question 7), and the slice 1 stale-on guard correctly refused the late
 CANCELLATION, which would otherwise have handed back Premium that had just been refunded. **Decided
-(Melroy):** promote to production at 100% rather than the planned 20% stage, because with about 43 Android
-installs a stage is roughly 8 people and proves nothing a full release would not. **Accepted:** a 100%
+(Melroy):** promote to production at 100% rather than the planned 20% stage, because this early on Android a
+stage reaches too few people to prove anything a full release would not. **Accepted:** a 100%
 release cannot be halted, so the nets are deactivating both base plans (stops new purchases at once) and
 a fix build. Managed publishing stays on, so approval and going live remain separate decisions.
 
@@ -11214,8 +11216,8 @@ Melroy's calls on three of the sweep's Group C items ("Fix the privacy page", "R
   tried to make "two" true by deleting the gift record in close-billing, and the review took that out (a live
   account could reset its 180-day spacing on demand), so the words now match the code instead.
 - **"I also did that" stays on Today, and its usage count stops**, as the policy promised ("only until we have
-  decided whether it earns its place on Today, then we stop"). 16 uses since 4 Oct, 10 of them on 11 Oct, likely
-  Melroy's own device pass: even without those it clears the keep bar. The name leaves both allowlists; the Worker
+  decided whether it earns its place on Today, then we stop"). Its uses since 4 Oct cluster on 11 Oct, likely
+  Melroy's own device pass: even without that day it clears the keep bar. The name leaves both allowlists; the Worker
   drops it from older phones until the next store build, so the count truly stops with the deploy. Read as removing
   the COUNT, not the button: the button is on Today, a frozen screen.
 - **The installed web app is no longer a share target.** The manifest's GET share target put the shared text in the
@@ -11930,8 +11932,8 @@ one thing this policy should never hold open-ended.
 - **PREM-74 counts as passed on the live tail.** `x-purchaser-token` shows as REDACTED in Cloudflare's stream and the
   id appears nowhere, because Cloudflare blanks headers whose names carry words like token. A glance at the stored Logs
   view in the dashboard would make it airtight, and the header must never be renamed to something plain (CLAUDE.md).
-- **The first purge is proven:** all 324 rows older than 90 days lost their text on the 23:00 UTC tick, and all 506
-  kept their counts.
+- **The first purge is proven:** every row older than 90 days lost its text on the 23:00 UTC tick, and every row
+  kept its counts.
 
 ## 2026-11-10: Today in your notifications, the daily reminder's third choice on Android, and the widget's two truth fixes
 

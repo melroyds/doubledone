@@ -80,7 +80,7 @@ export async function startTrial(): Promise<TrialResult> {
  * App Review 5.1.1(v) forbids requiring registration before purchase, so an iOS user can buy while
  * signed out. RevenueCat gives them an `$RCAnonymousID:` and our webhook drops every event for it,
  * so they pay and appear nowhere in our data: no renewal date, no tenure-scaled keepsakes on any
- * other device, no working Premium on web or Android. One of our two real Apple subscribers was in
+ * other device, no working Premium on web or Android. One of our real Apple subscribers was in
  * exactly that state for ten days.
  *
  * Signing in calls `Purchases.logIn`, which puts the Supabase id in RevenueCat's alias group, but no

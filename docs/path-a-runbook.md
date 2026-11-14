@@ -24,7 +24,7 @@ Path A is still the right call, and it's the elegant one. Each store sells throu
 - That address comes from the payments profile you already have. Changing it needs a form and a proof-of-address document. If Google can't verify it, "your developer presence and apps may be removed" ([Play 13634888][p13634888]).
 - So a virtual office only works if you hold an accepted document in your legal name at that address. Details in M1.
 
-**The Backlog trigger isn't a gate any more.** On 27 Sep you overrode it: "I don't care about the future. I need to be elegant." With 43 Android installs, Path A is about being correct and elegant, not about revenue this quarter. That's a legitimate reason and I'm not reopening it. I'll still pull the two D1 numbers (entitlements by source, Android's share of signups) for the decision log.
+**The Backlog trigger isn't a gate any more.** On 27 Sep you overrode it: "I don't care about the future. I need to be elegant." With Android installs still early, Path A is about being correct and elegant, not about revenue this quarter. That's a legitimate reason and I'm not reopening it. I'll still pull the two D1 numbers (entitlements by source, Android's share of signups) for the decision log.
 
 | Path | What it is | Verdict |
 |---|---|---|
@@ -640,7 +640,7 @@ The real-money run costs one A$5 month, which you refund in PREM-54. PREM-52 may
 - **Policy 6, "configure RevenueCat lazily so Device IDs stays Optional": not taken.** Declaring it required is honest and costs nothing. Changing the launch path to protect a form answer is the tail wagging the dog.
 - **Policy 3's fallback (a note-only split between the sets): kept as belt and braces**, not as the fix. The allowlist is the fix, and it also repairs the same hole for Apple's reviewer.
 - **Money 4, "GET RevenueCat before every revoke": moved to Tier 3.** S4's rule covers every case the review named. The GET only matters for an account with live subscriptions in two stores, which the new buy guard prevents.
-- **Money 9, "ship an iOS build before Android goes to production": rejected as a gate.** It puts an Apple review on the critical path for what, at 43 Android installs, is probably zero people in the first weeks. Logged, macro written, fixed on the next iOS build.
+- **Money 9, "ship an iOS build before Android goes to production": rejected as a gate.** It puts an Apple review on the critical path for what, this early on Android, is probably very few people in the first weeks. Logged, macro written, fixed on the next iOS build.
 - **Money 6, "license testers always see Resubscribe": not verified.** I couldn't confirm it in Google's docs, so it's open question 8, not a step.
 
 **Next move:** open your payments profile and your Play listing, and tell me which address is there. If it's one you're OK with, do M6 to M8 the same day so the 36-hour clock starts, and book the accountant. I start step 0 and slice 1 on `premium` when you say go.

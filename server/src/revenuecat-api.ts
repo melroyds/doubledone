@@ -5,7 +5,7 @@
 // WHY THIS EXISTS. App Review 5.1.1(v) forbids requiring registration before purchase, so iOS users
 // can and do buy while signed out. RevenueCat gives them an `$RCAnonymousID:` app_user_id, and
 // `appUserIdFromRcEvent` refuses anything that is not a UUID, so every webhook for that purchase is
-// dropped. On 2026-08-19 that was not hypothetical: one of our two real Apple subscribers had been
+// dropped. On 2026-08-19 that was not hypothetical: one of our real Apple subscribers had been
 // paying since 9 August and existed nowhere in our database. They lose their renewal date, their
 // tenure-scaled keepsake allowance on any other device, a working Premium on web or Android, and
 // any chance of us answering a support question about their own money.

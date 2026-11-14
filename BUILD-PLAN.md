@@ -64,8 +64,8 @@ privacy pages went out first (36e79f8, with Chart a course, Reflect on this week
 language), then Melroy dropped the old Supabase `ai_calls` table and deployed Worker `5389bfa1` (rollback `666a23d4`;
 checked: bindings, secrets and handlers identical, /health 200, `info.version` 1.4.0, money routes 401 JSON, the
 Stripe webhook 400, /chart with no or a malformed purchase id 401 JSON). PREM-74 PASSED in the live log stream:
-`x-purchaser-token` REDACTED, no RCAnonymousID anywhere. The first 90-day purge ran on the 23:00 UTC tick: all 324
-rows older than 90 days lost their text, all 506 rows kept their counts. **Next:** the iPhone store build carries the
+`x-purchaser-token` REDACTED, no RCAnonymousID anywhere. The first 90-day purge ran on the 23:00 UTC tick: every
+row older than 90 days lost its text, and every row kept its counts. **Next:** the iPhone store build carries the
 app half (week of 16 to 22 Nov, on Melroy's ask), with PREM-72 to 81 and I18N-03 on the device. Until then the
 friend in India signs in, which attaches his purchase today.
 
@@ -94,9 +94,9 @@ Built as `c99309c` (the Worker's store check), `561d5ab` (the app half), `18416d
 
 **The live checks:** after step 3, PREM-74 (every probe answers 401 with the JSON body, and Cloudflare's Logs show
 `x-purchaser-token` as REDACTED with no `RCAnonymousID` anywhere, or the store build waits), then PREM-75 and PREM-78.
-Before step 4, the read-only RevenueCat lookup of the two anonymous App Store customers. With the build, PREM-72, 73,
+Before step 4, the read-only RevenueCat lookup of the anonymous App Store customers. With the build, PREM-72, 73,
 79, 80 and 81 on TestFlight (81 can take a day). PREM-77 can run on today's TestFlight build at any time, and PREM-76,
-CHART-09, OCR-08 and SEQ-09 on a local `npm run dev`. Until the store build, the two anonymous buyers' stopgap is in
+CHART-09, OCR-08 and SEQ-09 on a local `npm run dev`. Until the store build, the anonymous buyers' stopgap is in
 the runbook: sign in with an email never used before, and if Premium vanishes, Restore, then relaunch.
 
 **THE 1 NOV SWEEP IS CLOSED (2026-11-02, evening, on Melroy's "do 27, 31 and 34 next. I want to close this off").**
@@ -846,13 +846,13 @@ it a place. See the decision log entries of that date for the full reasoning.
 
 - **Verify Apple receipts ourselves** (App Store Server API), making an anonymous purchase
   resolvable without RevenueCat at all. Technically sound; a whole verification stack plus a
-  key-rotation story for two customers. **Trigger:** more than roughly 20 anonymous iOS subscribers.
+  key-rotation story at today's scale. **Trigger:** more than roughly 20 anonymous iOS subscribers.
 - **Pull the Apple subscriber count from RevenueCat's REST API into the analytics card**, now that
   `RC_SECRET_KEY` exists. The interim is the honest label plus `docs/operations.md` naming RevenueCat
   as the authority on the Apple count. **Trigger:** the analytics centre is used to make a pricing
   or churn decision.
-- **An `rc_events` strip on the token-gated `/admin/analytics` page.** At two subscribers a
-  `wrangler d1 execute` one-liner is enough. **Trigger:** a third Apple subscriber, or a second
+- **An `rc_events` strip on the token-gated `/admin/analytics` page.** At today's scale a
+  `wrangler d1 execute` one-liner is enough. **Trigger:** another Apple subscriber, or a second
   billing question that takes more than an hour.
 - **The iOS mid-trial dead end** (`premium-ui.ts`, `premiumPrimaryAction('trial', true) === 'none'`):
   an iOS user on the card-free trial gets no control at all, so no in-app route to Apple's manage
@@ -865,7 +865,7 @@ it a place. See the decision log entries of that date for the full reasoning.
   (`stripe.ts`), and every Apple row carries `customerId: null` (`revenuecat.ts`), so an Apple-only
   subscriber can still be minted a Stripe Checkout Session on top of their Apple sub. Narrower than
   it sounds (`entitlements.ts` COALESCEs and preserves a prior Stripe id, so it only bites
-  Apple-only subscribers). **Trigger:** any report of a double charge, or a third Apple subscriber.
+  Apple-only subscribers). **Trigger:** any report of a double charge, or another Apple subscriber.
 
 ### NEXT: changing WHEN on a shared row (design prompt written)
 
@@ -1012,7 +1012,7 @@ Signal from early users in the exact target audience, captured so it does not ev
 
 **Payer feedback (2026-11-10): see today without opening the app, a weekly list, reminders you chose**
 One payer answered six questions at length. Conclusions only, since the repo is public. Their principle: don't nag, but do remind, and some things are more urgent than others. That is "Hold me to it"'s founding line (the app never nags uninvited, it keeps agreements you made), reached independently.
-- **Already exists, no build:** Remind me and Hold me to it cover their urgent things, and Move to → Next week parks a general one. Both went in the reply. This is the third time users asked for doors that already exist (see "The app comes to you" above): per-task reminders were set 4 times in the 60 days to 10 Nov, against 190 held-card opens.
+- **Already exists, no build:** Remind me and Hold me to it cover their urgent things, and Move to → Next week parks a general one. Both went in the reply. This is the third time users asked for doors that already exist (see "The app comes to you" above): per-task reminders were rarely set in the 60 days to 10 Nov, against far more held-card opens.
 - **Gap 1, a silent "today" notification (Android).** **MERGED 2026-11-11 (PR #15, `be86580`) as "Today in your notifications" (Android 8 and later), with the Worker deployed for its counters (`ed39471d`, rollback `5389bfa1`). Nothing changes on the web but the privacy pages' counter line. Built 2026-11-10 on branch `feat/today-glance`, reviewed and fixed the same night, then a skeptic pass and two verifiers before the merge (the app now forgets its own take-downs rather than stamping them). Awaiting an Android build (on Melroy's ask) and the device pass: AND-12 to AND-22, SET-19 to SET-23, DEL-11, TEL-04 and PRV-05 (decision log, the same day). The new privacy lines and the Worker deploy for the counters are Melroy's. One call waits on Melroy after the device pass: whether a phone restarted before the hour and first unlocked after it should lose that day's list (the decided rule read literally, AND-22). Settled before the PR: from 9 pm Settings says "Pick a time before 9:00 pm for this one.", and the glance comes back the same day after Reopen, an untick or a new task, because only a swipe keeps it away.** Wanted: visible whenever they pick up the phone (shade, status bar, lock screen), never a sound or vibration (an app that buzzes gets all its notifications silenced), and on only by choice. The shape after a read-only feasibility pass and two skeptics:
   - a third choice on the daily-reminder row: Off, a nudge at your hour, or stays from your hour until done;
   - daytime only, gone by 21:30, nothing overnight;
