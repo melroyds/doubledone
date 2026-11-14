@@ -10,6 +10,8 @@ import {
   forgetUnlandedGlance,
   glanceArrivalMissed,
   glanceRequestContent,
+  type GlanceStatus,
+  glanceStatus,
   glanceTimeoutVerdict,
   halfDoneGlanceMemory,
   planGlanceRefresh,
@@ -507,7 +509,8 @@ export async function openExactAlarmSettings(): Promise<void> {
 // The daily reminder's third choice: today's open tasks, titles only, sitting quietly in the shade from the reminder
 // hour until 21:30, never a sound or a buzz, gone when the day is closed, done or empty, and back the next day at the
 // hour. It replaces the nudge, never both. lib/glance decides what it says and when, lib/glance-refresh what one
-// refresh does; this seam only reads the phone, asks planGlanceRefresh, and carries out the answer.
+// refresh does; this seam only reads the phone, asks planGlanceRefresh, and carries out the answer. For Settings it
+// also reads the phone for the status line under the choice (readGlanceStatus, worded by glanceStatus).
 //
 // ONE fixed id (GLANCE_ID) for the posted glance and its scheduled next arrival, so an arrival that fires replaces
 // what is showing in place. Refreshes come from the storage change notice (every write of the day, and the
@@ -543,6 +546,23 @@ async function ensureGlanceChannel(): Promise<void> {
     enableLights: false,
     showBadge: false,
   });
+}
+
+/**
+ * Whether the glance's own category is turned off in Android's settings for DoubleDone: its channel's importance is
+ * NONE. Android keeps that choice when ensureGlanceChannel creates the channel again, and drops every post to it
+ * without a word, so a refresh posts nothing and counts nothing as posted (lib/glance-refresh's planGlanceRefresh, so
+ * it is never read as a swipe, a glance it took down included), and the status line in Settings says it is off. The
+ * next arrival stays armed, so turned back on it comes at the hour. A channel not created yet, or one that cannot be
+ * read, is not off: the next post creates it, and a failed read must not hide the glance.
+ */
+async function glanceChannelOff(): Promise<boolean> {
+  try {
+    const channel = await Notifications.getNotificationChannelAsync(GLANCE_CHANNEL);
+    return channel?.importance === Notifications.AndroidImportance.NONE;
+  } catch {
+    return false;
+  }
 }
 
 // One step that may fail without stopping the rest: the next refresh judges again from what it can read.
@@ -615,11 +635,12 @@ let glanceTimer: ReturnType<typeof setTimeout> | null = null;
 // Set by a foreground handler timeout, taken by the next refresh: that refresh's post is the one retry.
 let glanceRetryNext = false;
 
-// Look again a little later, after anything that changed the shade (a post, a take-down). A post made with the app
-// open is still in the JS handler when its refresh ends, and can land after a take-down that came next (Goodnight a
-// moment after a change, Off just after picking the glance, an account wipe), which would leave an old list up until
-// 9:30 pm, or a deleted account's titles. One more refresh GLANCE_SETTLE_MS later sees what really landed and puts it
-// right. A look again books none of its own, so it can never turn into a loop.
+// Look again a little later, after anything that changed the shade or tried to (a post, one that failed, a take-down).
+// A post made with the app open is still in the JS handler when its refresh ends, and can land after a take-down that
+// came next (Goodnight a moment after a change, Off just after picking the glance, an account wipe), which would leave
+// an old list up until 9:30 pm, or a deleted account's titles. One more refresh GLANCE_SETTLE_MS later sees what really
+// landed and puts it right, and posts once more if the post failed. A look again books none of its own, so it can
+// never turn into a loop.
 let glanceLookAgainTimer: ReturnType<typeof setTimeout> | null = null;
 let glanceLookingAgain = false;
 function lookAgainLater(): void {
@@ -657,12 +678,13 @@ async function runGlanceRefresh(): Promise<void> {
   }
   const tasks = await peekTasks();
   if (tasks === null) return; // a failed read keeps what is showing, rather than drawing a day it does not know
-  const [closedISO, hold, permission, presented, scheduled] = await Promise.all([
+  const [closedISO, hold, permission, presented, scheduled, channelOff] = await Promise.all([
     loadClosedDate(),
     loadHold(),
     Notifications.getPermissionsAsync(),
     Notifications.getPresentedNotificationsAsync(),
     Notifications.getAllScheduledNotificationsAsync(),
+    glanceChannelOff(),
   ]);
   const now = new Date();
   const showing = presented.find((n) => n.request.identifier === GLANCE_ID);
@@ -672,11 +694,13 @@ async function runGlanceRefresh(): Promise<void> {
     style,
     hour,
     permitted: permission.status === 'granted',
+    // The glance's category turned off in Android's settings blocks the post, which would vanish unseen and then read as
+    // a swipe (glanceChannelOff). Its next arrival stays armed, so turned back on it comes at the hour by itself.
+    channelOff,
     tasks,
     closedISO,
     heldId: hold?.taskId ?? null,
     shown: showing ? readShownGlance(showing.request.content.data) : null,
-    arrivalPending: scheduled.some((n) => n.identifier === GLANCE_ID),
     nudgeScheduled: scheduled.some((n) => n.identifier === DAILY_ID),
     memory,
   });
@@ -699,7 +723,9 @@ async function runGlanceRefresh(): Promise<void> {
   const missed = scheduledNext && glanceArrivalMissed(plan, Date.now());
   await saveGlanceMemory(settleGlanceMemory(plan, now, { posted, scheduled: scheduledNext && !missed, removed }));
   if (missed) refreshTodayGlance();
-  if ((posted || plan.action === 'remove') && !lookingAgain) lookAgainLater();
+  // A post that failed is looked at again too: the look again finds nothing up and nothing counted, and posts once more,
+  // so a passing failure does not leave the glance missing (and Settings saying "Showing now.") until the next save.
+  if ((plan.action === 'post' || plan.action === 'remove') && !lookingAgain) lookAgainLater();
 }
 
 // Runs never overlap and a burst books exactly one more (lib/coalesce), inside the one line.
@@ -791,6 +817,47 @@ export async function disableTodayGlance(): Promise<void> {
     }
     lookAgainLater();
   });
+}
+
+/**
+ * The quiet status line under the glance choice in Settings, for while the glance is the chosen reminder: showing now,
+ * coming at the hour, put away for today, resting, or turned off in Android's settings, and whether to offer the
+ * "Alarms & reminders" door under it (decided by lib/glance-refresh's glanceStatus, node-tested). Read from what the
+ * refresh reads (the kept memory, the glance in the shade, the permission, the glance's own channel, the stored tasks
+ * and the closed day) at `hour`, Settings' own, so a +/- tap is read before its save lands. It runs in the glance's one
+ * line, so it never reads a refresh half done, and it writes nothing. Null wherever the glance is not available, when
+ * the hour leaves no window (the late-hour line speaks then), and when anything could not be read: no line beats a
+ * wrong one.
+ */
+export async function readGlanceStatus(hour: number): Promise<GlanceStatus | null> {
+  if (!GLANCE_AVAILABLE) return null;
+  const read: { status: GlanceStatus | null } = { status: null };
+  await inGlanceLine(async () => {
+    const [memory, tasks, closedISO, permission, presented, channelOff] = await Promise.all([
+      loadGlanceMemory(),
+      peekTasks(),
+      loadClosedDate(),
+      Notifications.getPermissionsAsync(),
+      Notifications.getPresentedNotificationsAsync(),
+      glanceChannelOff(),
+    ]);
+    if (tasks === null) return;
+    const showing = presented.find((n) => n.request.identifier === GLANCE_ID);
+    read.status = glanceStatus({
+      now: new Date(),
+      hour,
+      memory,
+      shown: showing ? readShownGlance(showing.request.content.data) : null,
+      tasks,
+      closedISO,
+      permitted: permission.status === 'granted',
+      channelOff,
+      // The grant cannot be read from JS (exactAlarmDoorRelevant), so from Android 12 on it is unknown, which offers the
+      // door, as the Routines screen does. Below 12 every alarm is exact.
+      exactAlarms: exactAlarmDoorRelevant() ? null : true,
+    });
+  });
+  return read.status;
 }
 
 /**

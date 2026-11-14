@@ -2,9 +2,10 @@
 //
 // lib/glance decides what the glance says and when it may show. This file turns that into the ONE decision each
 // refresh makes (post it, take it down or leave it, which single arrival to schedule next, whether the daily nudge
-// must go) and into what the seam keeps between refreshes. lib/reminders only reads the phone, asks planGlanceRefresh,
-// carries out the answer and stores settleGlanceMemory's result, so every judgement here is node-tested even though
-// the phone half cannot be.
+// must go), into what the seam keeps between refreshes, and into the quiet status line Settings shows under the
+// choice (glanceStatus), by the same rules. lib/reminders only reads the phone, asks planGlanceRefresh, carries out the
+// answer and stores settleGlanceMemory's result, so every judgement here is node-tested even though the phone half
+// cannot be.
 //
 // Also here, because the Kotlin patch and the seam must agree on them: the request a glance is posted with (sticky,
 // never auto-dismissed, silent, and the data the patched builder reads), and the verdict on a foreground handler
@@ -23,10 +24,15 @@ import {
   glanceExpiry,
   glanceHasWindow,
   GLANCE_SETTLE_MS,
+  type GlanceTrail,
+  glanceWindow,
+  inGlanceWindow,
   planGlanceArrival,
   type ReminderStyle,
+  tomorrowsGlanceArrival,
 } from './glance';
-import { clampHour, GLANCE_ID } from './reminders-types';
+import { t } from './i18n-active';
+import { clampHour, formatReminderTime, GLANCE_ID } from './reminders-types';
 import type { Task } from './tasks';
 
 // ---- What the seam keeps between refreshes -------------------------------------------------------------------
@@ -36,10 +42,12 @@ import type { Task } from './tasks';
  * - `hour`: the reminder hour this memory was kept under. Null means nothing of the glance is set up (never chosen,
  *   or taken down cleanly), which is what lets a refresh for everyone who never chose it skip the phone entirely.
  *   A different hour starts a fresh memory, as switching the glance on does, so a new choice can show at once.
- * - `postedAt`, `seenAt`, `arrivalAt` and `dismissedOn`: the kept half of lib/glance's GlanceTrail. `arrivalAt` is
- *   the one arrival the last refresh scheduled (every refresh cancels the old one and schedules anew). When the app
- *   takes the glance down itself, `postedAt`, `seenAt` and `arrivalAt` are forgotten (forgetGlanceSigns), so its own
- *   leave is never read as a swipe and the glance can come back the same day.
+ * - `postedAt`, `seenAt` and `dismissedOn`: the kept half of lib/glance's GlanceTrail. When the app takes the glance
+ *   down itself, `postedAt` and `seenAt` are forgotten (forgetGlanceSigns), so its own leave is never read as a swipe
+ *   and the glance can come back the same day.
+ * - `arrivalAt`: the one arrival the last refresh scheduled (every refresh cancels the old one and schedules anew). A
+ *   record of what the phone holds, never a sign that the glance went up: an arrival counts only once a refresh has
+ *   seen it showing (`seenAt`), because Android can lose one without a word (lib/glance's glanceDismissedToday).
  */
 export type GlanceMemory = {
   hour: number | null;
@@ -85,8 +93,8 @@ export function halfDoneGlanceMemory(memory: GlanceMemory): GlanceMemory {
  *   swipe judged today still means not today.
  * - Not showing: its signs stay, so a swipe nobody has judged yet still means not today. The one exception is a post
  *   still landing (younger than GLANCE_SETTLE_MS), which nobody can have swiped: it may land just before the take-down.
- * The arrival the take-down cancelled is always forgotten, so it can never read as fired and missing. A memory with
- * nothing set up (hour null) is returned as it was.
+ * The arrival the take-down cancelled is always forgotten, because the phone no longer holds it. A memory with nothing
+ * set up (hour null) is returned as it was.
  */
 export function wipedGlanceMemory(memory: GlanceMemory, before: ShownGlance | null | 'unknown', now: number): GlanceMemory {
   if (memory.hour === null) return { ...memory };
@@ -154,18 +162,38 @@ export type GlanceRefreshInput = {
   /** Notifications are allowed, from a quiet check that never prompts. Without it nothing is posted or scheduled,
    *  and nothing is counted as posted, so a refusal is never mistaken for a swipe. */
   permitted: boolean;
+  /** The glance's own category is turned off in Android's settings for DoubleDone (its channel's importance is NONE).
+   *  Android drops every post to it without a word, so nothing is posted and nothing is counted as posted. Its next
+   *  arrival is still scheduled: while the category is off Android drops that too, an arrival nobody saw counts for
+   *  nothing, and once the category is back on it comes at the hour without the app being opened first. */
+  channelOff: boolean;
   tasks: Task[];
   closedISO: string | null;
   /** The held task ("Hold me to it", the stored contract's taskId), which sits under the pin on Today. */
   heldId: string | null;
   /** The glance showing now (by GLANCE_ID), or null. */
   shown: ShownGlance | null;
-  /** The scheduled arrival is still waiting to fire (still among the scheduled requests). */
-  arrivalPending: boolean;
   /** The daily nudge is among the scheduled requests. */
   nudgeScheduled: boolean;
   memory: GlanceMemory;
 };
+
+/** The memory a judgement reads: the stored one when it was kept under this hour, else a fresh one for this hour. A
+ *  different hour is a new choice, so nothing kept under the old one (a sighting, a verdict) counts against it. */
+function memoryForHour(memory: GlanceMemory, hour: number): GlanceMemory {
+  return memory.hour === hour ? { ...memory } : { ...emptyGlanceMemory(), hour };
+}
+
+/** lib/glance's trail, from the kept memory and what the shade shows now. */
+function trailOf(memory: GlanceMemory, shown: ShownGlance | null): GlanceTrail {
+  return {
+    presented: shown !== null,
+    presentedDay: shown?.day ?? null,
+    postedAt: memory.postedAt,
+    seenAt: memory.seenAt,
+    dismissedOn: memory.dismissedOn,
+  };
+}
 
 export type GlanceRefreshPlan = {
   /** What happens to the glance in the shade: post (or replace in place), take it down, or leave it. */
@@ -185,10 +213,13 @@ export type GlanceRefreshPlan = {
 /**
  * The whole judgement of one refresh. The glance belongs only when the reminder is on, its style is the glance and
  * the hour leaves a window. Otherwise anything showing comes down, nothing is scheduled and the memory empties.
- * When it belongs, lib/glance decides: whether today's was put away (a swipe, a reboot or an update, never the app's
- * own take-down), what is showing now (`seenAt`), whether to post, replace, take down or leave it
- * (glanceAction), and the single next arrival (planGlanceArrival). The seam then always cancels the old arrival,
- * before it posts, so a late alarm can never land last night's list over a fresh post.
+ * When it belongs, lib/glance decides: whether today's was put away (a glance it knows went up and is gone: a swipe,
+ * a reboot or an update, never the app's own take-down, and never an arrival nobody saw), what is showing now
+ * (`seenAt`), whether to post, replace, take down or leave it (glanceAction), and the single next arrival
+ * (planGlanceArrival). The seam then always cancels the old arrival, before it posts, so a late alarm can never land
+ * last night's list over a fresh post. While Android will not show it (notifications off for DoubleDone, or the
+ * glance's own category off), nothing is posted, and a glance gone from the shade is never judged: the switch that
+ * blocked it also took it down.
  */
 export function planGlanceRefresh(o: GlanceRefreshInput): GlanceRefreshPlan {
   const hour = clampHour(o.hour);
@@ -200,24 +231,28 @@ export function planGlanceRefresh(o: GlanceRefreshInput): GlanceRefreshPlan {
     return { action: o.shown !== null ? 'remove' : 'none', content, expiresAt, arrival: null, cancelNudge, memory: emptyGlanceMemory() };
   }
 
-  const memory: GlanceMemory = o.memory.hour === hour ? { ...o.memory } : { ...emptyGlanceMemory(), hour };
+  const memory = memoryForHour(o.memory, hour);
   const today = toISODate(o.now);
   const presented = o.shown !== null;
-  const dismissed = glanceDismissedToday(o.now, hour, {
-    presented,
-    presentedDay: o.shown?.day ?? null,
-    postedAt: memory.postedAt,
-    seenAt: memory.seenAt,
-    arrival: memory.arrivalAt === null ? null : { at: memory.arrivalAt, pending: o.arrivalPending },
-    dismissedOn: memory.dismissedOn,
-  });
-  // Today's verdict sticks for the rest of today, unless today's glance is showing after all (a delivery that was
-  // still on its way when it was judged, lib/glance). An older day's means nothing now, so it is not kept.
+  // Android will not show it now. Turning notifications (or the glance's category) off takes a showing glance down, so
+  // a glance missing while blocked may have gone with that switch, not a swipe: forget the signs that it went up and
+  // make no new verdict, so turned back on the same day it shows again. A verdict already made today stands. (Off and
+  // on again with no refresh in between still reads as a swipe: the app cannot see a switch it never looked at.)
+  const blocked = !o.permitted || o.channelOff;
+  if (blocked && !presented) {
+    memory.postedAt = null;
+    memory.seenAt = null;
+  }
+  const dismissed = glanceDismissedToday(o.now, hour, trailOf(memory, o.shown));
+  // Today's verdict sticks for the rest of today, unless today's glance is showing after all (the shade is the fact,
+  // whatever the verdict was made from, lib/glance). An older day's means nothing now, so it is not kept.
   memory.dismissedOn = dismissed ? today : null;
   if (o.shown !== null && (o.shown.day === null || o.shown.day === today)) memory.seenAt = o.now.getTime();
 
   let action = glanceAction({ content, now: o.now, hour, dismissed, presented, presentedKey: o.shown?.key ?? null });
-  if (action === 'post' && !o.permitted) action = 'none';
+  if (action === 'post' && blocked) action = 'none';
+  // The next arrival needs only notifications allowed for DoubleDone. With the glance's category off, Android drops it
+  // unseen, which counts for nothing (lib/glance), and once the category is back on it comes at the hour by itself.
   const arrival = o.permitted
     ? planGlanceArrival({ tasks: o.tasks, now: o.now, closedISO: o.closedISO, heldId: o.heldId, hour, dismissedToday: dismissed })
     : null;
@@ -248,9 +283,10 @@ export function settleGlanceMemory(
  * Whether the arrival a refresh just scheduled had already come due by the time the phone took it (`doneAt`, epoch
  * ms, read after the schedule call). expo-notifications drops a date trigger whose moment has passed when it reaches
  * the scheduler, and the call still resolves, so an arrival planned in the last moments before the hour never fires.
- * Recorded anyway, the next refresh would read it as fired and missing, a swipe, and lose the day. So such an arrival
- * is not recorded (the seam settles it as not scheduled) and the seam asks for a refresh, which finds the window open
- * and posts it itself. One that did fire in time is simply seen showing by that refresh.
+ * Nothing would post it until the next open or save, so such an arrival is not recorded (the seam settles it as not
+ * scheduled) and the seam asks for a refresh at once, which finds the window open and posts it itself. One that did
+ * fire in time is simply seen showing by that refresh. (Recorded, it could no longer lose the day: an arrival counts
+ * as having gone up only once a refresh has seen it, lib/glance's glanceDismissedToday.)
  */
 export function glanceArrivalMissed(plan: GlanceRefreshPlan, doneAt: number): boolean {
   return plan.arrival !== null && plan.arrival.at.getTime() <= doneAt;
@@ -317,11 +353,11 @@ export function glanceTimeoutVerdict(notificationId: string, error: unknown): Gl
 }
 
 /**
- * Forget a delivery the handler dropped: the post and the fired arrival both stop counting as "went up today". Being
- * SEEN showing stays, because that was a fact, and so does a future arrival. Today's verdict goes too, unless today's
- * glance was seen showing: nothing posts after a verdict, so a delivery still in the handler when one was made can
- * only have been judged by its own absence. That is the late, inexact arrival that fires as the app opens: the cold
- * open's refresh reads it as fired and missing, and without this its one retry would find the day already put away.
+ * Forget a delivery the handler dropped: the app's own post stops counting as "went up today", and an arrival whose
+ * time has come is forgotten with it (an arrival never counts until a refresh sees it, so that changes no verdict).
+ * Being SEEN showing stays, because that was a fact, and so does a future arrival. Today's verdict goes too, unless
+ * today's glance was seen showing: without a sighting, a verdict can only have come from a post's absence, and a
+ * dropped post never landed to be swiped. Its one retry then finds the day open, not put away.
  */
 export function forgetUnlandedGlance(memory: GlanceMemory, now: number): GlanceMemory {
   const today = toISODate(new Date(now));
@@ -332,6 +368,102 @@ export function forgetUnlandedGlance(memory: GlanceMemory, now: number): GlanceM
     arrivalAt: memory.arrivalAt !== null && memory.arrivalAt <= now ? null : memory.arrivalAt,
     dismissedOn: memory.dismissedOn === today && !seenToday ? null : memory.dismissedOn,
   };
+}
+
+// ---- The quiet status line in Settings -----------------------------------------------------------------------
+
+/**
+ * What the status line under the glance choice says (Settings, Android, only while the glance is the chosen
+ * reminder), so a glance that does not show is never silent. Worked out on the device from what the seam keeps and
+ * what the shade shows, never sent anywhere. In the order they win:
+ * - 'off': Android will not show it. Notifications are off for DoubleDone, or the glance's own category was turned
+ *   off (its channel's importance is NONE). The refresh then posts nothing and counts nothing as posted.
+ * - 'putAway': today's went up inside its window and is gone, a swipe as far as the app can tell (lib/glance's
+ *   glanceDismissedToday), so it is back tomorrow at the hour.
+ * - 'showing': inside today's window with something open. It is up, or the refresh every open and every save runs is
+ *   putting it up this second, in which case `lookAgain` asks Settings to read the line once more after a post has had
+ *   time to land: a post that never landed then reads as 'putAway', and one that failed is tried again by the seam's
+ *   own look again, so neither keeps "Showing now." over an empty shade.
+ * - 'resting': nothing is coming now. Inside today's window with the day closed, done or empty, and outside it when no
+ *   arrival is planned: nothing open before the window opens and nothing for tomorrow either, or after it with nothing
+ *   for tomorrow.
+ * - 'today': before today's window, with something open today: it comes at the hour.
+ * - 'tomorrow': after today's window, or before it with nothing to show today, when tomorrow holds something (an open
+ *   task carries over, or one is dated or repeats then): it comes tomorrow at the hour. Never named for a tomorrow that
+ *   holds nothing, because no arrival is planned for it (lib/glance's planGlanceArrival), and a promise that does not
+ *   come is this feature's worst failure. A task added for it brings the time back at the next look.
+ */
+export type GlanceStatusKind = 'off' | 'putAway' | 'showing' | 'resting' | 'today' | 'tomorrow';
+
+export type GlanceStatus = {
+  kind: GlanceStatusKind;
+  /** The one quiet line, in the app's language, with any time in the device's own convention. Never a count. */
+  line: string;
+  /** Offer the "Alarms & reminders" door under the line (the Routines screen's own, lib/reminders'
+   *  openExactAlarmSettings), because the phone may not set exact alarms and the next arrival could come late. Never
+   *  while it is 'off': nothing arrives then, on time or late. */
+  alarmDoor: boolean;
+  /** The line says 'showing' while today's glance is not in the shade yet, so it is still on its way, or it never
+   *  lands: Settings reads the line once more a little after GLANCE_SETTLE_MS (once, never again from that read). */
+  lookAgain: boolean;
+};
+
+export type GlanceStatusInput = {
+  now: Date;
+  /** The reminder hour: the glance's window opens at hour:00. */
+  hour: number;
+  /** The seam's stored memory (lib/storage's loadGlanceMemory). */
+  memory: GlanceMemory;
+  /** The glance in the shade now (found by GLANCE_ID, read with readShownGlance), or null. */
+  shown: ShownGlance | null;
+  /** The stored tasks and the closed day, as the refresh reads them. */
+  tasks: Task[];
+  closedISO: string | null;
+  /** Notifications are allowed for DoubleDone, from a quiet check that never prompts. */
+  permitted: boolean;
+  /** The glance's own channel (GLANCE_CHANNEL) has importance NONE: turned off in Android's settings. */
+  channelOff: boolean;
+  /** Whether the phone lets DoubleDone set exact alarms: true (always below Android 12, and from 12 on once "Alarms &
+   *  reminders" is allowed), false when it does not, or null when that cannot be read, which offers the door, as the
+   *  Routines screen does wherever it could matter. */
+  exactAlarms: boolean | null;
+};
+
+/**
+ * The status line, by the same rules the refresh runs (the memory kept under this hour, the same put-away verdict,
+ * the same window), so it says what the refresh does, even when Settings looks a moment before the refresh has run.
+ * Null when the hour leaves no window: the late-hour line (lib/glance's glanceTooLateLine) is the one that speaks then.
+ */
+export function glanceStatus(o: GlanceStatusInput): GlanceStatus | null {
+  const hour = clampHour(o.hour);
+  const todays = glanceWindow(o.now, hour);
+  if (todays === null) return null;
+  if (!o.permitted || o.channelOff) return { kind: 'off', line: t('glance.statusOff'), alarmDoor: false, lookAgain: false };
+  const alarmDoor = o.exactAlarms !== true;
+  const say = (kind: GlanceStatusKind, line: string, lookAgain = false): GlanceStatus => ({ kind, line, alarmDoor, lookAgain });
+  const timeOf = (at: Date) => formatReminderTime(at.getHours(), at.getMinutes());
+  const tomorrowAt = tomorrowsGlanceArrival(o.now, hour);
+  // Tomorrow's arrival is planned only when tomorrow holds something, so "back tomorrow" is promised only then.
+  const tomorrowHasSome = buildGlance(o.tasks, tomorrowAt, o.closedISO).state === 'tasks';
+  if (glanceDismissedToday(o.now, hour, trailOf(memoryForHour(o.memory, hour), o.shown))) {
+    return tomorrowHasSome
+      ? say('putAway', t('glance.statusPutAway', { time: timeOf(tomorrowAt) }))
+      : say('putAway', t('glance.statusPutAwayOnly'));
+  }
+  const somethingOpen = buildGlance(o.tasks, o.now, o.closedISO).state === 'tasks';
+  if (inGlanceWindow(o.now, hour)) {
+    if (!somethingOpen) return say('resting', t('glance.statusResting'));
+    const todaysShowing = o.shown !== null && (o.shown.day === null || o.shown.day === toISODate(o.now));
+    return say('showing', t('glance.statusShowing'), !todaysShowing);
+  }
+  if (somethingOpen && o.now.getTime() < todays.start.getTime()) {
+    return say('today', t('glance.statusToday', { time: timeOf(todays.start) }));
+  }
+  // Tomorrow's arrival is planned only when tomorrow holds something, so its time is named only then.
+  if (tomorrowHasSome) {
+    return say('tomorrow', t('glance.statusTomorrow', { time: timeOf(tomorrowAt) }));
+  }
+  return say('resting', t('glance.statusResting'));
 }
 
 // ---- The glance replaces the nudge ---------------------------------------------------------------------------

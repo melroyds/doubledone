@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Animated, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RoomBackRow, useRoomOrigin } from '@/components/RoomTop';
@@ -17,7 +17,8 @@ import { useSession } from '@/lib/auth';
 import { copyWhenReady } from '@/lib/copy-later';
 import { toISODate } from '@/lib/day';
 import { buildExport } from '@/lib/export';
-import { type ReminderStyle } from '@/lib/glance';
+import { GLANCE_SETTLE_MS, type ReminderStyle } from '@/lib/glance';
+import { dailyNudgeHour, type GlanceStatus } from '@/lib/glance-refresh';
 import { spoken } from '@/lib/i18n';
 import { deviceTimeZone, t } from '@/lib/locale';
 import { fetchMonthAnswer, type NoteOutcome, takeLastNoteOutcome } from '@/lib/note';
@@ -38,7 +39,17 @@ import {
   reminderOptions,
 } from '@/lib/reminder-choice';
 import { hourReapply } from '@/lib/reminder-hour';
-import { disableDailyReminder, disableTodayGlance, enableDailyReminder, enableTodayGlance, GLANCE_AVAILABLE } from '@/lib/reminders';
+import {
+  disableDailyReminder,
+  disableTodayGlance,
+  enableDailyReminder,
+  enableTodayGlance,
+  GLANCE_AVAILABLE,
+  openExactAlarmSettings,
+  readGlanceStatus,
+  refreshTodayGlance,
+  rescheduleAllNudges,
+} from '@/lib/reminders';
 import { clampHour, formatReminderHour, reminderReasonLine } from '@/lib/reminders-types';
 import { type Appearance, type FinishedTasks, type MotionPref, type TextSize, THEME_NAMES, type ThemePref } from '@/lib/settings';
 import {
@@ -47,6 +58,7 @@ import {
   loadReminderHour,
   loadReminderOn,
   loadReminderStyle,
+  loadRoutines,
   loadScrapbooks,
   loadTasks,
   saveGiftOffer,
@@ -275,6 +287,72 @@ export default function SettingsScreen() {
   const reminderChoice = reminderChoiceOf({ on: reminderOn, style: reminderStyle });
   const glanceChosen = GLANCE_AVAILABLE && reminderChoice === 'glance';
   const reminderChoices = reminderOptions(reminderHour);
+
+  // The glance's quiet status line (2026-11-12), so a glance that does not show is never silent: showing now, coming
+  // at the hour, put away for today, resting, or turned off in Android's settings (lib/glance-refresh's glanceStatus,
+  // read from the phone by lib/reminders' readGlanceStatus). Read only while the glance is the choice, again whenever
+  // the choice or the hour changes, each time Settings gains focus, each time the app comes back to the foreground
+  // (from Android's own settings, say), and each time the window gets focus back, which is all Android sends when the
+  // shade is pulled down over Settings and let go (a swipe there sends no 'change'). Settings' own hour is passed, so a
+  // +/- tap is read before its save lands. A read that answers after a newer one began is dropped, and moving away
+  // from the glance clears the line. A read that says "Showing now." while today's is not in the shade yet
+  // (`lookAgain`) is read once more after a post has had time to land, so a post that never landed does not keep
+  // saying it shows. A read that does not change the words leaves TalkBack quiet.
+  const [glanceStatusNow, setGlanceStatusNow] = useState<GlanceStatus | null>(null);
+  const [glanceLook, setGlanceLook] = useState(0); // a new look: Settings focused, the app back, or the shade let go
+  useFocusEffect(
+    useCallback(() => {
+      if (!GLANCE_AVAILABLE) return;
+      setGlanceLook((n) => n + 1);
+      const appState = AppState.addEventListener('change', (state) => {
+        if (state === 'active') setGlanceLook((n) => n + 1);
+      });
+      const shade = AppState.addEventListener('focus', () => setGlanceLook((n) => n + 1));
+      return () => {
+        appState.remove();
+        shade.remove();
+      };
+    }, []),
+  );
+  useEffect(() => {
+    let current = true;
+    let again: ReturnType<typeof setTimeout> | null = null;
+    const read = () => (glanceChosen ? readGlanceStatus(reminderHour) : Promise.resolve<GlanceStatus | null>(null));
+    void read().then((status) => {
+      if (!current) return;
+      setGlanceStatusNow(status);
+      if (status?.lookAgain) {
+        again = setTimeout(() => {
+          void read().then((next) => {
+            if (current) setGlanceStatusNow(next);
+          });
+        }, GLANCE_SETTLE_MS + 1500);
+      }
+    });
+    return () => {
+      current = false;
+      if (again !== null) clearTimeout(again);
+    };
+  }, [glanceChosen, reminderHour, glanceLook]);
+
+  // The "Alarms & reminders" door under the status line: the Routines screen's own door and re-arm (routines.tsx,
+  // grantExactAlarms). Without that access Android arms every alarm inexactly and can hold the glance's arrival until
+  // the app next wakes, so the hour passes with nothing in the shade. The grant cannot be read from JS, so the door
+  // shows from Android 12 on, as on Routines (glanceStatus' alarmDoor). openExactAlarmSettings resolves when the person
+  // comes back, and granting resumes this same process, so everything already armed is armed again, exact now if they
+  // allowed it: every nudge from the stored Routines, the daily one only when it is the style (never beside the glance,
+  // read from the choice this screen shows, which is what is stored), and the glance's next arrival through a refresh.
+  // Then the line is read again.
+  async function grantExactAlarmsForGlance() {
+    await openExactAlarmSettings();
+    try {
+      await rescheduleAllNudges(await loadRoutines(), dailyNudgeHour(reminderOn, reminderStyle, reminderHour));
+    } catch {
+      // best effort: the cold-start sweep remains the backstop
+    }
+    refreshTodayGlance();
+    setGlanceLook((n) => n + 1);
+  }
 
   // "Your stuff is yours": download (web) or share (native) a JSON of the user's
   // tasks + completions. Works with no account, the data is local.
@@ -602,6 +680,33 @@ export default function SettingsScreen() {
               <Text style={styles.reminderGlanceNote} accessibilityLiveRegion="polite">
                 {glanceSettingsLine(reminderHour)}
               </Text>
+            ) : null}
+            {/* What the glance is doing now (glanceStatusNow, above), one quiet line that names a time, never a count.
+                Polite, so TalkBack hears it change while it is up. When it first appears it is simply there in the
+                reading order: Android reads a live region when it changes, not when it mounts, and an announcement on
+                every visit to Settings would be noise. None while the hour leaves no window: the line above asks for
+                an earlier time then. Under it, while the phone may hold the arrival, the Routines screen's door to
+                "Alarms & reminders", with a line of its own, because Routines' names nudges. */}
+            {glanceChosen && glanceStatusNow ? (
+              <View style={styles.glanceStatus}>
+                <Text style={styles.glanceStatusLine} accessibilityLiveRegion="polite">
+                  {glanceStatusNow.line}
+                </Text>
+                {glanceStatusNow.alarmDoor ? (
+                  <>
+                    <Text style={styles.glanceStatusLine}>{t('glance.exactHint')}</Text>
+                    <Pressable
+                      onPress={() => void grantExactAlarmsForGlance()}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('routines.exactOpen')}
+                      hitSlop={6}
+                      style={({ pressed }) => [pressed && styles.pressed]}
+                    >
+                      <Text style={styles.glanceDoor}>{t('routines.exactOpen')}</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
             ) : null}
           </View>
         </View>
@@ -1124,6 +1229,10 @@ const makeStyles = (t: Theme) =>
     reminderChoiceSub: { color: t.colors.inkSoft, fontSize: 14 * t.scale, lineHeight: 20 * t.scale, fontFamily: fonts.body },
     reminderChoiceSubOn: { color: t.colors.ink }, // soft ink falls under AA on the chosen tint (as the welcome's cards)
     reminderGlanceNote: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale, marginTop: spacing.three },
+    // The glance's status line and its "Alarms & reminders" door: the note's quiet look, and Settings' own text action.
+    glanceStatus: { marginTop: spacing.two, gap: spacing.one },
+    glanceStatusLine: { color: t.colors.inkSoft, fontSize: 14 * t.scale, fontFamily: fonts.body, lineHeight: 20 * t.scale },
+    glanceDoor: { color: t.colors.accentText, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600', marginTop: spacing.one },
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
     stepBtn: { width: 36, height: 36, borderRadius: radius.pill, borderWidth: border.hair, borderColor: t.colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
     stepBtnOff: { opacity: 0.4 },

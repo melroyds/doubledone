@@ -73,6 +73,19 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   "the Lookback".
 
 ### Fixed
+- **Today in your notifications shows up when Android loses its morning arrival** (Android, on branch
+  `fix/glance-delivery` only: not merged, in no build). Android can hold the morning alarm and drop it as the app
+  opens, or a restart can discard it, and the app read that silence as a swipe and kept the list away all day. Now
+  only a notification the app has seen counts as put away, so the first open shows a lost one. A swipe the app has not
+  seen yet (in practice, one before the day's first open) comes back once, and a second swipe sticks. Under the
+  choice, Settings now says what it is doing (showing now, when it comes, put away for today, resting, or turned off in
+  Android's settings), names a time only for an arrival that is coming, and offers the "Alarms & reminders" door so the
+  morning arrival can come on time. Its category turned off in Android's settings, or turned off and on again, is never
+  read as a swipe, and neither is its leaving at 9:30 pm. Its look (no time beside it, the expanded list, gone by 9:30 pm) and 1.1.0's promise that a missed
+  reminder leaves the tray by itself, app closed, reach a phone for the first time: every Android build so far used
+  expo-notifications' ready-made library, which never held our patch, and the app now compiles it from source
+  ([`client/src/lib/glance.ts`](client/src/lib/glance.ts), [`client/package.json`](client/package.json),
+  [`client/src/lib/native-patches.test.ts`](client/src/lib/native-patches.test.ts)).
 - **The Android widget lists Today's open tasks in Today's own order** (the pin, then the held task, then your order)
   **and updates at once on Goodnight, Reopen and a sync**, where only Today's own edits used to reach it, so a closed
   day could show as open for up to half an hour (on branch `feat/today-glance` only).

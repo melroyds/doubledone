@@ -25,6 +25,7 @@ import {
   nextGlanceArrival,
   parseReminderStyle,
   planGlanceArrival,
+  tomorrowsGlanceArrival,
 } from './glance';
 import { type Recurrence } from './recurrence';
 import type { Task } from './tasks';
@@ -272,6 +273,18 @@ describe('nextGlanceArrival', () => {
   });
 });
 
+describe('tomorrowsGlanceArrival (the time the status line names for tomorrow)', () => {
+  it('is the next calendar date at the hour, from any moment of today, before the hour included', () => {
+    for (const now of [at(0, 0), at(7, 15), at(9, 0), at(23, 59)]) expect(tomorrowsGlanceArrival(now, 9)).toEqual(at(9, 0, 11));
+    expect(tomorrowsGlanceArrival(at(22, 0, 30), 8)).toEqual(new Date(2026, 11, 1, 8, 0));
+    expect(tomorrowsGlanceArrival(new Date(2026, 11, 31, 22, 0), 8)).toEqual(new Date(2027, 0, 1, 8, 0));
+  });
+
+  it('clamps the hour like every other reminder hour', () => {
+    expect(tomorrowsGlanceArrival(DAY, 30)).toEqual(at(23, 0, 11));
+  });
+});
+
 describe('daylight-saving nights', () => {
   // Melbourne: clocks go back at 03:00 on 5 Apr 2026 and forward at 02:00 on 4 Oct 2026.
   // New York: forward at 02:00 on 8 Mar 2026, back at 02:00 on 1 Nov 2026.
@@ -381,8 +394,8 @@ describe('planGlanceArrival: the one future arrival', () => {
   });
 });
 
-describe('glanceDismissedToday: posted today and not showing means not today', () => {
-  const trail = (over: Partial<GlanceTrail> = {}): GlanceTrail => ({ presented: false, postedAt: null, arrival: null, ...over });
+describe('glanceDismissedToday: known to be up today and not showing means not today', () => {
+  const trail = (over: Partial<GlanceTrail> = {}): GlanceTrail => ({ presented: false, postedAt: null, ...over });
   const now = at(11, 0);
 
   it('a glance the app posted today that is no longer showing was put away (a swipe, a reboot, an update)', () => {
@@ -408,17 +421,18 @@ describe('glanceDismissedToday: posted today and not showing means not today', (
     expect(glanceDismissedToday(now, 9, trail({ seenAt: now.getTime() - 2_000 }))).toBe(true);
   });
 
-  it("today's arrival that has fired counts as posted today", () => {
-    expect(glanceDismissedToday(now, 9, trail({ arrival: { at: at(9, 0).getTime(), pending: false } }))).toBe(true);
+  // The 2026-11-12 no-show: chosen the night before, nothing at the hour, nothing on opening. An arrival can leave the
+  // schedule without reaching the shade (an inexact alarm released and dropped in the app's cold start, or a restart),
+  // and reading that as a swipe lost the whole day. The trail holds no arrival at all now: whatever happened to this
+  // morning's, only a refresh seeing it showing makes it count.
+  it("this morning's arrival, its time long past, counts for nothing until a refresh has seen it showing", () => {
+    for (const later of [at(9, 0), at(9, 10), now, at(21, 29)]) expect(glanceDismissedToday(later, 9, trail())).toBe(false);
+    // Seen at 9:05 by an open, and gone since: that one was up, so it was put away.
+    expect(glanceDismissedToday(now, 9, trail({ seenAt: at(9, 5).getTime() }))).toBe(true);
   });
 
-  it('an arrival still waiting to fire posted nothing yet (a late, inexact alarm), so the app may post on open', () => {
-    expect(glanceDismissedToday(at(9, 10), 9, trail({ arrival: { at: at(9, 0).getTime(), pending: true } }))).toBe(false);
-  });
-
-  it("yesterday's glance does not count today, and neither does tomorrow's arrival or a time not yet come", () => {
+  it("yesterday's glance does not count today, and neither does a time not yet come", () => {
     expect(glanceDismissedToday(now, 9, trail({ postedAt: at(20, 0, 9).getTime(), seenAt: at(20, 5, 9).getTime() }))).toBe(false);
-    expect(glanceDismissedToday(now, 9, trail({ arrival: { at: at(9, 0, 11).getTime(), pending: true } }))).toBe(false);
     expect(glanceDismissedToday(now, 9, trail({ seenAt: at(12, 0).getTime() }))).toBe(false);
     expect(glanceDismissedToday(now, 9, trail({ postedAt: Number.NaN, seenAt: Number.NaN }))).toBe(false);
   });
@@ -428,16 +442,26 @@ describe('glanceDismissedToday: posted today and not showing means not today', (
     expect(glanceDismissedToday(at(17, 0), 16, trail({ postedAt: at(10, 0).getTime(), seenAt: at(15, 0).getTime() }))).toBe(false);
   });
 
-  it('once judged put away, it stays put away for the rest of that day, whatever is rescheduled meanwhile', () => {
-    // The fired arrival was judged at 10:00 and then replaced by tomorrow's: the verdict must not be lost with it.
-    const later = trail({ dismissedOn: ISO, arrival: { at: at(9, 0, 11).getTime(), pending: true } });
+  // From 21:30 the window's own end takes it down: its expiry, now that the patched builder ships, or a refresh after
+  // it. Seen in the evening and gone after 21:30 is an ordinary evening, never a swipe.
+  it('gone after 21:30 left with the window, so it was not put away, while a verdict made inside the window stands', () => {
+    const seenAt8pm = trail({ seenAt: at(20, 0).getTime(), postedAt: at(19, 0).getTime() });
+    expect(glanceDismissedToday(at(21, 29), 9, seenAt8pm)).toBe(true); // still inside: gone means swiped
+    for (const later of [at(21, 30), at(21, 45), at(23, 59)]) expect(glanceDismissedToday(later, 9, seenAt8pm)).toBe(false);
+    expect(glanceDismissedToday(at(21, 45), 9, trail({ seenAt: at(20, 0).getTime(), dismissedOn: ISO }))).toBe(true);
+  });
+
+  it('once judged put away, it stays put away for the rest of that day, whatever is forgotten meanwhile', () => {
+    // Seen at 10:00, gone at 10:30 and judged then. The sighting is later forgotten (a take-down, a new memory): the
+    // verdict must not be lost with it.
+    const later = trail({ dismissedOn: ISO });
     expect(glanceDismissedToday(at(13, 0), 9, later)).toBe(true);
     expect(glanceDismissedToday(at(9, 30, 11), 9, later)).toBe(false); // the next day is a new day
   });
 
-  // A late, inexact arrival can fire as the app opens and still be in the foreground handler when the cold open's
-  // refresh reads the shade: judged by its own absence, then landing a moment later. The shade is the fact.
-  it("today's glance showing outranks a verdict made while it was still on its way", () => {
+  // A verdict is a judgement from absence. If today's glance turns out to be showing after all (a delivery that was
+  // still on its way, or anything else), the shade is the fact, whatever the verdict was made from.
+  it("today's glance showing outranks a verdict", () => {
     expect(glanceDismissedToday(at(9, 41), 9, trail({ presented: true, presentedDay: ISO, dismissedOn: ISO }))).toBe(false);
     expect(glanceDismissedToday(at(9, 41), 9, trail({ presented: true, presentedDay: null, dismissedOn: ISO }))).toBe(false);
     // Yesterday's left showing does not: today's verdict stands.

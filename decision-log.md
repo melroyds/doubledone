@@ -12038,3 +12038,147 @@ Built on the branch `feat/today-glance`: not merged, in no build, and the Worker
 - From the build itself: a widget refresh inside the task writer (the notice is the one path), a notice for the tasks
   and the closed day only (the hold and the reminder's settings change what shows), and a separately stored order for
   the widget (it reuses Today's own helper).
+
+## 2026-11-12: Today in your notifications counts only what it saw, expo-notifications is compiled from source at last, and Settings says what the glance is doing
+
+On Melroy's phone, on 1.10.7 from the Internal testing track (versionCode 40), Today in your notifications never
+appeared: chosen at 23:30 with the hour at 8, nothing at 8:00 with the app closed, and nothing after the app was opened
+later that morning. A read-only diagnosis (four hypotheses, then a synthesis, with the timeline run through the real
+modules at Melbourne's offset) found what lost the day, and a second fault that had been silently true since July. Five
+fixes were chosen from it and built in three lanes on the branch `fix/glance-delivery` (not merged, in no build).
+
+**What failed, and why:**
+- **The trigger: the 8:00 arrival left expo-notifications' store without reaching the shade.** Most likely Android held
+  the inexact alarm (without "Alarms & reminders", off by default from Android 14, every arrival is armed inexact) and
+  released it as the app opened. During the cold start expo-notifications has no listener yet, and it drops such a
+  delivery without a word or an error, so the handler-timeout retry never ran. The runner-up is a restart overnight,
+  first unlocked after 8:00, whose re-arm discards an arrival already past (AND-22). Which one it was is not proven,
+  and no code can make a held alarm fire on time.
+- **The amplifier, and the only reason the open stayed dark: a missing arrival read as a swipe.**
+  `glanceDismissedToday` counted an arrival whose time had passed and that was no longer waiting (the `fired` term) as
+  having gone up. So the open found it gone and nothing in the shade, judged the day put away, and every refresh that
+  day stayed silent, new tasks included. The repo's own test asserted exactly that.
+- **And the patch had never shipped.** expo-notifications 56.0.18 ships a prebuilt Android library
+  (`android.publication` in its `expo-module.config.json`, served from its own local-maven-repo), and SDK 56's
+  autolinking links it unless `buildFromSource` names the module. Nothing ever did, so Gradle never compiled the
+  patched Kotlin, and patch-package patched source nobody built, which is why the install never failed. The library's
+  `ExpoNotificationBuilder.class` holds none of `setTimeoutAfter`, `timeoutAfterMs`, `expiresAtMs`, `setOnlyAlertOnce`
+  or `setShowWhen` (checked again for this entry). So 1.10.7 runs upstream's builder: a time beside the glance, the
+  expanded view repeating the first line, and no expiry at 21:30. It did not cause this failure. The nudges' shelf life
+  (2026-07-26, `3936ae7`) never shipped either: expo-notifications and expo-modules-autolinking are the same versions,
+  by integrity hash, then and now, and `buildFromSource` appears nowhere in the history. So that entry's "the failure
+  mode is LOUD" was wrong, AND-10 cannot have passed on any build so far, and 1.1.0's CHANGELOG line that "a missed
+  reminder leaves the tray by itself, even with the app closed" was never true on a phone. The 2026-11-11 BUILD-PLAN
+  line calling 1.10.7 "the first real compile of the expo-notifications patch" is corrected. The one record that proves
+  it on the shipped build is the 1.10.7 Android build log, whose module list should read
+  `- [📦] expo-notifications (56.0.18)`, and a look costs no build.
+
+**Decided:**
+- **An arrival counts as having gone up only once a refresh has seen it showing.** The `fired` term is gone, and the
+  scheduled arrival is no longer part of the trail (`GlanceTrail.arrival` and the refresh's `arrivalPending` are
+  removed). The app's own post still counts once it has had ten seconds to land (`postedAt`, GLANCE_SETTLE_MS), and a
+  sighting (`seenAt`) counts at once. So an arrival nobody saw counts for nothing, and the next refresh inside the
+  window posts it: a lost morning arrival shows at the first open, whatever lost it. That narrows 2026-11-10's "missing
+  beats wrong" to a glance the app knows went up, and answers its AND-22 question: a phone restarted before the hour
+  and first unlocked after it shows the glance at the open, not nothing all day. `memory.arrivalAt` stays as a record
+  of what the phone holds, and `glanceArrivalMissed` and the verdict-clearing in `forgetUnlandedGlance` stay as second
+  safeguards. The tests that asserted the old rule are flipped, and the regression is in: chosen at 23:30, the arrival
+  gone at 11:00, never seen, nothing showing, so the open posts it, and it stays all day, a 14:00 task included.
+- **The accepted cost: a swipe made before any refresh has seen the glance comes back once, at the next refresh**,
+  because the app cannot tell it from a lost arrival. In practice that is a swipe before the day's first open, or, when
+  it arrives with the app already open (no refresh runs for an arrival), a swipe before the next save or return to the
+  app. A second swipe sticks, because by then a refresh has seen it. It bends 2026-11-10's rule against posting again
+  after a swipe, once and never twice in a day, and that is the better failure: a lost day is silent, and a returned
+  glance asks for one more swipe. (First written as "before the day's first open" only. The review found the open-app
+  case, so the record says what the code does.)
+- **expo-notifications is compiled from source:** `"expo": { "autolinking": { "android": { "buildFromSource":
+  ["expo-notifications"] } } }` in `client/package.json`, the app root that Gradle's resolver reads, every other key
+  as it was. Confirmed in node_modules: autolinking's options loader keeps the key, the resolver hands it to Gradle, and
+  the settings plugin compiles a module from source when a pattern matches its whole project name. Run for real, the
+  resolver now passes it, so expo-notifications is built from source and the other 26 prebuilt modules stay prebuilt.
+  `client/src/lib/native-patches.test.ts` fails whenever a patched package that ships a prebuilt Android library is
+  not matched (it reads the options with autolinking's own loader and applies Gradle's whole-name rule, so it checks
+  the key Gradle reads), and whenever the installed source lacks a line a patch adds. A patched prebuilt library can no
+  longer be ignored in silence. The next Android build is the patch's first real compile, and every DoubleDone
+  notification goes through the patched builder for the first time, so its device pass starts with its build log
+  (AND-23) and runs AND-10, AND-12, AND-13 and AND-16.
+- **A quiet status line under the choice in Settings** (Android, only while the glance is the chosen reminder), so a
+  glance that does not show is never silent: "Showing now.", "Comes at {time}.", "Comes tomorrow at {time}.", "Put
+  away for today. Back tomorrow at {time}.", "Resting while today is clear." or "Turned off in Android's settings for
+  DoubleDone.", in all five languages, a time through `formatReminderTime` and never a count. `glanceStatus`
+  (lib/glance-refresh, node-tested) words it by the refresh's own rules, cross-checked against `planGlanceRefresh` over
+  4,860 cases (every time it names matches the arrival the refresh plans, and the category switch is among them), and
+  `readGlanceStatus` reads the phone for it inside the glance's one line, so it never sees a refresh
+  half done, and it writes nothing. It is read again when Settings gains focus, when the app returns to the
+  foreground, when the shade is let go over Settings (Android sends only a window focus then, never a 'change'), and
+  when the choice or the hour changes, with Settings' own hour, so a +/- tap is read before its save lands. A "Showing
+  now." read while today's glance is not in the shade yet is read once more after a post has had time to land. TalkBack
+  hears it change while it is up, and a line that appears is simply there in the reading order, because Android reads
+  a live region when it changes, not when it mounts. The late-hour line still speaks when the hour leaves no window.
+  "Turned off…" also covers notifications off for the whole app, so the line never promises an arrival that cannot
+  come, and neither does "Comes tomorrow at {time}.", said only when tomorrow holds something (an empty tomorrow
+  rests). It stays on the phone, so the privacy page does not change.
+- **The "Alarms & reminders" door under it, the Routines screen's own:** `openExactAlarmSettings` behind the
+  `routines.exactOpen` label, so the morning arrival can come on time. One new line over it in all five languages,
+  `glance.exactHint` ("If it ever comes late, allow "Alarms & reminders" for DoubleDone."), because Routines' own line
+  names nudges, which under the glance is the other choice. JS cannot read the grant (only expo's scheduler asks
+  `canScheduleExactAlarms`), so the door shows from Android 12 on, as on Routines, even once allowed, and never under
+  "Turned off…". So the line is worded to be true either way: the first draft ("So it comes on time each day,
+  allow…") was an instruction that could never be finished on a phone that had already allowed it, which nags the
+  very people this is for. Coming back re-arms every nudge (never a daily nudge beside the glance) and refreshes the glance,
+  so its next arrival is armed exact if it was allowed.
+- **The channel check:** every refresh reads the glance's own channel, and importance NONE (its category turned off in
+  Android's settings for DoubleDone) blocks the post: nothing posted, nothing recorded as posted, so it is never read
+  as a swipe, and the line says it is off. Its next arrival stays armed, one step past the spec's "treat it as not
+  permitted", which first cancelled it too (the native review flagged it as Melroy's call, and it is built so he can
+  veto it in one line, `planGlanceRefresh`'s `arrival`): while the category is off Android drops it unseen, which
+  counts for nothing under the rule above, and turned back on from Android's settings the glance comes at the hour
+  without the app being opened first. Notifications off for the whole app still schedules nothing. A channel not made
+  yet, or one that cannot be read, is not off, because a failed read must not hide the glance.
+- **While Android will not show it, a missing glance is never judged.** Turning notifications (or the category) off
+  takes a showing glance down, and a refresh while it was off read "seen and now gone" as a swipe, so turned back on
+  the same day it stayed away. Now, while blocked with nothing in the shade, the signs that it went up are forgotten
+  and no new verdict is made, and a verdict already made today stands. Only off and on again with no refresh in between
+  still reads as a swipe, because the app never looked.
+- **From 21:30 its absence is the window's end, never a swipe.** Its own expiry ships with this build, so an evening
+  glance that a refresh saw is gone after 21:30 with nothing to see it go, and was then read as put away ("Put away for
+  today." over an ordinary evening, and a verdict stored). `glanceDismissedToday` now answers no from the window's end,
+  unless a verdict was made inside the window.
+- **The manual suite follows:** AND-10, AND-12, AND-13 and AND-16 need a build with expo-notifications from source,
+  and AND-23 checks that build's log first, the patch-package ✔ line in its install as well as the un-[📦] module line.
+  AND-10 needs "Alarms & reminders" allowed, because without it Android can release two Rhythm slots together. AND-21
+  fails a glance missing 15 seconds after the open, and gains a third morning that repeats 12 Nov's on purpose (the
+  battery Restricted overnight). AND-22 shows at the open (P3 to P2), AND-24 is the accepted cost (the app open at the
+  hour included), and SET-24 to SET-29 are the line, the door, and the category turned off and on again (SET-29, P3 to
+  P2, now that it comes back).
+
+**Reviewed the same day, in three lenses (the rule and the line, native and build, Settings and copy).** Every
+finding was checked against the code and fixed on the branch, and the bullets above are written as built. Beyond them:
+`native-patches.test.ts` takes each project's name and publication from autolinking's own `ExpoModuleConfig` (a module
+can rename its project or add more, each with its own publication), and the seam looks again after a post that failed,
+as after one that went out, so a passing failure is posted once more. The gotcha in `CLAUDE.md` that says the patch
+"only compiles in an EAS build" is now wrong (no build compiled it until this key) and waits for Melroy's word, as
+every `CLAUDE.md` change does.
+
+**Decided against:**
+- **Forcing exact alarms on.** The grant is the person's, in Android's own settings, and off by default from Android
+  14. Asking for it at the pick turns a calm choice into a settings errand, and `USE_EXACT_ALARM`, which needs no grant,
+  is for alarm-clock and calendar apps under Play's policy. The door offers it, and a late arrival is fine now that a
+  lost one shows at the open.
+- **A foreground service**, again (as on 2026-11-10): a process held alive all night, with a declared service type and
+  a Play declaration, to post one list a day.
+- **Counting arrivals by the clock**, the old `fired` term or anything like it: a time that has passed says nothing
+  about the shade, because Android can lose an arrival without a word.
+- **New beacon counts, for now** (`glance.seen`, `glance.putaway`, `glance.arrival.lost` and `glance.refresh.failed`,
+  each at most once a day): they would show across everyone whether the glance arrives, but they need both allowlists,
+  a privacy-page change and a Worker deploy. Parked in the Backlog with a trigger. The line in Settings does that job
+  on the phone meanwhile, at no privacy cost.
+- **A native signal for a real swipe** (a delete intent on the glance), which would end the accepted cost: new native
+  code in the patched builder, for a glance that can come back once a day at most. Parked with a trigger.
+
+**Left open (BUILD-PLAN Backlog, 2026-11-12, each with a trigger):** a swipe the app has not seen comes back once (a
+listener for the glance arriving would narrow that to arrivals with the app closed, a native swipe signal would end
+it). A post that keeps failing still reads "Showing now.", because no line in the spec names it. "Put away for today.
+Back tomorrow at {time}." still names tomorrow when tomorrow holds nothing, because the spec has no put-away line
+without that promise (Melroy's copy call). "Turned off…" offers no door to Android's notification settings, and the
+"Alarms & reminders" door stays once allowed, its line now worded for both.
