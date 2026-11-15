@@ -42,6 +42,16 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**1.10.7 IS LIVE ON BOTH STORES (2026-11-16), SO `version.json` OFFERS IT TO OLDER PHONES.** Melroy confirmed it,
+and the stores' own listings agree: Apple's lookup reads 1.10.7 in AU and US (the automatic release sent out build 50
+at 20:48 UTC on 2026-11-15), and the Play listing reads 1.10.7 (versionCode 41 at 100%). `client/public/version.json`
+ios and android both went to 1.10.7, so an iPhone on 1.10.1 or an Android phone on 1.10.0 gets the calm "a newer
+version is ready". Both builds carry the overnight Low reset (`2cb3dc2`, on the web since 2026-11-02), so it is now
+live on all three, and TOD-46 on a phone is its first real-use check. **Next, in real use:** (1) one real purchase made
+signed out on the App Store with Melroy's own Apple ID, then PREM-72, 73 and 77's server checks (the entry below),
+(2) the glance's first real morning (AND-21) and the rest of the Android pass in the glance entry, (3) Hold me to it's
+next 09:30 on the iPhone, with no knock about a task that left Today.
+
 **IOS 1.10.7 (BUILD 50) PASSED FOUNDER TESTING, BAR THE ONE PATH THIS IPHONE CANNOT TEST, AND ITS STORE TEXT IS
 WRITTEN (2026-11-15).** On TestFlight, all passed: sign-in with the code typed offline and then online (AUTH-09), the
 four AI features signed in on the review account, their German answers (I18N-03), Hold me to it ending with its task
