@@ -42,30 +42,25 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**TODAY IN YOUR NOTIFICATIONS NEVER CAME ON MELROY'S PHONE: FIXED ON `fix/glance-delivery`, AWAITING REVIEW
-(2026-11-12).** On 1.10.7 from the Internal track the glance never appeared: chosen at 23:30 for 8:00, nothing at
-8:00 with the app closed, nothing after opening. Android lost the morning arrival before it reached the shade (most
-likely a held alarm dropped as the app opened), and the app read that silence as a swipe and kept the glance away all
-day. Separately, every Android build so far linked expo-notifications' prebuilt library, so the patch (the glance's
-look and 9:30 pm expiry, and July's nudge shelf life) has never shipped. On the branch, not merged, in no build: only a
-glance the app saw counts as put away (the accepted cost: a swipe the app has not seen yet, in practice one before the
-day's first open, comes back once), expo-notifications is compiled from source (`client/package.json`, guarded by
-`client/src/lib/native-patches.test.ts`), Settings shows a quiet status line under the choice with the "Alarms &
-reminders" door, and the glance's category turned off in Android's settings blocks the post and is never read as a
-swipe. Reviewed in three lenses the same day, every finding fixed on the branch. Gates green. The why is the
-2026-11-12 decision-log entry. **Waiting on Melroy's word:** the stale `CLAUDE.md` gotcha that says the patch "only
-compiles in an EAS build", and whether the glance's next arrival stays armed while its category is off (built that
-way, one line to undo).
-**Next:** review, then the merge on Melroy's word. Then a new Android build, only when he asks (the quota rule), to
-the Internal track. Its log must list `- expo-notifications (56.0.18)` without the [📦] marker (AND-23) before
-anything else is tested. Then the device pass: AND-21 (its third morning repeats 12 Nov's on purpose), AND-22, AND-24
-and SET-24 to SET-29, and, because every notification goes through the patched builder for the first time, AND-10,
-AND-12, AND-13 and AND-16. Free, and worth doing first: open 1.10.7's Android build log on expo.dev and check it lists
-`- [📦] expo-notifications (56.0.18)`, which proves the finding on the shipped build. **Melroy's call, best made
-before founder testing ends:** whether Android 1.10.7 goes to production at all. Its glance loses the day whenever
-the morning arrival is lost, and nothing takes it down at 9:30 pm unless the app is opened after then, so the next
-build is the one that can ship it. The iPhone's 1.10.7 is untouched by this. What the fix left open is in the
-Backlog's 2026-11-12 entry.
+**TODAY IN YOUR NOTIFICATIONS: THE DELIVERY FIX IS MERGED, AND ANDROID 1.10.7 VERSIONCODE 41 IS THE FIRST BUILD WITH
+ITS PATCH (2026-11-15, on Melroy's ask).** PR #16 merged as `13cddd0` (`premium` level with it), then one EAS build:
+Android 1.10.7 versionCode 41 (build `2e9687f5`, production profile, app bundle), artifact
+`https://expo.dev/artifacts/eas/HpQOHVyvwC6mZr3BRl7XEwa-0Lp5ZJh2ST_Frr8E0BQ.aab`. **AND-23 passed, read from the
+build's own log:** `expo-notifications@56.0.18 ✔` under "Applying patches..." in Install dependencies,
+`- expo-notifications (56.0.18)` with no [📦] under "Using expo modules" in Run gradlew (the modules still linked
+prebuilt keep it, for example expo-dom-webview), `:expo-notifications:compileReleaseKotlin` ran with no warning on
+the patched builder, and the build succeeded. So the glance's look and 9:30 pm expiry, and July's nudge shelf life,
+reach a phone for the first time. Before the merge, Melroy's check on 1.10.7 (2026-11-12): picking the choice again
+inside the window showed the glance within seconds, so posting works on that phone and the lost morning arrival was
+the whole failure. Settled by the merge: the glance's next arrival stays armed while its category is off, as built.
+The `CLAUDE.md` gotcha on the patch was refreshed on 2026-11-12 (it now names `buildFromSource`,
+`native-patches.test.ts` and AND-23). The why is the 2026-11-12 and 2026-11-15 decision-log entries.
+**Next:** Melroy puts versionCode 41 on Play's Internal testing track. Then the device pass: AND-21 (its third
+morning repeats 12 Nov's on purpose), AND-22, AND-24 and SET-24 to SET-29, and, because every notification goes
+through the patched builder for the first time, AND-10, AND-12, AND-13 and AND-16, plus AND-11 for R8. **Never
+promote versionCode 40:** it holds none of the patch. Whether Android 1.10.7 goes to production is decided after
+this pass. The iPhone's 1.10.7 (build 50) is untouched by the fix and stays the iPhone build. What the fix left open
+is in the Backlog's 2026-11-12 entry.
 
 **THE 1.10.7 STORE BUILDS ARE MADE, AWAITING FOUNDER TESTING (2026-11-11, on Melroy's ask).** Android 1.10.7
 versionCode 40 (an app bundle with R8 on for the first time, which built clean: see the correction below) and iOS
@@ -81,11 +76,15 @@ only once each store has it live. If R8 fails the phone test, the release ships 
 expo-notifications patch". It was not one. Like every Android build before it, it linked expo-notifications' prebuilt
 library, which holds none of the patch, so on it the glance and AND-16 run upstream's builder. The glance's cases move
 to the next build (the entry above). AND-11 and the iPhone's checks still run on these builds.*
+*Superseded on Android 2026-11-15 by versionCode 41 (the entry above), which carries the patch, so AND-11 runs there
+too and versionCode 40 is never promoted. Build 50 stays the iPhone build: nothing merged since its commit
+(`f59ba29`) changes the iPhone, checked the same day. Its App Store What's New, one per App Store language, is still
+to write before the submission.*
 
 **THE FRIEND'S TWO BUGS ARE CONFIRMED FIXED ON HIS PHONE (2026-11-03, Melroy).** The iOS 27 add-panel scroll is gone
 on 1.10.1 from the App Store (CAP-20 passes on the device that found it), and Chart a course answers him: he signed
-in, his App Store purchase attached to his account at 07:39 UTC (iPhone Premium accounts went from 1 to 2), and
-Chart a course answered two minutes later (4 successful calls in a day, none failed). Option 1's iPhone half still
+in, his App Store purchase attached to his account at 07:39 UTC, and Chart a course answered two minutes later,
+with no failed call that day. Option 1's iPhone half still
 rides the store build, for anyone who never signs in.
 
 **PREMIUM WITHOUT AN ACCOUNT, THE AI LOG'S 90 DAYS AND THE LANGUAGE FIX ARE LIVE (2026-11-03 morning).** The
@@ -464,11 +463,11 @@ the ladder is fixed and readable, never randomised.
   "Showing now." with nothing in the shade, and the seam retries a failed post once, but a post that keeps failing
   still reads "Showing now.", because no line in the spec names it. (4) "Turned off…" offers no door to Android's
   notification settings, and the "Alarms & reminders" door stays once allowed, because JS cannot read the grant (its
-  line is worded to be true either way). (5) "Put away for today. Back tomorrow at {time}." still names tomorrow when
-  tomorrow holds nothing, so nothing comes at that hour: the spec has no put-away line without the promise, so it
-  needs Melroy's copy (for example "Put away for today.", in five languages). **Trigger:** for (1), a report of a
+  line is worded to be true either way). (5) Closed before the merge (2026-11-12): with nothing for
+  tomorrow the line is "Put away for today." alone (`glance.statusPutAwayOnly`, five languages, tested), so it never
+  names an hour at which nothing comes. **Trigger:** for (1), a report of a
   swiped glance coming back. For (2), a second report of a glance that did not come, or the glance on Play production
-  with people choosing it (`glance.on`). For (3), (4) and (5), a report of the line or the door confusing someone, or
+  with people choosing it (`glance.on`). For (3) and (4), a report of the line or the door confusing someone, or
   an expo-notifications upgrade that exposes the exact-alarm grant.
 - **Two things Premium without an account left open (found 2026-11-03, by its build and its review).** (1) The
   iPhone's signed-in Restore reconciles without checking that RevenueCat's customer is the account, because
@@ -1062,7 +1061,7 @@ Signal from early users in the exact target audience, captured so it does not ev
 **Payer feedback (2026-11-10): see today without opening the app, a weekly list, reminders you chose**
 One payer answered six questions at length. Conclusions only, since the repo is public. Their principle: don't nag, but do remind, and some things are more urgent than others. That is "Hold me to it"'s founding line (the app never nags uninvited, it keeps agreements you made), reached independently.
 - **Already exists, no build:** Remind me and Hold me to it cover their urgent things, and Move to → Next week parks a general one. Both went in the reply. This is the third time users asked for doors that already exist (see "The app comes to you" above): per-task reminders were rarely set in the 60 days to 10 Nov, against far more held-card opens.
-- **Gap 1, a silent "today" notification (Android).** **MERGED 2026-11-11 (PR #15, `be86580`) as "Today in your notifications" (Android 8 and later), with the Worker deployed for its counters (`ed39471d`, rollback `5389bfa1`). Nothing changes on the web but the privacy pages' counter line. Built 2026-11-10 on branch `feat/today-glance`, reviewed and fixed the same night, then a skeptic pass and two verifiers before the merge (the app now forgets its own take-downs rather than stamping them). Awaiting an Android build (on Melroy's ask) and the device pass: AND-12 to AND-22, SET-19 to SET-23, DEL-11, TEL-04 and PRV-05 (decision log, the same day). The new privacy lines and the Worker deploy for the counters are Melroy's. One call waits on Melroy after the device pass: whether a phone restarted before the hour and first unlocked after it should lose that day's list (the decided rule read literally, AND-22). Settled before the PR: from 9 pm Settings says "Pick a time before 9:00 pm for this one.", and the glance comes back the same day after Reopen, an untick or a new task, because only a swipe keeps it away.** Wanted: visible whenever they pick up the phone (shade, status bar, lock screen), never a sound or vibration (an app that buzzes gets all its notifications silenced), and on only by choice. The shape after a read-only feasibility pass and two skeptics:
+- **Gap 1, a silent "today" notification (Android).** **MERGED 2026-11-11 (PR #15, `be86580`) as "Today in your notifications" (Android 8 and later), with the Worker deployed for its counters (`ed39471d`, rollback `5389bfa1`). Nothing changes on the web but the privacy pages' counter line. Built 2026-11-10 on branch `feat/today-glance`, reviewed and fixed the same night, then a skeptic pass and two verifiers before the merge (the app now forgets its own take-downs rather than stamping them). Built 2026-11-15 into Android 1.10.7 versionCode 41, the first build carrying its patch (versionCode 40 linked expo-notifications prebuilt), and awaiting the device pass: AND-12 to AND-22, SET-19 to SET-23, DEL-11, TEL-04 and PRV-05 (decision log, the same day). The new privacy lines and the Worker deploy for the counters are Melroy's. One call waits on Melroy after the device pass: whether a phone restarted before the hour and first unlocked after it should lose that day's list (the decided rule read literally, AND-22). Settled before the PR: from 9 pm Settings says "Pick a time before 9:00 pm for this one.", and the glance comes back the same day after Reopen, an untick or a new task, because only a swipe keeps it away.** Wanted: visible whenever they pick up the phone (shade, status bar, lock screen), never a sound or vibration (an app that buzzes gets all its notifications silenced), and on only by choice. The shape after a read-only feasibility pass and two skeptics:
   - a third choice on the daily-reminder row: Off, a nudge at your hour, or stays from your hour until done;
   - daytime only, gone by 21:30, nothing overnight;
   - titles in Today's own order, then "and more", never a count;

@@ -12182,3 +12182,40 @@ it). A post that keeps failing still reads "Showing now.", because no line in th
 Back tomorrow at {time}." still names tomorrow when tomorrow holds nothing, because the spec has no put-away line
 without that promise (Melroy's copy call). "Turned off…" offers no door to Android's notification settings, and the
 "Alarms & reminders" door stays once allowed, its line now worded for both.
+*(Corrected 2026-11-15: the put-away line was closed on the branch before the merge. See the 2026-11-15 entry.)*
+
+## 2026-11-15: the glance fix is merged with its arrival kept armed, and Android 1.10.7 versionCode 41 is the first build with the patch
+
+**Decided:** PR #16 merged on Melroy's word (`13cddd0`, `premium` level with it). The merge settles the one call it
+left him: while the glance's category is off in Android's settings, its next arrival stays armed, as built, because
+Android drops a blocked post unseen, which counts for nothing, and once the category is back on the glance comes at
+its hour without the app being opened. Then one Android build, on his ask: 1.10.7 versionCode 41 (EAS `2e9687f5`).
+The version name stays 1.10.7, because 1.10.7 never reached Android production and its release notes still fit
+(versionCode is remote and auto-incremented, so only the build number moved).
+
+**Why this build carries the patch, shown before any phone.** Before queuing, autolinking's resolver was read: it
+hands Gradle `buildFromSource: ["expo-notifications"]`, and the settings plugin (`SettingsManager.configurePublication`)
+turns the prebuilt publication off for any project whose name matches. The patch was read against the patched source:
+its imports already include `kotlin.math.max` and `NotificationCompat`, `content.body` is `JSONObject?`, and
+androidx.core 1.17.0 has every builder call it makes. After the build, from its own log: the patch applied in Install
+dependencies (`expo-notifications@56.0.18 ✔`), the module was listed without [📦] in Run gradlew,
+`:expo-notifications:compileReleaseKotlin` ran with no warning on the patched builder, and the build succeeded.
+AND-23 passes. No build before this one compiled the patch, so July's nudge shelf life (AND-10) reaches a phone for
+the first time too.
+
+**Melroy's device check on 1.10.7 (2026-11-12).** Picking the choice again inside the window showed the glance
+within seconds. So on that phone the channel, the permission and the post all work, and the lost morning arrival was
+the whole failure, as diagnosed.
+
+**Checked, not changed: the iPhone.** iOS 1.10.7 build 50 was built from `f59ba29`. Since then the app has changed
+only by the glance fix, whose new status read returns at its first line where the glance is unavailable, and by
+comments. So build 50 stays the iPhone build, with no new build spent.
+
+**Corrected.** The 2026-11-12 entry's "Left open" list and the Backlog's item (5) still said "Put away for today.
+Back tomorrow at {time}." names tomorrow when tomorrow holds nothing. That was closed on the branch before the merge:
+with nothing for tomorrow the line is "Put away for today." alone (`glance.statusPutAwayOnly`, five languages, with a
+test). And the `CLAUDE.md` gotcha that entry left waiting for Melroy's word was refreshed by Claude the same day,
+before his word: it now names `buildFromSource`, `native-patches.test.ts` and AND-23, and he can take it back.
+
+**Not for production: versionCode 40.** It linked the prebuilt library, so on it the glance and every nudge run
+upstream's builder. versionCode 41 replaces it on the Internal track.
