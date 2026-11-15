@@ -19,11 +19,12 @@ versioning: [SemVer](https://semver.org/).
 
 _Live on the web, as 1.10.2 on 2026-11-01 (the bug sweep), then 1.10.3 to 1.10.7 on 2 and 3 Nov, and on the
 Worker (`636a1611` and `7139f696` on 2026-11-01, `6d50a3eb` and `666a23d4` on 2026-11-02, `5389bfa1` on 2026-11-03). The app changes reach the
-phones with the store build in the week of 16 to 22 Nov. The entries marked **(on main only)** are Premium without
-an account (2026-11-03): built and reviewed, but not yet on the web, the Worker or any phone._
+phones with the 1.10.7 store builds (iOS build 50 and Android versionCode 41, both in founder testing on 2026-11-15).
+The entries marked **(on main only)** are Premium without an account (2026-11-03): its Worker half is live since
+`5389bfa1`, and its iPhone half is in iOS build 50._
 
 ### Added
-- **Today in your notifications** (Android 8 and later, on branch `feat/today-glance` only: not merged, in no build).
+- **Today in your notifications** (Android 8 and later, PR #15, merged 2026-11-11).
   The daily reminder becomes three choices there: Off, a nudge at your hour, or today's open tasks sitting quietly in the
   notifications from your hour until the day is done or 9:30 pm, in Today's own order, titles only, never a sound, a
   buzz or a count. It leaves on Goodnight, the last tick or an empty day, and a swipe means not today. Off by default,
@@ -73,8 +74,8 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   "the Lookback".
 
 ### Fixed
-- **Today in your notifications shows up when Android loses its morning arrival** (Android, on branch
-  `fix/glance-delivery` only: not merged, in no build). Android can hold the morning alarm and drop it as the app
+- **Today in your notifications shows up when Android loses its morning arrival** (Android, PR #16,
+  merged 2026-11-15 and built into versionCode 41). Android can hold the morning alarm and drop it as the app
   opens, or a restart can discard it, and the app read that silence as a swipe and kept the list away all day. Now
   only a notification the app has seen counts as put away, so the first open shows a lost one. A swipe the app has not
   seen yet (in practice, one before the day's first open) comes back once, and a second swipe sticks. Under the
@@ -88,7 +89,7 @@ an account (2026-11-03): built and reviewed, but not yet on the web, the Worker 
   [`client/src/lib/native-patches.test.ts`](client/src/lib/native-patches.test.ts)).
 - **The Android widget lists Today's open tasks in Today's own order** (the pin, then the held task, then your order)
   **and updates at once on Goodnight, Reopen and a sync**, where only Today's own edits used to reach it, so a closed
-  day could show as open for up to half an hour (on branch `feat/today-glance` only).
+  day could show as open for up to half an hour (PR #15).
 - **Chart a course, Reflect on this week and Scan answer in the app's language.** They sent none, so a German,
   French, Spanish or Italian app got English answers (web now, the phones with the store build).
 - **A Premium feature that cannot run says why** (on main only). Scan, Chart a course, Plan my day and Reflect on

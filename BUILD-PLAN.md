@@ -42,6 +42,24 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**IOS 1.10.7 (BUILD 50) PASSED FOUNDER TESTING, BAR THE ONE PATH THIS IPHONE CANNOT TEST, AND ITS STORE TEXT IS
+WRITTEN (2026-11-15).** On TestFlight, all passed: sign-in with the code typed offline and then online (AUTH-09), the
+four AI features signed in on the review account, their German answers (I18N-03), Hold me to it ending with its task
+(HLD-09 to HLD-12, each confirmed at once because the next hold never asked "One thing at a time", with the control's
+knock and the next 09:30 still to come), the reminder's two-way switch and its Off staying off (SET-23, SET-17), the add
+panel (CAP-20, CAP-21's days, "Every Sunday" in the Repeating room, Tidy's label) and sharing (CAP-14). **Not testable
+on this iPhone: a purchase made signed out** (PREM-72, 73, 77, 79, 80 and 81). TestFlight buys with Melroy's own Apple
+ID, whose earlier test subscription belongs to his account under keep-with-original: the purchase arrived as a
+RENEWAL for that account (outcome `sandbox`, nothing granted), and the signed-out install met the paywall. With no Mac
+there is no Developer menu for a sandbox account. Accepted, because a failure leaves a signed-out buyer where 1.10.1
+already does, refused, now with an honest line. **After release:** one real purchase signed out with his own Apple ID
+(the App Store's real purchase history is separate from TestFlight's), then PREM-72, 73 and 77's server checks. The
+What's New (five pastes, natively read) and the App Review notes are in
+[`docs/release-notes/1.10.7.md`](docs/release-notes/1.10.7.md). App Privacy needs no change (the 2026-11 note in
+`docs/ios-submission-prep.md`). **Melroy's calls:** keep the What's New's first line though no phone tested it
+(recommended), submit with "Manually release this version" so the 09:30 check can still stop the release, and clear
+any test tasks from the review account before submitting.
+
 **TODAY IN YOUR NOTIFICATIONS: THE DELIVERY FIX IS MERGED, AND ANDROID 1.10.7 VERSIONCODE 41 IS THE FIRST BUILD WITH
 ITS PATCH (2026-11-15, on Melroy's ask).** PR #16 merged as `13cddd0` (`premium` level with it), then one EAS build:
 Android 1.10.7 versionCode 41 (build `2e9687f5`, production profile, app bundle), artifact
@@ -78,8 +96,8 @@ library, which holds none of the patch, so on it the glance and AND-16 run upstr
 to the next build (the entry above). AND-11 and the iPhone's checks still run on these builds.*
 *Superseded on Android 2026-11-15 by versionCode 41 (the entry above), which carries the patch, so AND-11 runs there
 too and versionCode 40 is never promoted. Build 50 stays the iPhone build: nothing merged since its commit
-(`f59ba29`) changes the iPhone, checked the same day. Its App Store What's New, one per App Store language, is still
-to write before the submission.*
+(`f59ba29`) changes the iPhone, checked the same day. Its App Store What's New and review notes were written the same
+day (the iOS entry at the top).*
 
 **THE FRIEND'S TWO BUGS ARE CONFIRMED FIXED ON HIS PHONE (2026-11-03, Melroy).** The iOS 27 add-panel scroll is gone
 on 1.10.1 from the App Store (CAP-20 passes on the device that found it), and Chart a course answers him: he signed
@@ -469,6 +487,13 @@ the ladder is fixed and readable, never randomised.
   swiped glance coming back. For (2), a second report of a glance that did not come, or the glance on Play production
   with people choosing it (`glance.on`). For (3) and (4), a report of the line or the door confusing someone, or
   an expo-notifications upgrade that exposes the exact-alarm grant.
+- **A lapsed subscriber who buys again signed out pays and still meets the paywall (found 2026-11-15, founder
+  testing).** Under keep-with-original, an Apple ID's subscription belongs for good to the account that first bought
+  it. Someone who subscribed signed in, let it lapse, reinstalled and bought again without signing in is charged, the
+  purchase lands on their old account as a renewal, and the signed-out install shows the paywall. Restore cannot move
+  it either. Signing in to that account brings Premium back. The same on 1.10.1, so not a regression of 1.10.7.
+  **Trigger:** a report of paying and still seeing the paywall, or the paywall's next copy pass (a line such as
+  "Subscribed before? Sign in to bring it back").
 - **Two things Premium without an account left open (found 2026-11-03, by its build and its review).** (1) The
   iPhone's signed-in Restore reconciles without checking that RevenueCat's customer is the account, because
   `restore()` never calls `logIn`. After a sign-in whose `logIn` failed, on an account with no RevenueCat customer
