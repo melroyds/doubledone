@@ -56,9 +56,10 @@ already does, refused, now with an honest line. **After release:** one real purc
 (the App Store's real purchase history is separate from TestFlight's), then PREM-72, 73 and 77's server checks. The
 What's New (five pastes, natively read) and the App Review notes are in
 [`docs/release-notes/1.10.7.md`](docs/release-notes/1.10.7.md). App Privacy needs no change (the 2026-11 note in
-`docs/ios-submission-prep.md`). **Melroy's calls:** keep the What's New's first line though no phone tested it
-(recommended), submit with "Manually release this version" so the 09:30 check can still stop the release, and clear
-any test tasks from the review account before submitting.
+`docs/ios-submission-prep.md`). **Submitted to App Review on 2026-11-15**, set to release automatically. Melroy
+kept the What's New's first line though no phone tested it, judged manual release unnecessary once the control's
+knock had come, and cleared the review account first. Android 1.10.7 versionCode 41 goes to Play production the same
+day with its natively read notes (`docs/release-notes/1.10.7.md`).
 
 **TODAY IN YOUR NOTIFICATIONS: THE DELIVERY FIX IS MERGED, AND ANDROID 1.10.7 VERSIONCODE 41 IS THE FIRST BUILD WITH
 ITS PATCH (2026-11-15, on Melroy's ask).** PR #16 merged as `13cddd0` (`premium` level with it), then one EAS build:
