@@ -58,8 +58,10 @@ What's New (five pastes, natively read) and the App Review notes are in
 [`docs/release-notes/1.10.7.md`](docs/release-notes/1.10.7.md). App Privacy needs no change (the 2026-11 note in
 `docs/ios-submission-prep.md`). **Submitted to App Review on 2026-11-15**, set to release automatically. Melroy
 kept the What's New's first line though no phone tested it, judged manual release unnecessary once the control's
-knock had come, and cleared the review account first. Android 1.10.7 versionCode 41 goes to Play production the same
-day with its natively read notes (`docs/release-notes/1.10.7.md`).
+knock had come, and cleared the review account first. Android 1.10.7 versionCode 41 was sent to Play production review
+the same day at 100%, with its natively read notes (`docs/release-notes/1.10.7.md`). Play's new app-level trader
+question was answered Yes (the account's trader status applies), and its optional Terms of Service link was left
+blank (Backlog). `client/public/version.json` is bumped for each store only once it is live there.
 
 **TODAY IN YOUR NOTIFICATIONS: THE DELIVERY FIX IS MERGED, AND ANDROID 1.10.7 VERSIONCODE 41 IS THE FIRST BUILD WITH
 ITS PATCH (2026-11-15, on Melroy's ask).** PR #16 merged as `13cddd0` (`premium` level with it), then one EAS build:
@@ -74,11 +76,11 @@ inside the window showed the glance within seconds, so posting works on that pho
 the whole failure. Settled by the merge: the glance's next arrival stays armed while its category is off, as built.
 The `CLAUDE.md` gotcha on the patch was refreshed on 2026-11-12 (it now names `buildFromSource`,
 `native-patches.test.ts` and AND-23). The why is the 2026-11-12 and 2026-11-15 decision-log entries.
-**Next:** Melroy puts versionCode 41 on Play's Internal testing track. Then the device pass: AND-21 (its third
-morning repeats 12 Nov's on purpose), AND-22, AND-24 and SET-24 to SET-29, and, because every notification goes
-through the patched builder for the first time, AND-10, AND-12, AND-13 and AND-16, plus AND-11 for R8. **Never
-promote versionCode 40:** it holds none of the patch. Whether Android 1.10.7 goes to production is decided after
-this pass. The iPhone's 1.10.7 (build 50) is untouched by the fix and stays the iPhone build. What the fix left open
+**Done 2026-11-15:** versionCode 41 went to Play's Internal testing track, Melroy's check on his phone passed, and it
+was sent to production review the same day at 100%. **Still to come, in real use:** the first morning arrival
+(AND-21, its third morning repeats 12 Nov's on purpose), AND-22, AND-24, SET-24 to SET-29, and, because every
+notification goes through the patched builder for the first time, AND-10, AND-12, AND-13 and AND-16. versionCode 40
+holds none of the patch and was never promoted. The iPhone's 1.10.7 (build 50) is untouched by the fix and stays the iPhone build. What the fix left open
 is in the Backlog's 2026-11-12 entry.
 
 **THE 1.10.7 STORE BUILDS ARE MADE, AWAITING FOUNDER TESTING (2026-11-11, on Melroy's ask).** Android 1.10.7
@@ -488,6 +490,11 @@ the ladder is fixed and readable, never randomised.
   swiped glance coming back. For (2), a second report of a glance that did not come, or the glance on Play production
   with people choosing it (`glance.on`). For (3) and (4), a report of the line or the door confusing someone, or
   an expo-notifications upgrade that exposes the exact-alarm grant.
+- **A Terms of Service link on Google Play (parked 2026-11-15, Melroy: not now).** Play's app-level trader page asks
+  for an optional Terms URL and shows it to every Android user. The public `/terms` names the website's A$ prices and
+  Stripe, which Play's payment and subscription rules keep out of the store listing (1.5.1's rejection), so the field
+  was left blank. The fix is an Android-safe terms page carrying only the Google Play billing and refund sections.
+  **Trigger:** Melroy wants the link, or Play asks for it.
 - **A lapsed subscriber who buys again signed out pays and still meets the paywall (found 2026-11-15, founder
   testing).** Under keep-with-original, an Apple ID's subscription belongs for good to the account that first bought
   it. Someone who subscribed signed in, let it lapse, reinstalled and bought again without signing in is charged, the
