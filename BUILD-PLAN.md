@@ -1032,6 +1032,28 @@ it was built whole as Tier 1: dated and repeating shared rows now surface on bot
 shows a row's day on the row, and the capture rests on Anytime with Today / Tomorrow / a date behind
 the door. The column is load-bearing rather than dead. Left here as a record of the call.
 
+### Parked: a "Finished" fold on the shared list (Ours)
+
+Melroy asked (2026-11-20) when finished items leave a shared list. They don't: a ticked row stays,
+struck through, until one of you removes it. `stillOnList` in `client/src/lib/ours-merge.ts` makes
+removal the only way off, and that is deliberate. Finished rows used to drop at midnight, for parity
+with Today, and dogfooding killed it inside an hour: a row ticked on one phone vanished from the
+other with no trace, which on a list two people share reads as "did they delete it?" Today's shared
+strip is a different question and already answers it: a finished dated row stays struck through for
+the rest of its day and leaves Today the next.
+
+The cost is clutter. A list worked through for weeks (the shopping) gathers struck-through rows, and
+clearing them is by hand: long-press, Select several, Remove, with seven days in Recently removed.
+The answer the code already names is a collapsed "Finished" fold at the foot of the room, never a
+disappearance. What it must keep: every row in it can be seen on request, unticked and removed, it
+names nobody, and both phones fold the same rows. Repeats stay in the working list, because their
+tick counts for one day only. Open for then: closed or open by default, and whether the fold's label
+carries a count.
+
+**Trigger:** a shared list gets cluttered with finished items in real use (Melroy's own list, a
+tester or a support note). Not before: a fold is one more thing to learn on a screen whose job is to
+ask nothing of you.
+
 
 ### The tiering (re-cut 2026-07-25, evening)
 
