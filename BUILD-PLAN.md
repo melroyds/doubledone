@@ -42,15 +42,17 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
-**A "FINISHED" FOLD ON THE SHARED LIST, BUILT ON MELROY'S ASK (2026-11-20, branch `feat/ours-finished-fold`).** It
+**A "FINISHED" FOLD ON THE SHARED LIST, LIVE ON THE WEB AS 1.10.8 (2026-11-21, [PR #17](https://github.com/melroyds/doubledone/pull/17), merged as `060bda3` on Melroy's word).** It
 was parked an hour earlier with "a shared list gets cluttered" as its trigger, and Melroy's own list was it ("I see
 items from a week+ ago. It irks me."). The shared list is not one of the four frozen screens. A finished one-off now
 leaves the working rows once its day has passed and this phone has shown it finished, into a collapsed "Finished"
 line at the foot (Today's done line, with no number), still on the list and one tap away. Removal is still the only
 way off. An adversarial review broke the first version the same night (a tick made with no signal folded on the other
 phone without ever being shown), so the fold is now decided once per visit from each phone's own record of what it
-has drawn, and a second review of that rework found five more, all fixed (decision log 2026-11-20). **Next:** Melroy merges when he wants it on the web (the merge is the deploy, web
-1.10.8), then OUR-131 to OUR-134 on two phones. The phones get it with the next store build, on his word.
+has drawn, and a second review of that rework found five more, all fixed (decision log 2026-11-20). Read back from
+doubledone.app after the deploy: `version.json` says web 1.10.8, and the live bundle carries the line's labels in all
+five languages. **Next:** OUR-131 to OUR-134 on two phones, on the web now. The phones get it with the next store
+build, on his word.
 
 **1.10.7 IS LIVE ON BOTH STORES (2026-11-16), SO `version.json` OFFERS IT TO OLDER PHONES.** Melroy confirmed it,
 and the stores' own listings agree: Apple's lookup reads 1.10.7 in AU and US (the automatic release sent out build 50

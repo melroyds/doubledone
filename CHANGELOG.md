@@ -17,7 +17,8 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-_Web 1.10.8 once merged, and the phones with the next store build._
+_Live on the web as 1.10.8 on 2026-11-21 ([PR #17](https://github.com/melroyds/doubledone/pull/17), merged as `060bda3`). The phones get it with the
+next store build._
 
 ### Added
 - **Finished items on a shared list fold away.** A ticked item stays in place for the day it was ticked. From the

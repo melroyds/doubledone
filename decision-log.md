@@ -12349,3 +12349,7 @@ light and in dark, covering the first open's seed, the late tick, coming back fr
 (sampled every 20 ms), keyboard focus staying on a risen row, holding a risen row, an Add with the fold open, the held
 line's unavailable state, and Put back. Manual: OUR-131 to OUR-134, and OUR-22 now opens the fold to un-tick
 yesterday's tick.
+
+**Shipped 2026-11-21.** Merged on Melroy's word ("Merge.") as `060bda3` (PR #17, every CI check green), and live on
+the web as 1.10.8. Read back from doubledone.app: `version.json` says web 1.10.8, and the live bundle carries the
+Finished line's labels in all five languages. The phones get it with the next store build.
