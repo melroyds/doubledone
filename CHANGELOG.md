@@ -17,6 +17,16 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+_Web 1.10.8 once merged, and the phones with the next store build._
+
+### Added
+- **Finished items on a shared list fold away.** A ticked item stays in place for the day it was ticked. From the
+  next day, once your phone has shown it finished, it moves into a collapsed "Finished" line at the foot of the list,
+  one tap away, newest first, and a tick there brings it back. Nothing leaves the list but a removal. An item your
+  person finished while you were away is shown in place first, even one ticked with no signal and sent later (from
+  your second open on this version). Nothing folds away while you look, and an item your person un-ticks comes back
+  up. No number, and nothing says who ([`client/src/lib/ours-sync.ts`](client/src/lib/ours-sync.ts)).
+
 ## [1.10.7] - 2026-11-15
 
 _Submitted to both stores on 2026-11-15 after founder testing, and live on both by 2026-11-16: the App Store's

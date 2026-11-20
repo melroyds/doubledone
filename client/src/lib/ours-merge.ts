@@ -20,8 +20,10 @@ import { type Recurrence } from './recurrence';
  * of ticked dates cannot lose a tick, which is right, but it also cannot express an UN-tick, so
  * removing today's date locally was silently restored by the very next merge and never reached the
  * server at all. Two shipped promises rest on un-ticking working: the finality affirmations are
- * deliberately withheld on Ours *because* your person can un-tick, and Phase 5 stops rendering done
- * rows at the day boundary so that un-tick works all day. Both were half true.
+ * deliberately withheld on Ours *because* your person can un-tick, and Phase 5 stopped rendering done
+ * rows at the day boundary so that un-tick worked all day. Both were half true. (Done rows have not
+ * dropped at the day boundary since the August dogfood. Since 2026-11-20 they fold under "Finished"
+ * per phone instead, `decideFold` in ours-sync.ts.)
  *
  * So each date carries the time it was last ticked and the time it was last cleared, and the later
  * one wins. Both maps are grow-only in keys and monotonic in values, which makes this a
@@ -253,8 +255,10 @@ export function changedSinceLooked(tasks: SharedTask[], seenAt: number, mine: Re
  * a day one person is getting through does.
  *
  * So a finished row STAYS, struck through, until somebody removes it, and removal leaves a trace of
- * its own in Recently removed. If lists get cluttered in real use the answer is a collapsed
- * "Finished" fold at the foot, never a disappearance.
+ * its own in Recently removed. Lists did get cluttered in real use (Melroy, 2026-11-20: "I see items
+ * from a week+ ago"), and the answer is the one this comment held in reserve: a collapsed "Finished"
+ * fold at the foot of the room, never a disappearance. The fold is a question of where a row SITS
+ * (`decideFold` in ours-sync.ts), so this function still answers yes for every finished row.
  *
  * `_date` is kept in the signature deliberately: the day-boundary question is a reasonable one to
  * ask again, and callers already pass it.

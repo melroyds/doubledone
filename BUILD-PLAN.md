@@ -42,6 +42,16 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**A "FINISHED" FOLD ON THE SHARED LIST, BUILT ON MELROY'S ASK (2026-11-20, branch `feat/ours-finished-fold`).** It
+was parked an hour earlier with "a shared list gets cluttered" as its trigger, and Melroy's own list was it ("I see
+items from a week+ ago. It irks me."). The shared list is not one of the four frozen screens. A finished one-off now
+leaves the working rows once its day has passed and this phone has shown it finished, into a collapsed "Finished"
+line at the foot (Today's done line, with no number), still on the list and one tap away. Removal is still the only
+way off. An adversarial review broke the first version the same night (a tick made with no signal folded on the other
+phone without ever being shown), so the fold is now decided once per visit from each phone's own record of what it
+has drawn, and a second review of that rework found five more, all fixed (decision log 2026-11-20). **Next:** Melroy merges when he wants it on the web (the merge is the deploy, web
+1.10.8), then OUR-131 to OUR-134 on two phones. The phones get it with the next store build, on his word.
+
 **1.10.7 IS LIVE ON BOTH STORES (2026-11-16), SO `version.json` OFFERS IT TO OLDER PHONES.** Melroy confirmed it,
 and the stores' own listings agree: Apple's lookup reads 1.10.7 in AU and US (the automatic release sent out build 50
 at 20:48 UTC on 2026-11-15), and the Play listing reads 1.10.7 (versionCode 41 at 100%). `client/public/version.json`
@@ -1034,15 +1044,15 @@ the door. The column is load-bearing rather than dead. Left here as a record of 
 
 ### Parked: a "Finished" fold on the shared list (Ours)
 
-Melroy asked (2026-11-20) when finished items leave a shared list. They don't: a ticked row stays,
-struck through, until one of you removes it. `stillOnList` in `client/src/lib/ours-merge.ts` makes
+Melroy asked (2026-11-20) when finished items leave a shared list. They don't: a ticked row stays
+on the list, ticked, until one of you removes it. `stillOnList` in `client/src/lib/ours-merge.ts` makes
 removal the only way off, and that is deliberate. Finished rows used to drop at midnight, for parity
 with Today, and dogfooding killed it inside an hour: a row ticked on one phone vanished from the
 other with no trace, which on a list two people share reads as "did they delete it?" Today's shared
-strip is a different question and already answers it: a finished dated row stays struck through for
-the rest of its day and leaves Today the next.
+strip is a different question and already answers it: a finished dated row stays, ticked, for the
+rest of its day and leaves Today the next.
 
-The cost is clutter. A list worked through for weeks (the shopping) gathers struck-through rows, and
+The cost is clutter. A list worked through for weeks (the shopping) gathers ticked rows, and
 clearing them is by hand: long-press, Select several, Remove, with seven days in Recently removed.
 The answer the code already names is a collapsed "Finished" fold at the foot of the room, never a
 disappearance. What it must keep: every row in it can be seen on request, unticked and removed, it
@@ -1053,6 +1063,33 @@ carries a count.
 **Trigger:** a shared list gets cluttered with finished items in real use (Melroy's own list, a
 tester or a support note). Not before: a fold is one more thing to learn on a screen whose job is to
 ask nothing of you.
+
+**BUILT 2026-11-20, the same night.** Melroy's own list was the trigger ("I see items from a week+ ago. It irks
+me."). Closed by default, no count, newest finish first. A row folds once its day has passed and THIS phone has shown
+it finished, decided once per visit, so the August lesson holds. One must-keep above changed in the building: the fold
+is per phone, not shared, because "this phone has shown it" is a fact about a device and a shared fold would hide a
+row on a phone that never showed it (decision log 2026-11-20). Left here as a record of the call.
+
+### Parked: finished rows still pile up on the shared list itself
+
+The Finished fold keeps old finishes out of sight, not off the list. Only a removal takes a row off, so a household
+that shops every week and never removes anything adds hundreds of rows a year, every one pulled on each 15-second poll
+and drawn when the fold opens. Fine at today's scale. **Trigger:** a shared list passes a few hundred rows, a poll is
+noticeably slow, or opening Finished means a long scroll. Clearing old finishes from inside the fold (as
+tombstones, so Recently removed still holds them) would shorten the scroll but not the poll, because the pull keeps
+every tombstone on purpose (`pullPair`). A slow poll needs a merge that can take a delta (the `pullPair` comment says
+how) or a server-side purge of old tombstones.
+
+### Parked: a sync under another screen marks the shared list looked-at
+
+The room's reconcile marks the list looked-at (`markOursSeen`) on every successful sync, including one that runs
+while the room sits under another screen (the hourly session refresh re-runs it) or with the app in the background.
+Your person's changes merged then are never washed and never count toward Today's "!". Pre-existing, found by the
+2026-11-20 review of the Finished fold, which no longer depends on the last look. Gating the mark on focus was tried
+and reverted the same night: it left your own writes in `oursMine` whenever you left within a reconcile, which
+silenced the "!" for your person's later changes to them. The proper fix stores each `oursMine` id with the stamp it
+was written at, so a later change by your person still counts, and only then gates the mark. **Trigger:** a report of
+a change by the other person that never lit the "!" or the wash.
 
 
 ### The tiering (re-cut 2026-07-25, evening)

@@ -15,13 +15,16 @@ import {
   clearOursMine,
   loadOursMine,
   loadOursSeen,
+  loadOursShown,
   loadTuckedPairs,
   markOursSeen,
   noteOursMine,
   peekTasks,
   pruneOursCache,
+  pruneOursShown,
   saveClosedDate,
   saveHold,
+  saveOursShown,
   saveOursTasks,
   saveTasks,
   type StorageChange,
@@ -83,6 +86,53 @@ describe('wipeLocalData', () => {
   it('clears the shared lists, the one thing here that is not only yours', async () => {
     await wipeLocalData();
     expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.ours.v1');
+  });
+});
+
+// The Finished fold's record of what this phone has drawn finished on each shared list (lib/ours-sync
+// decideFold). Row ids and days, never words, but it still says which lists you were on.
+describe("the shared list's record of drawn finishes", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const stubShown = (raw: string | null) =>
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) => Promise.resolve(key === 'doubledone.oursShown.v1' ? raw : null));
+
+  it('is wiped with the rest of the local data', async () => {
+    await wipeLocalData();
+    expect(vi.mocked(AsyncStorage.multiRemove).mock.calls[0][0]).toContain('doubledone.oursShown.v1');
+  });
+
+  // Missing is not empty: the room seeds a missing record once from the last look, never an empty one.
+  it('answers null for a list it never kept, and the record itself for one it did', async () => {
+    stubShown(null);
+    expect(await loadOursShown('pair-a')).toBeNull();
+    stubShown(JSON.stringify({ 'pair-a': {} }));
+    expect(await loadOursShown('pair-a')).toEqual({});
+    stubShown(JSON.stringify({ 'pair-a': { milk: '2026-08-10', junk: 5 } }));
+    expect(await loadOursShown('pair-a')).toEqual({ milk: '2026-08-10' });
+  });
+
+  it('saves one list without touching another', async () => {
+    stubShown(JSON.stringify({ 'pair-b': { eggs: '2026-08-09' } }));
+    await saveOursShown('pair-a', { milk: '2026-08-10' });
+    expect(written()).toEqual({ 'pair-a': { milk: '2026-08-10' }, 'pair-b': { eggs: '2026-08-09' } });
+  });
+
+  // A save and a prune in the same sync each rewrite the whole object. Queued, the prune reads what the save wrote.
+  it('queues its writes, so a prune never writes back a snapshot older than a save', async () => {
+    const store = new Map<string, string>([['doubledone.oursShown.v1', JSON.stringify({ 'pair-gone': { eggs: '2026-08-09' } })]]);
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) => Promise.resolve(store.get(key) ?? null));
+    vi.mocked(AsyncStorage.setItem).mockImplementation(async (key: string, value: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      store.set(key, value);
+    });
+    await Promise.all([saveOursShown('pair-a', { milk: '2026-08-10' }), pruneOursShown(['pair-a'])]);
+    expect(JSON.parse(store.get('doubledone.oursShown.v1') ?? '{}')).toEqual({ 'pair-a': { milk: '2026-08-10' } });
+  });
+
+  it('is pruned to the lists this account is still on', async () => {
+    stubShown(JSON.stringify({ 'pair-a': { milk: '2026-08-10' }, 'pair-gone': { eggs: '2026-08-09' } }));
+    await pruneOursShown(['pair-a']);
+    expect(written()).toEqual({ 'pair-a': { milk: '2026-08-10' } });
   });
 });
 

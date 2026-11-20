@@ -3,10 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { type SharedTask } from './ours-merge';
 import {
   IDLE_STOP_MS,
+  decideFold,
+  finishMark,
   isPairReadOnly,
   isUnreadableRepeat,
   cadenceLine,
   onSharedListOn,
+  noteShown,
+  sameMarks,
+  seedShown,
+  splitFinished,
   knownRecurrence,
   repeatSummaryOf,
   pullPair,
@@ -736,5 +742,227 @@ describe('the rhythm line on a shared row', () => {
 
   it('says nothing for an unreadable cadence carrying no words', () => {
     expect(cadenceLine(task({ id: 'r', rawRecurrence: { kind: 'lunar' } }), TUE)).toBeUndefined();
+  });
+});
+
+// Melroy, 2026-11-20, on his own list: "I see items from a week+ ago. It irks me." A finished row
+// still never LEAVES the list (stillOnList); it folds under "Finished" at the foot, one tap away, once
+// its day has passed and this phone has drawn it finished, and the fold is decided once per visit.
+describe('the Finished fold at the foot of the room', () => {
+  const MON = '2026-08-10';
+  const TUE = '2026-08-11';
+  const WED = '2026-08-12';
+  const row = (over: Partial<SharedTask> & { id: string }): SharedTask => ({ title: 't', done: false, createdAt: 1, updatedAt: 1, ...over });
+  const tickedOn = (day: string, at = 9) => ({ done: true, doneAt: at, completions: { on: { [day]: at } } });
+  const ids = (rows: SharedTask[]) => rows.map((task) => task.id);
+
+  describe('the finish a row carries', () => {
+    it('is the day it was finished, for a finished one-off', () => {
+      expect(finishMark(row({ id: 'milk', ...tickedOn(MON) }))).toBe(MON);
+    });
+
+    it('is the LAST day of a log that holds more than one', () => {
+      expect(finishMark(row({ id: 'two', done: true, completions: { on: { [MON]: 5, [WED]: 9 } } }))).toBe(WED);
+    });
+
+    // Every row given a day or Anytime through the When sheet carries {kind: 'none'} on the wire.
+    it("treats a {kind: 'none'} recurrence as the one-off it is", () => {
+      expect(finishMark(row({ id: 'dated', due: MON, recurrence: { kind: 'none' }, ...tickedOn(MON) }))).toBe(MON);
+    });
+
+    it('falls back to doneAt for a row with no log, and to ? for a row that cannot say', () => {
+      expect(finishMark(row({ id: 'legacy', done: true, doneAt: new Date(2026, 7, 11, 9, 30).getTime() }))).toBe(TUE);
+      expect(finishMark(row({ id: 'amnesiac', done: true }))).toBe('?');
+    });
+
+    it('is nothing for an open row, an un-ticked one, a removed one, a repeat or an unreadable cadence', () => {
+      expect(finishMark(row({ id: 'open' }))).toBeUndefined();
+      expect(finishMark(row({ id: 'back', completions: { on: { [MON]: 5 }, off: { [MON]: 6 } } }))).toBeUndefined();
+      expect(finishMark(row({ id: 'gone', deletedAt: 5, ...tickedOn(MON) }))).toBeUndefined();
+      expect(finishMark(row({ id: 'bins', done: true, recurrence: { kind: 'weekly', weekdays: [1] }, completions: { on: { [MON]: 9 } } }))).toBeUndefined();
+      expect(finishMark(row({ id: 'odd', done: true, rawRecurrence: { kind: 'lunar' } }))).toBeUndefined();
+    });
+  });
+
+  describe("the visit's fold", () => {
+    it('folds a finish from an earlier day that this phone has drawn', () => {
+      const milk = row({ id: 'milk', ...tickedOn(MON) });
+      expect([...decideFold([milk], TUE, { milk: MON }).keys()]).toEqual(['milk']);
+    });
+
+    // Both halves of the old lesson: a tick never leaves from under your finger on its own day ...
+    it('keeps a row finished TODAY in place, drawn or not', () => {
+      const milk = row({ id: 'milk', ...tickedOn(TUE) });
+      expect(decideFold([milk], TUE, { milk: TUE }).size).toBe(0);
+    });
+
+    // ... and a finish this phone never drew is news, however old its stamp. THE review's case: a tick
+    // made with no signal on Monday afternoon reaches this phone after its Monday evening look.
+    it('never folds a finish this phone has not drawn, however old', () => {
+      const milk = row({ id: 'milk', ...tickedOn(MON, 100), updatedAt: 100 });
+      expect(decideFold([milk], TUE, {}).size).toBe(0);
+    });
+
+    it('treats a finish ticked again on another day as news', () => {
+      const milk = row({ id: 'milk', ...tickedOn(TUE) });
+      expect(decideFold([milk], WED, { milk: MON }).size).toBe(0);
+    });
+
+    it('folds a drawn row that cannot say which day it was finished', () => {
+      const amnesiac = row({ id: 'amnesiac', done: true });
+      expect(decideFold([amnesiac], TUE, { amnesiac: '?' }).get('amnesiac')).toBe('?');
+    });
+
+    it('keeps a finish dated ahead of this phone in place', () => {
+      expect(decideFold([row({ id: 'ahead', ...tickedOn(WED) })], TUE, { ahead: WED }).size).toBe(0);
+    });
+
+    // Today's "!" counted a change since the last look, so the room must show it: the record can be
+    // overruled by news, never the other way round.
+    it('keeps a drawn finish in place while it is news, such as a rename since your last look', () => {
+      const milk = row({ id: 'milk', ...tickedOn(MON) });
+      expect(decideFold([milk], TUE, { milk: MON }, new Set(['milk'])).size).toBe(0);
+      expect(decideFold([milk], TUE, { milk: MON }, new Set(['other'])).size).toBe(1);
+    });
+
+    it('never folds a repeat or an unreadable cadence, whatever the record says', () => {
+      const bins = row({ id: 'bins', recurrence: { kind: 'weekly', weekdays: [1] }, completions: { on: { [MON]: 9 } } });
+      const odd = row({ id: 'odd', done: true, rawRecurrence: { kind: 'lunar' } });
+      expect(decideFold([bins, odd], TUE, { bins: MON, odd: '?' }).size).toBe(0);
+    });
+  });
+
+  describe('the room split for the visit', () => {
+    it('keeps list order above, then risen rows at the foot, and the newest finish first below', () => {
+      const rows = [
+        row({ id: 'a' }),
+        row({ id: 'b', ...tickedOn('2026-08-03', 300) }),
+        row({ id: 'c', ...tickedOn(TUE, 900) }),
+        row({ id: 'd', title: 'risen' }), // folded at the start of the visit, un-ticked since
+        row({ id: 'e', ...tickedOn('2026-08-07', 700) }),
+        row({ id: 'f', ...tickedOn('2026-08-07', 700) }),
+      ];
+      const fold = new Map([['b', '2026-08-03'], ['d', '2026-08-05'], ['e', '2026-08-07'], ['f', '2026-08-07']]);
+      const { working, finished } = splitFinished(rows, fold);
+      expect(ids(working)).toEqual(['a', 'c', 'd']);
+      expect(ids(finished)).toEqual(['e', 'f', 'b']);
+      expect(new Set(ids([...working, ...finished])).size).toBe(rows.length);
+    });
+
+    // Nothing changes side within a visit: a finish that lands mid-visit, even one dated days ago, stays
+    // in the working list until the next visit decides again.
+    it('leaves a finish that lands mid-visit where it was drawn', () => {
+      const late = row({ id: 'late', ...tickedOn(MON) });
+      expect(ids(splitFinished([late], new Map()).working)).toEqual(['late']);
+    });
+
+    it('lets a folded row rise once it is ticked again on another day', () => {
+      const milk = row({ id: 'milk', ...tickedOn(WED) });
+      expect(ids(splitFinished([milk], new Map([['milk', MON]])).working)).toEqual(['milk']);
+    });
+
+    it('keeps a held row where it was drawn, even once it stops being that finish', () => {
+      const milk = row({ id: 'milk' }); // un-ticked by the other phone while its card is open here
+      const { working, finished } = splitFinished([milk], new Map([['milk', MON]]), { inFold: new Set(['milk']) });
+      expect(ids(working)).toEqual([]);
+      expect(ids(finished)).toEqual(['milk']);
+    });
+
+    // The second review's case: un-tick a folded row (it rises), then hold it. It must stay up.
+    it('keeps a risen row up, held or not, even when the same finish comes back', () => {
+      const fold = new Map([['milk', MON]]);
+      const backAgain = row({ id: 'milk', ...tickedOn(MON) }); // a time zone behind: re-ticked on the same day
+      const split = splitFinished([backAgain], fold, { risen: new Set(['milk']) });
+      expect(ids(split.working)).toEqual(['milk']);
+      expect(ids(split.risen)).toEqual(['milk']);
+      expect(ids(splitFinished([backAgain], fold, { risen: new Set(['milk']), inFold: new Set() }).finished)).toEqual([]);
+    });
+
+    it('reports every row that rose this render, for the room to remember', () => {
+      const fold = new Map([['a', MON], ['b', MON]]);
+      const rows = [row({ id: 'a' }), row({ id: 'b', ...tickedOn(MON) })];
+      expect(ids(splitFinished(rows, fold).risen)).toEqual(['a']);
+    });
+
+    it('orders a finish with no doneAt by its row stamp', () => {
+      const rows = [row({ id: 'older', done: true, updatedAt: 100 }), row({ id: 'newer', done: true, updatedAt: 200 })];
+      expect(ids(splitFinished(rows, new Map([['older', '?'], ['newer', '?']])).finished)).toEqual(['newer', 'older']);
+    });
+  });
+
+  describe("this phone's record of drawn finishes", () => {
+    it('adds the finishes drawn in the working list, and nothing open or repeating', () => {
+      const rows = [
+        row({ id: 'milk', ...tickedOn(MON) }),
+        row({ id: 'eggs' }),
+        row({ id: 'bins', recurrence: { kind: 'daily' }, completions: { on: { [MON]: 9 } } }),
+      ];
+      expect(noteShown({}, rows, rows)).toEqual({ milk: MON });
+    });
+
+    it('keeps folded finishes it drew before, and drops what is no longer that finish', () => {
+      const rows = [
+        row({ id: 'folded', ...tickedOn(MON) }),
+        row({ id: 'unticked' }),
+        row({ id: 'again', ...tickedOn(WED) }),
+      ];
+      const prev = { folded: MON, unticked: MON, again: MON, removed: MON };
+      expect(noteShown(prev, rows, [])).toEqual({ folded: MON });
+    });
+
+    // Removed from inside the fold and put back in the same visit: one frame lacked it, and that must not
+    // make it news again. It folded because this phone drew it before.
+    it("keeps the visit's folded finishes even when a frame lacked them", () => {
+      const back = row({ id: 'batteries', ...tickedOn(MON) });
+      expect(noteShown({}, [back], [], new Map([['batteries', MON]]))).toEqual({ batteries: MON });
+      expect(noteShown({}, [row({ id: 'batteries' })], [], new Map([['batteries', MON]]))).toEqual({});
+    });
+
+    it('seeds a missing record once from the last look, and nothing for a phone that never looked', () => {
+      const rows = [
+        row({ id: 'old', ...tickedOn(MON, 100), updatedAt: 100 }),
+        row({ id: 'late', ...tickedOn(MON, 300), updatedAt: 300 }),
+        row({ id: 'open', updatedAt: 50 }),
+      ];
+      expect(seedShown(rows, 200)).toEqual({ old: MON });
+      expect(seedShown(rows, 0)).toEqual({});
+    });
+
+    it('can tell an unchanged record from a changed one', () => {
+      expect(sameMarks({ a: MON, b: TUE }, { b: TUE, a: MON })).toBe(true);
+      expect(sameMarks({ a: MON }, { a: TUE })).toBe(false);
+      expect(sameMarks({ a: MON }, { a: MON, b: TUE })).toBe(false);
+    });
+  });
+
+  // The visit model end to end, on the pure parts the room strings together.
+  describe('across visits', () => {
+    it('shows a late tick in place for one visit, then folds it', () => {
+      const milk = row({ id: 'milk', ...tickedOn(MON, 100), updatedAt: 100 });
+      let record: Record<string, string> = {}; // this phone looked on Monday evening, before the tick arrived
+      const tuesday = decideFold([milk], TUE, record);
+      const { working } = splitFinished([milk], tuesday);
+      expect(ids(working)).toEqual(['milk']);
+      record = noteShown(record, [milk], working);
+      expect([...decideFold([milk], WED, record).keys()]).toEqual(['milk']);
+    });
+
+    it('folds nothing on a new phone, then the next visit folds what it drew', () => {
+      const rows = [row({ id: 'a', ...tickedOn(MON) }), row({ id: 'b', ...tickedOn(MON) })];
+      let record = seedShown(rows, 0);
+      const first = decideFold(rows, TUE, record);
+      expect(first.size).toBe(0);
+      record = noteShown(record, rows, splitFinished(rows, first).working);
+      expect(decideFold(rows, TUE, record).size).toBe(2);
+    });
+
+    // Put back mid-visit: the row was removed when the visit began, so it is not in the visit's fold,
+    // and it stays where you are looking instead of landing inside a closed fold.
+    it('keeps a row put back mid-visit in the working list', () => {
+      const removed = row({ id: 'batteries', deletedAt: 50, ...tickedOn(MON) });
+      const fold = decideFold([removed].filter((task) => !task.deletedAt), TUE, { batteries: MON });
+      const back = { ...removed, deletedAt: null };
+      expect(ids(splitFinished([back], fold).working)).toEqual(['batteries']);
+    });
   });
 });

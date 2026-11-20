@@ -562,6 +562,11 @@ export const en = {
     putAway: 'Put it away',
     recentlyRemoved: 'Recently removed',
     recentlyRemovedHint: 'Anything taken off the list waits here for seven days.',
+    // The Finished fold at the foot of the shared list (decideFold and splitFinished in lib/ours-sync). Never a number: the shared list counts
+    // nothing. The screen-reader labels follow Today's own done line (today.doneTodayShowA11y), minus the count.
+    finishedLine: 'Finished',
+    finishedShowA11y: 'Finished. Show them',
+    finishedHideA11y: 'Finished. Hide them',
     reopen: 'Reopen together…',
     reopenHint: 'This gives you a code for them. Nothing reopens until they use it.',
     reopened: 'They used the code. The list is open again, exactly as you both left it.',

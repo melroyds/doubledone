@@ -49,6 +49,7 @@ const OURS_TUCKED_KEY = 'doubledone.oursTucked.v1'; // closed lists you have put
 // one quiet first visit per device, which is the same thing a new install already sees.
 const OURS_SEEN_KEY = 'doubledone.oursSeen.v2'; // when you last looked at each shared list, by pair id
 const OURS_MINE_KEY = 'doubledone.oursMine.v1'; // shared rows YOU changed from outside the room, by pair id
+const OURS_SHOWN_KEY = 'doubledone.oursShown.v1'; // the finishes this phone has drawn on each shared list (the Finished fold)
 const UPDATE_MENTIONED_KEY = 'doubledone.updateMentioned.v1'; // when the goodnight screen last mentioned a newer build
 const REVIEW_KEY = 'doubledone.review.v1'; // what this device remembers about asking the store for its rating card (lib/review)
 const REVIEWQUIET_KEY = 'doubledone.reviewquiet.v1'; // an ISO date: the review ask keeps quiet today (a tender day)
@@ -913,6 +914,82 @@ export async function noteOursMine(pairId: string, ids: string[]): Promise<void>
   }
 }
 
+/**
+ * The finishes this phone has SHOWN on each shared list, by pair id: `{ rowId: finish mark }`, the
+ * record the Finished fold folds by (lib/ours-sync `decideFold`, `noteShown`). Local for the same
+ * reason the last look is: "this phone has drawn that tick" is a fact about a device, and a shared
+ * copy would let one phone fold a row the other has never shown.
+ *
+ * Null for a list this phone has never kept a record of, which is not the same as an empty one: the
+ * room seeds a missing record once from the last look (`seedShown`), and never an empty one. Row
+ * ids and days only, never words, and it goes with the cache and in wipeLocalData all the same,
+ * because it says which lists you were on.
+ */
+export async function loadOursShown(pairId: string): Promise<Record<string, string> | null> {
+  try {
+    const raw = await AsyncStorage.getItem(OURS_SHOWN_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    const entry = (parsed as Record<string, unknown>)[pairId];
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null;
+    const out: Record<string, string> = {};
+    for (const [id, mark] of Object.entries(entry as Record<string, unknown>)) {
+      if (typeof mark === 'string') out[id] = mark;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// Every write to the shown record goes through ONE queue. A save and a prune in the same sync each
+// read and rewrite the whole object, so without it the later one could write back a snapshot taken
+// before the earlier one landed, and a record seeded once could be lost and seeded again.
+let shownWrites: Promise<void> = Promise.resolve();
+function queueShownWrite(job: () => Promise<void>): Promise<void> {
+  shownWrites = shownWrites.then(job, job);
+  return shownWrites;
+}
+
+export function saveOursShown(pairId: string, marks: Record<string, string>): Promise<void> {
+  return queueShownWrite(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(OURS_SHOWN_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : {};
+      const all = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? { ...(parsed as Record<string, unknown>) } : {};
+      all[pairId] = marks;
+      await AsyncStorage.setItem(OURS_SHOWN_KEY, JSON.stringify(all));
+    } catch {
+      // best effort, like every other saver here
+    }
+  });
+}
+
+/** Drop the records of lists this account is no longer on, beside `pruneOursCache`. */
+export function pruneOursShown(keep: string[]): Promise<void> {
+  return queueShownWrite(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(OURS_SHOWN_KEY);
+      if (!raw) return;
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+      const allowed = new Set(keep);
+      const all = { ...(parsed as Record<string, unknown>) };
+      let changed = false;
+      for (const pairId of Object.keys(all)) {
+        if (!allowed.has(pairId)) {
+          delete all[pairId];
+          changed = true;
+        }
+      }
+      if (changed) await AsyncStorage.setItem(OURS_SHOWN_KEY, JSON.stringify(all));
+    } catch {
+      // best effort
+    }
+  });
+}
+
 /** Forget them, which the room does the moment it has marked itself seen: from then on the
  *  last-look covers those writes and the list is only taking up space. */
 export async function clearOursMine(pairId: string): Promise<void> {
@@ -986,7 +1063,7 @@ export async function wipeLocalData(): Promise<void> {
     // OURS_KEY belongs here more than anything else on the list: it is the only key holding words
     // ANOTHER person wrote. A delete that left it behind would leave a household's list sitting on
     // the phone of someone whose account no longer exists.
-    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY, NOTEDRAFT_KEY, GIFTOFFER_KEY, MONTHEND_KEY]);
+    await AsyncStorage.multiRemove([SCRAPBOOKS_KEY, ROUTINES_KEY, CLOSED_KEY, LOWDAY_KEY, DAYENERGY_KEY, LASTOPEN_KEY, DEV_PREMIUM_KEY, SYNCOK_KEY, OURS_KEY, OURS_TUCKED_KEY, OURS_SEEN_KEY, OURS_MINE_KEY, OURS_SHOWN_KEY, NOTEDRAFT_KEY, GIFTOFFER_KEY, MONTHEND_KEY]);
   } catch {
     // best effort, like the per-key savers above
   }
