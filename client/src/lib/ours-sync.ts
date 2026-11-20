@@ -292,7 +292,9 @@ export function isUnreadableRepeat(task: SharedTask): boolean {
  * tap on a wrong day still cannot write a completion for a date the repeat was never due.
  *
  * So: a row is on the list unless it has been REMOVED. That is the whole rule, and it matches what
- * a shared list actually is.
+ * a shared list actually is. Where a finished row SITS on the list is a separate question again,
+ * answered by `decideFold`: once its day has passed and this phone has shown it finished, it waits
+ * one tap away under "Finished", still on the list.
  */
 export function onSharedListOn(task: SharedTask, date: string, _when?: Date): boolean {
   return stillOnList(task, date);
@@ -398,6 +400,166 @@ function doneDayOf(task: SharedTask): string | undefined {
   const last = dates[dates.length - 1];
   if (last !== undefined) return last;
   return typeof task.doneAt === 'number' ? toISODate(new Date(task.doneAt)) : undefined;
+}
+
+/**
+ * THE FINISHED FOLD, at the foot of the room.
+ *
+ * The room never lets a finished row go on its own (`stillOnList`: removal is the only way off),
+ * because a row ticked on one phone once vanished from the other at midnight, without a trace.
+ * That left the opposite problem, and Melroy named it on his own list (2026-11-20): "I see items
+ * from a week+ ago. It irks me." So a finished row FOLDS. It stays on the list, one tap away, and
+ * leaves the working rows only once both halves of the old lesson are safe:
+ *
+ *   · ITS DAY HAS PASSED. A tick stays where it was, and a tap still un-ticks it, for the rest of
+ *     the day it happened, exactly as on Today, because ticking is the reversible act here.
+ *   · THIS PHONE HAS SHOWN IT FINISHED. Not "its stamp is older than your last look": that was the
+ *     first rule, and the review broke it at once. A tick made in a shop with no signal keeps the
+ *     stamp of the moment it was made and arrives hours later, so it read as already seen and folded
+ *     on the other phone without ever being drawn there. So each phone keeps its own small record of
+ *     the finishes it has drawn in the working list (`noteShown`, kept by lib/storage per list), and
+ *     a row folds only if that record holds this very finish. Anything else is news, shown in place
+ *     for a visit first, which also makes a new phone's first visit fold nothing.
+ *
+ * And the fold is decided ONCE, as a visit begins (`decideFold`), then held. Nothing folds away
+ * while you look: not at midnight, not when your own write lands (Put back, a rename), not when a
+ * late sync brings an old tick. The one movement allowed mid-visit is upward: a folded row that
+ * stops being that finish (un-ticked by either of you) goes back into the list, at its foot, and
+ * stays up for the rest of the visit.
+ *
+ * Only a finished ONE-OFF folds. A repeat is never finished, only finished on a day, and it reads
+ * un-ticked again on its next one. A cadence this build cannot read cannot be judged, so it stays.
+ */
+
+/**
+ * The finish a row carries: the day it was finished, or '?' when the row cannot say. Undefined for
+ * anything that is not a finished one-off, which never folds. Un-ticked and ticked again on another
+ * day is a NEW finish with a new mark, and so news again.
+ */
+export function finishMark(task: SharedTask): string | undefined {
+  if (task.deletedAt || !task.done) return undefined;
+  if (isUnreadableRepeat(task)) return undefined;
+  if (task.recurrence !== undefined && task.recurrence.kind !== 'none') return undefined;
+  return doneDayOf(task) ?? '?';
+}
+
+/**
+ * The visit's fold: each row that goes under "Finished" for this whole visit, with the finish it
+ * folds with. A row that cannot say which day it was finished folds too once shown, because unlike
+ * Today's strip, which keeps such a row for fear of losing it, folding is not losing.
+ *
+ * `news` is the room's changed-since-you-last-looked set, taken against the stored last look. A row
+ * in it stays in place this visit whatever the record says, because Today's "!" counted it, and the
+ * room must show what that mark counted (the 2026-09-26 rule that the mark, the spoken count and the
+ * washed rows agree). It can only keep a row out of the fold, never put one in.
+ */
+export function decideFold(
+  tasks: SharedTask[],
+  visitDay: string,
+  shown: Readonly<Record<string, string>>,
+  news: ReadonlySet<string> = new Set(),
+): Map<string, string> {
+  const fold = new Map<string, string>();
+  for (const task of tasks) {
+    const mark = finishMark(task);
+    if (mark === undefined) continue;
+    if (mark !== '?' && mark >= visitDay) continue; // finished today, or dated ahead by a fast calendar
+    if (shown[task.id] !== mark) continue; // this phone has not drawn this finish: news, shown in place first
+    if (news.has(task.id)) continue; // changed since you last looked: shown in place this visit
+    fold.set(task.id, mark);
+  }
+  return fold;
+}
+
+/**
+ * The room in its parts for this visit. The working rows keep the list's own order, then any row
+ * that has risen out of the fold this visit, at the FOOT of the list, just above the line, so the
+ * rows you are looking at never shift down for it (and a row you un-ticked inside the fold lands
+ * right where your finger already was). The fold itself goes most recently finished first, because
+ * the thing you open it for is nearly always the one that went in last.
+ *
+ * Two pins keep a row where it was drawn. `risen`: a row that already rose this visit stays up, even
+ * if the same finish comes back (your person, a time zone behind, un-ticks and ticks again on the
+ * same day), so the only movement in a visit is upward. `inFold`: a row drawn under the line whose
+ * card or selection is open stays there while held, whatever lands meanwhile. `risen` in the result
+ * is every row that rose, for the caller to remember.
+ */
+export function splitFinished(
+  tasks: SharedTask[],
+  fold: ReadonlyMap<string, string>,
+  pins: { inFold?: ReadonlySet<string>; risen?: ReadonlySet<string> } = {},
+): { working: SharedTask[]; finished: SharedTask[]; risen: SharedTask[] } {
+  const working: SharedTask[] = [];
+  const risen: SharedTask[] = [];
+  const finished: { task: SharedTask; at: number; i: number }[] = [];
+  tasks.forEach((task, i) => {
+    const folded = fold.get(task.id);
+    if (folded === undefined) {
+      working.push(task);
+    } else if (pins.risen?.has(task.id)) {
+      risen.push(task);
+    } else if (finishMark(task) === folded || pins.inFold?.has(task.id)) {
+      finished.push({ task, at: typeof task.doneAt === 'number' ? task.doneAt : task.updatedAt, i });
+    } else {
+      risen.push(task);
+    }
+  });
+  // The index breaks ties itself rather than trusting the engine's sort to be stable.
+  finished.sort((a, b) => b.at - a.at || a.i - b.i);
+  return { working: [...working, ...risen], finished: finished.map((entry) => entry.task), risen };
+}
+
+/**
+ * This phone's record of finishes it has DRAWN in the working list, brought up to date. Kept: every
+ * entry whose row still carries that same finish, and every row of this visit's `fold` that does
+ * (it folded because this phone drew it before, so a frame that briefly lacked it, such as a remove
+ * and Put back inside the fold, cannot make it news again). Added: every finished one-off in
+ * `working`, which is on screen now. Dropped: anything that is no longer that finish of a row on
+ * this list, so the record never outgrows the list.
+ */
+export function noteShown(
+  prev: Readonly<Record<string, string>>,
+  tasks: SharedTask[],
+  working: SharedTask[],
+  fold: ReadonlyMap<string, string> = new Map(),
+): Record<string, string> {
+  const marks = new Map(tasks.map((task) => [task.id, finishMark(task)]));
+  const out: Record<string, string> = {};
+  for (const [id, mark] of Object.entries(prev)) {
+    if (marks.get(id) === mark) out[id] = mark;
+  }
+  for (const [id, mark] of fold) {
+    if (marks.get(id) === mark) out[id] = mark;
+  }
+  for (const task of working) {
+    const mark = finishMark(task);
+    if (mark !== undefined) out[task.id] = mark;
+  }
+  return out;
+}
+
+/**
+ * The bridge for a phone's first visit on a build with the fold, when it has no record yet: the
+ * finishes its stored last look already covers by their own stamp count as shown, so a list that
+ * has been cluttered for weeks folds on that first open rather than one visit later. A one-time
+ * bridge on the weaker test (a late tick carries an old stamp), and from then on the record decides.
+ * A phone that has never looked at the list seeds nothing, so its first visit folds nothing.
+ */
+export function seedShown(tasks: SharedTask[], seenAt: number): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!Number.isFinite(seenAt) || seenAt <= 0) return out;
+  for (const task of tasks) {
+    const mark = finishMark(task);
+    if (mark !== undefined && task.updatedAt <= seenAt) out[task.id] = mark;
+  }
+  return out;
+}
+
+/** Whether two records say the same thing, so an unchanged record is never written again. */
+export function sameMarks(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((key) => b[key] === a[key]);
 }
 
 export const PAGE_SIZE = 500;

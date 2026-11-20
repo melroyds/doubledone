@@ -12,7 +12,7 @@ import { MenuPill } from '@/components/MenuPill';
 import { DebugPanel } from '@/components/DebugPanel';
 import { CadenceSheet } from '@/components/CadenceSheet';
 import { TaskRow } from '@/components/TaskRow';
-import { border, fonts, layout, radius, spacing, type Theme } from '@/constants/theme';
+import { border, fonts, layout, PRESSED_OPACITY, radius, spacing, type Theme } from '@/constants/theme';
 import { useSessionState } from '@/lib/auth';
 import { clockSkewMs } from '@/lib/clock';
 import { debugLog } from '@/lib/debug-log';
@@ -24,9 +24,9 @@ import { makeSharedRef, pulledFrom } from '@/lib/ours-bridge';
 import { loadMyPairs, type MyPair, syncClock } from '@/lib/ours-api';
 import { knownOursName, rememberOursName } from '@/lib/ours-name';
 import { isSharedDoneOn, releaseCompletions, setSharedDone, type SharedTask, washedSince } from '@/lib/ours-merge';
-import { isUnreadableRepeat, onSharedListOn, POLL_MS, cadenceLine, shouldPoll, syncPairOnce, tickableInRoom, willTrim } from '@/lib/ours-sync';
+import { decideFold, finishMark, isUnreadableRepeat, noteShown, onSharedListOn, POLL_MS, cadenceLine, sameMarks, seedShown, shouldPoll, splitFinished, syncPairOnce, tickableInRoom, willTrim } from '@/lib/ours-sync';
 import { whenValue, type WhenAnswer } from '@/lib/when';
-import { clearOursMine, loadOursMine, loadOursSeen, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, saveOursTasks, saveTasks } from '@/lib/storage';
+import { clearOursMine, loadOursMine, loadOursSeen, loadOursShown, loadOursTasks, loadTasks, markOursSeen, noteOursMine, pruneOursCache, pruneOursShown, saveOursShown, saveOursTasks, saveTasks } from '@/lib/storage';
 import { usePremium } from '@/lib/premium-provider';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/telemetry';
@@ -155,6 +155,35 @@ export default function OursListScreen() {
   // this visit sees the row, which is the honest reading of "already mine as of when I got here".
   const minePending = useRef<Set<string>>(new Set());
   const [washed, setWashed] = useState<ReadonlySet<string>>(new Set());
+  // THE VISIT'S FOLD (lib/ours-sync `decideFold`): which finished rows sit under "Finished" for this
+  // whole visit, each with the finish it folded with. Decided once as the visit begins and then held,
+  // so nothing changes side while you are looking. Mirrored in a ref for the callbacks below.
+  const [fold, setFold] = useState<ReadonlyMap<string, string>>(new Map());
+  const foldRef = useRef<ReadonlyMap<string, string>>(new Map());
+  const foldDecided = useRef(false);
+  // What THIS phone has drawn finished in the working list, for the open list (lib/storage
+  // `loadOursShown`). The next visit folds only these. Seen means drawn here, never the other
+  // phone's stamp, which a tick made with no signal carries from hours before it arrived. `fresh`
+  // marks a record this phone never kept, seeded once from the last look.
+  const shownRecord = useRef<{ pairId: string; marks: Record<string, string>; fresh: boolean } | null>(null);
+  // Rows that rose out of the fold this visit (un-ticked by either of you). They stay at the foot of
+  // the working list for the rest of the visit even if the same finish comes back, so the only
+  // movement in a visit is upward.
+  const [risen, setRisen] = useState<ReadonlySet<string>>(new Set());
+  const risenRef = useRef<ReadonlySet<string>>(new Set());
+  // The Finished line: closed at the start of every visit, which is its point.
+  const [finishedOpen, setFinishedOpen] = useState(false);
+  // The rows a card or a selection is open on, for a new visit, which must not re-place them.
+  const heldRef = useRef<ReadonlySet<string>>(new Set());
+  // The stored last look, kept across visits so a visit begun at focus can tell news without waiting
+  // on storage.
+  const lastLook = useRef<{ pairId: string; at: number } | null>(null);
+  // The day this visit's fold was decided on, so a return to the app on a new day starts a new visit.
+  const visitDay = useRef('');
+  // The line, and where it sits in the scroll content, so an Add with the fold open brings the end of
+  // the working list into view rather than the end of the fold.
+  const lineRef = useRef<View>(null);
+  const lineY = useRef<number | null>(null);
   // Rows that have ALREADY had their eight seconds this visit, and must never light up again.
   //
   // Without this the wash STROBES. `seenAt` is deliberately frozen for the visit, so every poll
@@ -229,6 +258,54 @@ export default function OursListScreen() {
       if (shownAt !== undefined && row.updatedAt <= shownAt) next.delete(row.id);
     }
     return next;
+  }, []);
+
+  /**
+   * Bring this phone's record of drawn finishes up to date, for the NEXT visit's fold. Only while you
+   * are actually here: a sync that runs with the room under another screen, or with the app in the
+   * background, has shown nobody anything. Written only when it changed.
+   */
+  const noteShownNow = useCallback((rows: SharedTask[]) => {
+    const record = shownRecord.current;
+    if (!record || record.fresh || !foldDecided.current || !focused.current || AppState.currentState !== 'active') return;
+    const onList = rows.filter((task) => !task.deletedAt);
+    const next = noteShown(record.marks, onList, splitFinished(onList, foldRef.current).working, foldRef.current);
+    if (sameMarks(next, record.marks)) return;
+    record.marks = next;
+    void saveOursShown(record.pairId, next);
+  }, []);
+
+  /**
+   * The visit's fold, from the rows about to be drawn: this phone's record decides, and a row changed
+   * since the last look stays in place too, because Today's "!" counted it and the room must show what
+   * that mark counted. Every row starts the visit un-risen.
+   */
+  const placeFold = useCallback((rows: SharedTask[], lookedAt: number, mineIds: ReadonlySet<string>) => {
+    const record = shownRecord.current;
+    if (!record) return;
+    const onList = rows.filter((task) => !task.deletedAt);
+    const day = toISODate(new Date());
+    foldRef.current = decideFold(onList, day, record.marks, washedSince(onList, lookedAt, mineIds));
+    setFold(foldRef.current);
+    risenRef.current = new Set();
+    setRisen(risenRef.current);
+    visitDay.current = day;
+    foldDecided.current = true;
+  }, []);
+
+  /**
+   * Remember the rows that have risen out of the fold, at the moment the rows change (a sync, or a
+   * write of mine), which are the only moments a row can rise. A row whose card or selection is open
+   * under the line is not risen yet: it stays where it was drawn until that is done.
+   */
+  const noteRisen = useCallback((rows: SharedTask[]) => {
+    const fold = foldRef.current;
+    if (fold.size === 0) return;
+    const inFold = new Set([...heldRef.current].filter((id) => fold.has(id) && !risenRef.current.has(id)));
+    const { risen: up } = splitFinished(rows.filter((task) => !task.deletedAt), fold, { inFold, risen: risenRef.current });
+    if (up.every((task) => risenRef.current.has(task.id))) return;
+    risenRef.current = new Set([...risenRef.current, ...up.map((task) => task.id)]);
+    setRisen(risenRef.current);
   }, []);
   // Which rows are already on my own Today, so "Bring to my Today" can say so rather than quietly
   // making a second copy. My tasks, read here only to answer that one question.
@@ -328,9 +405,14 @@ export default function OursListScreen() {
         return setLoaded(true);
       }
       const live_ = chosen;
+      const noteLook = (pairId: string, at: number) => {
+        const prev = lastLook.current;
+        lastLook.current = { pairId, at: prev && prev.pairId === pairId ? Math.max(prev.at, at) : at };
+      };
 
       if (seenAt.current === 0) {
         seenAt.current = (await loadOursSeen())[live_.pairId] ?? 0;
+        noteLook(live_.pairId, seenAt.current);
         // Rows I changed from Today since I was last here. Without these, my own tick on a brought
         // copy comes back tinted as my person's change, which is the room inventing an event.
         for (const id of await loadOursMine(live_.pairId)) minePending.current.add(id);
@@ -347,12 +429,36 @@ export default function OursListScreen() {
         // too many for eight seconds, against never highlighting at all.
       }
       setPulled(pulledFrom(await loadTasks(), live_.pairId));
+      // This phone's record of drawn finishes (the Finished fold), once per list per mount. Missing is
+      // not empty: a phone meeting the fold for the first time seeds it once from the last look, below.
+      if (shownRecord.current?.pairId !== live_.pairId) {
+        const stored = await loadOursShown(live_.pairId);
+        shownRecord.current = { pairId: live_.pairId, marks: stored ?? {}, fresh: stored === null };
+        foldDecided.current = false;
+      }
 
       const cached = local ?? (await loadOursTasks(live_.pairId));
       if (call !== pass.current) return debugLog('sync', { call, stop: 'overtaken-at-cache', by: pass.current });
+      // THE VISIT'S FOLD, here when the focus could not decide it (a fresh mount has no rows on screen):
+      // once, from the FIRST rows this visit draws, in the same render as them, then held. That is the
+      // cache when it has rows, else the merged set, never an empty cache, which would fold nothing for
+      // the whole visit. A record this phone never kept is seeded from those same rows and the last look.
+      const placeVisit = (rows: SharedTask[]) => {
+        const record = shownRecord.current;
+        if (!record || foldDecided.current) return;
+        if (record.fresh) {
+          record.marks = seedShown(rows, seenAt.current);
+          record.fresh = false;
+          void saveOursShown(record.pairId, record.marks);
+        }
+        placeFold(rows, seenAt.current, minePending.current);
+      };
+      if (cached.length > 0) placeVisit(cached);
+      noteRisen(cached);
       setTasks(cached);
       setWashed(washFor(cached));
       setLoaded(true);
+      noteShownNow(cached);
 
       try {
         const { merged, pushError, readOnly: refused } = await syncPairOnce(client, live_.pairId, cached);
@@ -360,8 +466,11 @@ export default function OursListScreen() {
         if (pushError) console.warn('[ours] push failed, changes are local only', pushError);
         setUnpushed(Boolean(pushError));
         setReadOnly(Boolean(refused));
+        placeVisit(merged);
+        noteRisen(merged);
         setTasks(merged);
         setWashed(washFor(merged));
+        noteShownNow(merged);
         setOffline(false);
         void saveOursTasks(live_.pairId, merged);
         // Looked at, now. Written on every reconcile rather than on the way out, because the way out
@@ -374,19 +483,23 @@ export default function OursListScreen() {
         // actively harmful, because it swallows any legacy row still carrying a future stamp from
         // before the correction and, since the last-look can never move backwards, pins this device
         // permanently in the future. Both devices stopped washing the moment the clock landed.
-        void markOursSeen(live_.pairId, nowMs());
+        const lookedAt = nowMs();
+        void markOursSeen(live_.pairId, lookedAt);
+        noteLook(live_.pairId, lookedAt);
         void clearOursMine(live_.pairId); // from here the last-look covers those writes
         // Cached rows for lists this account no longer belongs to are ANOTHER PERSON'S WORDS on
         // this device, with nothing left pointing at them. `pruneOursCache` existed for exactly
         // this and had no caller anywhere, so leaving or deleting a list left its contents behind.
-        void pruneOursCache(all.filter((p): p is MyPair => p != null).map((p) => p.pairId));
+        const kept = all.filter((p): p is MyPair => p != null).map((p) => p.pairId);
+        void pruneOursCache(kept);
+        void pruneOursShown(kept);
       } catch {
         // A failed READ keeps whatever is on screen. This list is somebody's household, and showing
         // it stale beats showing it empty; the line below says so rather than pretending.
         if (call === pass.current) setOffline(true);
       }
     },
-    [session, sessionKnown, wantedId, pair, washFor],
+    [session, sessionKnown, wantedId, pair, washFor, noteShownNow, placeFold, noteRisen],
   );
 
   // The live sync, held in a ref so the two effects below can depend on NOTHING that changes.
@@ -401,26 +514,56 @@ export default function OursListScreen() {
     syncRef.current = sync;
   });
 
+  /**
+   * A new visit: a fresh look for the wash, and the fold decided again from the rows already on screen
+   * when the room stayed mounted underneath (the Menu, Kept with, Back), so the visit's first frame is
+   * already placed rather than shuffling a beat later when the network answers. A fresh mount has no
+   * rows yet, and the sync decides then. Never while a card or a selection is open: the visit carries
+   * on around what you are in the middle of, fold and all.
+   */
+  const startVisit = useCallback(() => {
+    // A fresh look. Dropping both makes "gone next open" literally true rather than true only when
+    // the OS happened to unmount the screen: arriving re-reads the stored last-look (which the
+    // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
+    seenAt.current = 0;
+    mine.current = new Map();
+    minePending.current = new Set();
+    washedAlready.current = new Map();
+    clockSynced.current = false;
+    if (heldRef.current.size === 0) {
+      foldDecided.current = false;
+      const record = shownRecord.current;
+      const look = lastLook.current;
+      if (record && !record.fresh && record.pairId === openId.current && tasksRef.current.length > 0) {
+        placeFold(tasksRef.current, look && look.pairId === record.pairId ? look.at : 0, new Set());
+      }
+      setFinishedOpen(false);
+    }
+    setNow((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
+    void syncRef.current();
+  }, [placeFold]);
+
   useFocusEffect(
-    // Empty deps, deliberately: this must run once per VISIT. With `sync` in here it re-ran every
-    // time the callback was rebuilt, which was every sync, which re-triggered a sync.
+    // Once per VISIT: `startVisit` never changes. With `sync` in here it re-ran every time the
+    // callback was rebuilt, which was every sync, which re-triggered a sync.
     useCallback(() => {
-      // A fresh look. Dropping both makes "gone next open" literally true rather than true only when
-      // the OS happened to unmount the screen: arriving re-reads the stored last-look (which the
-      // reconcile below then moves forward), so yesterday's wash cannot still be sitting there.
-      seenAt.current = 0;
-      mine.current = new Map();
-      minePending.current = new Set();
-      washedAlready.current = new Map();
-      clockSynced.current = false;
       focused.current = true;
-      setNow((prev) => (toISODate(prev) === toISODate(new Date()) ? prev : new Date()));
-      void syncRef.current();
+      startVisit();
       return () => {
         focused.current = false;
       };
-    }, []),
+    }, [startVisit]),
   );
+
+  // Back to the app on a NEW day with the room still on screen. No focus event fires, so without this
+  // last night's finishes would sit in the working list all morning. That is a new visit. The same day
+  // is the same visit.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && focused.current && visitDay.current !== '' && visitDay.current !== toISODate(new Date())) startVisit();
+    });
+    return () => sub.remove();
+  }, [startVisit]);
 
   // AND AGAIN once the session is actually known.
   //
@@ -480,14 +623,16 @@ export default function OursListScreen() {
         if (!before || before.updatedAt !== task.updatedAt) mine.current.set(task.id, task.updatedAt);
       }
       setWashed(washFor(stamped));
+      noteRisen(stamped);
       setTasks(stamped);
+      noteShownNow(stamped);
       void saveOursTasks(pair.pairId, stamped);
       // Persisted, not merely held in the ref: if the reconcile below fails, this visit ends
       // without the last-look moving forward, and the next one would tint my own writes as theirs.
       void noteOursMine(pair.pairId, [...mine.current.keys()]);
       await sync(stamped);
     },
-    [pair, tasks, sync, washFor],
+    [pair, tasks, sync, washFor, noteShownNow, noteRisen],
   );
 
   /**
@@ -701,6 +846,11 @@ export default function OursListScreen() {
 
   /** Put a removed row back. Seven days, and it is the whole reason removal is a tombstone. */
   function restore(id: string) {
+    // Removed from inside the fold earlier this visit, it goes back where it came from, so the fold opens
+    // to show it rather than letting Put back look like it did nothing. Only when it really lands there:
+    // a row that rose this visit, or is no longer that finish, comes back into the list instead.
+    const row = tasks.find((task) => task.id === id);
+    if (row && !risen.has(id) && fold.get(id) === finishMark({ ...row, deletedAt: null })) setFinishedOpen(true);
     const now = nowMs();
     void commit(tasks.map((task) => (task.id === id ? { ...task, deletedAt: null, updatedAt: now } : task)));
   }
@@ -713,8 +863,25 @@ export default function OursListScreen() {
   const frozen = isPairFrozen(pair);
   // A CLOSED list shows everything it ever held, because the copy promises "you can still read
   // everything here" and a day-boundary drop would quietly make that false the morning after.
-  // A live one is placed by cadence and lets go of yesterday's finished work.
+  // A live one shows every row nobody has removed (`onSharedListOn`), finished ones included.
   const visible = frozen ? tasks.filter((task) => !task.deletedAt) : tasks.filter((task) => onSharedListOn(task, today, now));
+  // FINISHED, folded at the foot: the rows this visit's fold holds (`decideFold`: their day has passed
+  // and this phone has already shown them finished). Still ON the list, so they keep the empty line
+  // away, and a closed list's promise holds, because everything is still there to read. A row whose
+  // card or selection is open stays where it was drawn, and a fold holding one stays open, so nothing
+  // you are in the middle of can be folded out of reach.
+  const held = new Set(selected);
+  if (confirmingId) held.add(confirmingId);
+  // A held row drawn under the line stays there while held: one of this visit's fold not yet risen.
+  const heldInFold = new Set([...held].filter((id) => fold.has(id) && !risen.has(id)));
+  const { working, finished } = splitFinished(visible, fold, { inFold: heldInFold, risen });
+  const finishedHeld = finished.some((task) => held.has(task.id));
+  const finishedShown = finished.length > 0 && (finishedOpen || finishedHeld);
+  // The rows on screen right now, which is what Select all means and what a held card can be on.
+  const shown = finishedShown ? [...working, ...finished] : working;
+  useEffect(() => {
+    heldRef.current = held;
+  });
   // Recently removed, folded at the foot. Seven days, dimmed, and it names nobody: it says a thing
   // was taken off the list, never which of you took it off.
   const removed = tasks
@@ -741,10 +908,28 @@ export default function OursListScreen() {
     if (open) lastTouch.current = nowMs(); // composing is a person being here: the poll must not idle out
   }
 
-  // Added from the panel: the new rows land at the end, so bring them up above it.
+  // Added from the panel: the new rows land at the end of the working list, so bring that up above it.
+  // With Finished open the content's end is the fold, so the line's place stands in for the list's end
+  // (Today's revealListEnd, the same shape). Measured when it scrolls: the web fires onLayout only when
+  // a size changes (RN-web's ResizeObserver), never when the line moves down under a new row, so there
+  // the line's offsetTop is read instead, as Today's measureSlotNode does. A phone fires onLayout on a
+  // move, given the 120 ms Today's own reveal waits for its measure.
   function captureFromSheet(text: string, schedule: CaptureSchedule) {
     capture(text, schedule);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: !reduced }), 80);
+    const foldOpen = finishedShown;
+    setTimeout(
+      () => {
+        const webTop = Platform.OS === 'web' ? (lineRef.current as unknown as { offsetTop?: number } | null)?.offsetTop : undefined;
+        const top = typeof webTop === 'number' ? webTop : lineY.current;
+        if (foldOpen && top !== null) {
+          const panelTop = winH - restingPanelHeight(winH);
+          scrollRef.current?.scrollTo({ y: Math.max(0, top + 12 - panelTop), animated: !reduced });
+        } else {
+          scrollRef.current?.scrollToEnd({ animated: !reduced });
+        }
+      },
+      foldOpen ? 120 : 80,
+    );
   }
 
   // The line beside When, before you add: what a day on the shared list means (the When v2 wording).
@@ -754,6 +939,108 @@ export default function OursListScreen() {
     if (when === 'today') return t('ours.whenToday');
     return t('ours.whenDay');
   }
+
+  /** One row of the room: the SAME object in the working list and in the Finished fold, so a row folded away
+   *  keeps every door it had. A tick brings it back up (un-ticked, it is no longer finished), and a hold
+   *  opens its card as it always did. */
+  function rowFor(task: SharedTask) {
+    return (
+      <View key={task.id} style={styles.row}>
+        <TaskRow
+          title={task.title}
+          done={isSharedDoneOn(task, today)}
+          /* The wash, on the row's own surface, and in WORDS as well as colour. It says a
+             thing happened and never who did it, which is the same line the tint draws. */
+          /* No one-off border here. It exists on Today to separate one-offs from repeats, and a
+             shared list is almost entirely one-offs, so it lands on every row and separates
+             nothing: chrome on everything, on the screen briefed to be plainer than Today. */
+          plain
+          washed={washed.has(task.id)}
+          note={rowNote(task)}
+          onToggle={() => toggle(task.id)}
+          onLongPress={() => setConfirmingId(task.id)}
+          confirming={confirmingId === task.id}
+          selecting={selectMode}
+          selected={selected.includes(task.id)}
+          onSelect={() => toggleSelect(task.id)}
+          onSelectMore={frozen ? undefined : () => enterSelectWith(task.id)}
+          onRemove={frozen ? undefined : () => remove(task.id)}
+          onKeep={() => setConfirmingId(null)}
+          recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
+          onRename={frozen ? undefined : (next) => rename(task.id, next)}
+          /* Offered ONLY on a row that will not arrive by itself. Anything dated or repeating
+             now reaches both Todays through `sharedDueOn`, so keeping Bring on those rows gave
+             one row two routes onto your day that landed in two different places: a copy in your
+             list, or the shared row in the From Just Us strip. Melroy hit exactly that and said
+             the obvious thing, "explain the logic here because to me, this is weird". One row,
+             one home. On a dated or repeating row the equivalent action lives on Today, where it
+             reads as taking the thing on rather than fetching it. */
+          onBring={
+            (task.recurrence === undefined || task.recurrence.kind === 'none') && !task.due
+              ? () => void bring(task)
+              : undefined
+          }
+          brought={pulled.has(task.id)}
+          /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
+             whatever a newer build meant, on a list somebody else also keeps. */
+          /* "Repeat…" named HALF the field, and that is the label that let dates ship without
+             an editor at all: a door named after one of two possible answers cannot be the way
+             you reach the other. "When…" asks the question both answers answer, and the value
+             rides beside it so the row's current answer is readable without opening anything. */
+          onRepeat={frozen || isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
+          repeatLabel={t('ours.when')}
+          repeatValue={whenValue(task, now)}
+          inert={
+            frozen
+              ? t('ours.frozenRow')
+              : isUnreadableRepeat(task)
+                ? t('ours.repeatUnknown')
+                : tickableInRoom(task, today, now)
+                  ? undefined
+                  : t('ours.tickOnItsDay')
+          }
+          /* The shared list has no per-day skip, so Remove must not borrow "Skip today": it ends
+             the repeat, for both of you. The label says what the button does. */
+          removesWholeSeries
+        />
+        {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
+            person sees the task and the other does not and each concludes the other deleted it.
+            Inert, with whatever plain-English line the writing app left. */}
+      </View>
+    );
+  }
+
+  // FINISHED: one quiet line at the foot, the same line Today uses for its own finished tasks. It never
+  // counts (a shared list shows no numbers), never says who, and opens in place. While a card or a
+  // selection inside it is open it cannot close: it is announced as unavailable and takes the quiet
+  // unavailable look every other unavailable action here has (on the web, an unavailable button also
+  // leaves the tab order, as any disabled button does).
+  const finishedLine = (
+    <Pressable
+      key="ours-finished-line"
+      ref={lineRef}
+      onPress={() => {
+        if (finishedHeld) return;
+        setFinishedOpen((open) => !open);
+      }}
+      onLayout={(e) => {
+        lineY.current = e.nativeEvent.layout.y;
+      }}
+      accessibilityRole="button"
+      aria-expanded={finishedShown}
+      // `disabled`, not aria-disabled: RN-web's Pressable writes its own aria-disabled from this prop
+      // over any passed in, and on the phones it sets the accessibility state the same way.
+      disabled={finishedHeld}
+      accessibilityLabel={finishedShown ? t('ours.finishedHideA11y') : t('ours.finishedShowA11y')}
+      hitSlop={4}
+      style={({ pressed }) => [styles.finishedLine, finishedHeld && styles.selectOff, pressed && !finishedHeld && styles.pressed]}
+    >
+      <Text style={styles.finishedLineText}>{t('ours.finishedLine')}</Text>
+      <Text style={styles.finishedCaret} accessible={false} importantForAccessibility="no">
+        {finishedShown ? '˄' : '˅'}
+      </Text>
+    </Pressable>
+  );
 
   return (
     <View style={styles.screen}>
@@ -849,70 +1136,11 @@ export default function OursListScreen() {
 
         {loaded && visible.length === 0 ? <Text style={styles.empty}>{t('ours.listEmpty')}</Text> : null}
 
-        {visible.map((task) => (
-          <View key={task.id} style={styles.row}>
-            <TaskRow
-              title={task.title}
-              done={isSharedDoneOn(task, today)}
-              /* The wash, on the row's own surface, and in WORDS as well as colour. It says a
-                 thing happened and never who did it, which is the same line the tint draws. */
-              /* No one-off border here. It exists on Today to separate one-offs from repeats, and a
-                 shared list is almost entirely one-offs, so it lands on every row and separates
-                 nothing: chrome on everything, on the screen briefed to be plainer than Today. */
-              plain
-              washed={washed.has(task.id)}
-              note={rowNote(task)}
-              onToggle={() => toggle(task.id)}
-              onLongPress={() => setConfirmingId(task.id)}
-              confirming={confirmingId === task.id}
-              selecting={selectMode}
-              selected={selected.includes(task.id)}
-              onSelect={() => toggleSelect(task.id)}
-              onSelectMore={frozen ? undefined : () => enterSelectWith(task.id)}
-              onRemove={frozen ? undefined : () => remove(task.id)}
-              onKeep={() => setConfirmingId(null)}
-              recurring={task.recurrence !== undefined && task.recurrence.kind !== 'none'}
-              onRename={frozen ? undefined : (next) => rename(task.id, next)}
-              /* Offered ONLY on a row that will not arrive by itself. Anything dated or repeating
-                 now reaches both Todays through `sharedDueOn`, so keeping Bring on those rows gave
-                 one row two routes onto your day that landed in two different places: a copy in your
-                 list, or the shared row in the From Just Us strip. Melroy hit exactly that and said
-                 the obvious thing, "explain the logic here because to me, this is weird". One row,
-                 one home. On a dated or repeating row the equivalent action lives on Today, where it
-                 reads as taking the thing on rather than fetching it. */
-              onBring={
-                (task.recurrence === undefined || task.recurrence.kind === 'none') && !task.due
-                  ? () => void bring(task)
-                  : undefined
-              }
-              brought={pulled.has(task.id)}
-              /* A cadence this build cannot read stays INERT: re-cadencing it would overwrite
-                 whatever a newer build meant, on a list somebody else also keeps. */
-              /* "Repeat…" named HALF the field, and that is the label that let dates ship without
-                 an editor at all: a door named after one of two possible answers cannot be the way
-                 you reach the other. "When…" asks the question both answers answer, and the value
-                 rides beside it so the row's current answer is readable without opening anything. */
-              onRepeat={frozen || isUnreadableRepeat(task) ? undefined : () => setCadenceId(task.id)}
-              repeatLabel={t('ours.when')}
-              repeatValue={whenValue(task, now)}
-              inert={
-                frozen
-                  ? t('ours.frozenRow')
-                  : isUnreadableRepeat(task)
-                    ? t('ours.repeatUnknown')
-                    : tickableInRoom(task, today, now)
-                      ? undefined
-                      : t('ours.tickOnItsDay')
-              }
-              /* The shared list has no per-day skip, so Remove must not borrow "Skip today": it ends
-                 the repeat, for both of you. The label says what the button does. */
-              removesWholeSeries
-            />
-            {/* A cadence this build cannot read: SHOWN, never hidden, because hiding it means one
-                person sees the task and the other does not and each concludes the other deleted it.
-                Inert, with whatever plain-English line the writing app left. */}
-          </View>
-        ))}
+        {/* The rows, the Finished line and the folded rows as ONE keyed list, so a row crossing the line
+            (un-ticked inside the fold, it rises to the foot of the list, just above the line) is moved
+            rather than remounted: its element, its open card and a keyboard or screen-reader focus on it
+            survive the move. */}
+        {[...working.map(rowFor), ...(finished.length > 0 ? [finishedLine] : []), ...(finishedShown ? finished.map(rowFor) : [])]}
 
         {debugOn ? <DebugPanel /> : null}
 
@@ -1002,13 +1230,13 @@ export default function OursListScreen() {
               {selected.length === 0 ? t('today.selectHint') : fmt.plural(selected.length, { one: t('today.selectedCountOne'), other: t('today.selectedCountOther') })}
             </Text>
             <Pressable
-              onPress={() => setSelected(visible.map((task) => task.id))}
-              disabled={selected.length === visible.length}
+              onPress={() => setSelected(shown.map((task) => task.id))}
+              disabled={selected.length === shown.length}
               accessibilityRole="button"
-              aria-disabled={selected.length === visible.length}
+              aria-disabled={selected.length === shown.length}
               accessibilityLabel={t('today.selectAllA11y')}
               hitSlop={6}
-              style={selected.length === visible.length ? styles.selectOff : undefined}
+              style={selected.length === shown.length ? styles.selectOff : undefined}
             >
               <Text style={styles.selectAllText}>{t('today.selectAll')}</Text>
             </Pressable>
@@ -1059,7 +1287,7 @@ export default function OursListScreen() {
           ref={sheetRef}
           heading={t('ours.addTo', { name: listName })}
           // The pill steps aside while a card is held, as on Today (P1), and only for a card on the screen.
-          hidden={selectMode || (confirmingId != null && visible.some((task) => task.id === confirmingId))}
+          hidden={selectMode || (confirmingId != null && shown.some((task) => task.id === confirmingId))}
           onOpenChange={onSheetOpenChange}
           onCapture={captureFromSheet}
           whenNote={whenNote}
@@ -1146,6 +1374,21 @@ const makeStyles = (t: Theme) =>
     restore: { color: t.colors.skyAccent, fontSize: 14 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '700' },
     removedHint: { color: t.colors.skyInk, fontSize: 13 * t.scale, fontFamily: fonts.body, marginTop: spacing.three },
     row: { marginTop: spacing.two },
+    // The Finished line: Today's own done line (a hairline, the word and a caret in soft ink, the whole row a
+    // 44pt tap), drawn here rather than shared, because Today is frozen until 3 Jan.
+    finishedLine: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: spacing.three,
+      paddingHorizontal: spacing.two,
+      borderTopWidth: border.hair,
+      borderTopColor: t.appearance === 'quiet' ? t.quiet.hairline : t.colors.line,
+    },
+    finishedLineText: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.bodyBold, fontWeight: '600' },
+    finishedCaret: { color: t.colors.skyInk, fontSize: 15 * t.scale, fontFamily: fonts.body },
+    pressed: { opacity: PRESSED_OPACITY },
     capture: {
       paddingHorizontal: spacing.five,
       paddingTop: spacing.three,

@@ -280,8 +280,12 @@ devices, deterministic copy ids, a flood of undated rows into Today, a hostile p
 payload made permanent, "copy only what you wrote", and a bereaved user's dead partner's words
 dumped into their morning.
 
-**Ours also gets a floor**, or it grows forever by construction: done rows stop rendering at
-the day boundary (straight parity with `tasksForToday`, so un-tick works all day), and
+**Ours also gets a floor**, for its working list at least: a done row stays in place for the
+day it was finished (so un-tick works all day), then folds under "Finished" at the foot once
+that phone has shown it finished (2026-11-20, `decideFold`: per phone, decided once per visit,
+and never a disappearance, because the first rule, dropping done rows at the day boundary, did
+not survive the August dogfood). The list itself keeps every row until one of you removes it,
+and
 tombstones younger than seven days render dimmed under "Recently removed" with Restore, so
 *did I imagine adding it, did it not sync, or did they delete it?* has an answer that names
 nobody. And the finality affirmations ("Filed. You can stop checking it now.") do **not** fire

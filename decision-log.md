@@ -12219,3 +12219,133 @@ before his word: it now names `buildFromSource`, `native-patches.test.ts` and AN
 
 **Not for production: versionCode 40.** It linked the prebuilt library, so on it the glance and every nudge run
 upstream's builder. versionCode 41 replaces it on the Internal track.
+
+## 2026-11-20: finished rows on the shared list fold under "Finished" once their day has passed and this phone has shown them
+
+**Asked.** Melroy, on his own list: "Why not just build it? It's my own list. I see items from a week+ ago. It irks
+me." An hour earlier the fold had been parked with exactly this trigger (BUILD-PLAN, "Parked: a Finished fold"), so it
+was built the same night. The core-screen freeze does not cover the shared list: it names Today, the add panel, the
+held card and the Calendar.
+
+**Decided: a finished row folds, and it still never leaves.** `stillOnList` is unchanged. Removal is still the only
+way off a shared list, and Recently removed still keeps seven days. What changed is where a finished row sits.
+`decideFold` (ours-sync.ts) moves a finished one-off out of the working rows into a collapsed "Finished" line at the
+foot of the room once both halves of the August lesson are safe:
+
+- **Its day has passed.** A tick stays in place, and a tap still un-ticks it, for the rest of the day it happened, as
+  on Today, because ticking is the reversible act on this list.
+- **This phone has shown it finished.** Each phone keeps a small record of the finishes it has drawn in the working
+  list, per list (`oursShown` in lib/storage: row ids and days, never words). A row folds only if that record holds
+  this very finish. Anything else is news and is shown in place for a visit first. So a new phone's first visit
+  folds nothing, and a row ticked again on another day is news again.
+
+**Decided: the fold is decided once per visit, then held.** As the visit begins: at focus, from the rows already on
+screen when the room stayed mounted underneath (the Menu, Kept with, Back), else from the first rows the visit draws.
+Nothing changes side while you look. Not at midnight, not when your own write lands (Put back, a rename), and not when
+a late sync brings an old tick. The one movement allowed is upward: a folded row that stops being that finish
+(un-ticked by either of you) rises to the foot of the working list, just above the line, so nothing above it shifts.
+A row that has risen stays up for the rest of the visit, even if the same finish comes back. A row whose card or
+selection is open stays where it was drawn until that is done, and a visit does not restart while one is open. A
+return to the app on a new day with the room still on screen is a new visit.
+
+**Why "shown on this phone" and not "older than your last look": the review.** The first build judged "seen" by
+comparing the row's stamp with the last look. A four-lens review, with a skeptic per finding, broke it the same night,
+and the skeptic reproduced it with the real merge. A tick made in a shop with no signal keeps the stamp of the moment
+it was made and reaches the other phone hours later, so it read as already seen and folded there without ever being
+drawn. Today's settle carry and a merge under a newer edit do the same. The review also found rows folding while
+someone was looking (at midnight, a beat after coming back to the room, after Put back) and a sync running with the
+room under another screen marking the list looked-at. All of these are closed. The record replaces the stamp, the
+visit's decision replaces the per-render one, and the last look, which still drives the eight-second wash, is now
+written only while the room is in front of someone with the app active.
+
+**The bridge, once per phone.** A phone meeting the fold for the first time has no record, so it is seeded once from
+the first rows it draws and the last look, by the old stamp test. A list cluttered for weeks then folds on its first
+open, not one visit later. That single seed keeps the old weakness (a late tick with an old stamp could fold unseen on
+that first open), accepted for one visit per phone. A phone that has never looked at the list seeds nothing.
+
+**Decided, the details.**
+
+- Only finished one-offs fold. A repeat is never finished, only finished on a day, and it reads un-ticked again on its
+  next day. A cadence this build cannot read stays put, because it cannot be judged.
+- A finished row that cannot say which day it was finished (no completion log and no doneAt) folds once shown.
+  Today's strip keeps such a row for fear of losing it, but folding is not losing.
+- The line is Today's own done line (a hairline, the word, a caret, a 44pt tap), drawn in the room's file rather than
+  shared with Today, because Today is frozen until 3 Jan.
+- No number on it. The room's law is that nothing counts, so it says "Finished" where Today says "Done today · 3". The
+  screen-reader labels follow Today's ("Finished. Show them", "Finished. Hide them"), in all five languages, each
+  translated against its own catalogue and checked by an independent native reader.
+- Closed at the start of every visit, unless a card or a selection inside it is still open when you come back.
+- Inside it the rows are the same rows. A tick un-ticks one, and it rises to the foot of the list, just above the line.
+  The rows and the line are one keyed list, so a row crossing the line is moved rather than remounted. Its open card
+  survives, and so does keyboard focus on the web, checked in the browser. The phones' screen readers are OUR-133's
+  check. Newest finish first, because the thing you open it for is usually the last one in.
+- While it holds a held card or a selection it stays open, looks dimmed and is announced as unavailable. Select all
+  means the rows on screen.
+- Put back on a row removed from inside the fold this visit opens the fold, but only when the row lands back in it.
+- A change since your last look keeps a row in place for the visit even if this phone drew it, because Today's "!"
+  counted it and the room must show what it counted. It can only keep a row out of the fold, never put one in.
+- An Add with the fold open brings the end of the working list into view, not the end of the fold.
+- A closed (archived) list folds the same way. Its promise is that everything can still be read, and it can, under one
+  tap.
+- Per phone, not shared. Two phones can differ for up to a visit, because "this phone has shown it" is a fact about a
+  device, as the last look is.
+- Web 1.10.8 (`client/app.json`), so an open tab hears about it. The phones get it with the next store build, on
+  Melroy's word.
+
+**Decided against.**
+
+- **Dropping finished rows at midnight again.** That was the original rule, parity with Today, and the August dogfood
+  killed it inside an hour: a row ticked on one phone vanished from the other without a trace.
+- **Judging "seen" by the row's stamp**, the first build. See the review above.
+- **Folding by age alone** (say, two days after the tick). Simpler, and it would fold a row the other person has never
+  seen, which is the exact failure the August rule exists to prevent.
+- **One fold state for both phones.** It would fold a row on a phone that has never shown it, for the same reason.
+- **Folding nothing on a visit that has any news**, which the review offered so the layout never sets news apart from
+  your own finishes. The wash already says what changed since you looked, and never who, and on a busy list there is
+  almost always some news, so nothing would ever fold.
+- **A count on the line.** The room counts nothing, and a number would turn the pile into something to watch.
+- **A "Clear finished" button.** One tap that removes everything finished, on a list another person keeps, is a bigger
+  act than a fold. Select several, then Remove, already does it, with seven days to put anything back.
+- **Remembering the fold open.** Opening it once would bring the clutter back for good.
+- **A counter for the fold.** It needs a Worker deploy for a number that would not change the design.
+
+**Second review, of the rework, the same night.** Three more lenses and a skeptic per finding. Confirmed, and fixed:
+
+- **My own gate on the last look was a regression.** The first rework marked the list looked-at only while the room
+  was in front of someone. Leaving within a write's reconcile then left every row written that visit in `oursMine`,
+  so your person's later ticks on them never lit Today's "!" or washed. The gate is reverted, since the fold never
+  depended on it, and the old case it aimed at is parked with its proper fix.
+- **On the web the Add scroll read a stale place.** RN-web fires onLayout only when a size changes, never when the
+  line merely moves down. It now reads the line's offsetTop at the moment it scrolls, as Today's `measureSlotNode`
+  does.
+- **Holding a row that had risen pulled it back under the line.** Rows that rose now stay up for the visit, and only a
+  held row drawn under the line is kept there.
+- **A change to a folded row lit Today's "!" with nothing to see.** News by the stamp now keeps a row in place.
+- **Coming back with a card or a selection open re-placed the held row.** A visit no longer restarts while something
+  is held.
+
+Also fixed from the same pass: a return to the app on a new day with the room on screen now starts a new visit, Put
+back opens the fold only when the row lands in it, the record keeps the visit's folded rows through a frame that
+lacked them, the record's writes are queued so a prune cannot write back a stale copy over a save, and the docs stop
+saying "struck through", which the app has not drawn since 2026-09-26.
+
+**Accepted.** A change to a folded row that arrives mid-visit (your person renames it while your room is open) washes
+inside the closed fold and is not shown in the working list. The visit's fold only lets a row rise when it stops
+being that finish, and a rename is not that. It is rare, and the row is one tap away.
+
+**Parked.** The fold keeps old finishes out of sight, not off the list, so they still accumulate and every poll still
+pulls them all. In the Backlog with a trigger ("Parked: finished rows still pile up on the shared list itself"). So is
+the reverted gate's own case ("Parked: a sync under another screen marks the shared list looked-at").
+
+**Corrected on the way.** `docs/shared-lists.md` still said done rows stop rendering at the day boundary, which had
+been untrue since the dogfood. It now gives the fold rule, and says the floor is the working list's, not the list's.
+
+**Tests.** `finishMark`, `decideFold`, `splitFinished`, `noteShown`, `seedShown` and `sameMarks` in
+`ours-sync.test.ts`, including a late tick across two visits, a new phone, news by the stamp, held and risen rows (a
+risen row stays up even when held, and even when the same finish comes back), Put back and a {kind: 'none'} row.
+`storage.test.ts` for the record: missing versus empty, one list saved without another, pruned, wiped, and a save and a
+prune racing without losing the save. A browser check against the dev server, every Supabase call stubbed: 30 of 30 in
+light and in dark, covering the first open's seed, the late tick, coming back from the Menu with nothing moving
+(sampled every 20 ms), keyboard focus staying on a risen row, holding a risen row, an Add with the fold open, the held
+line's unavailable state, and Put back. Manual: OUR-131 to OUR-134, and OUR-22 now opens the fold to un-tick
+yesterday's tick.

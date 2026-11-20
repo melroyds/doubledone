@@ -177,8 +177,9 @@ describe('withMonotonicStamps, on shared rows', () => {
 // restored by the very next merge and never reached the server at all. Sixteen tests passed,
 // because every one of them asked "can a tick be lost", where "no, never, by construction" is also
 // the defect. Two shipped promises rest on un-ticking working: the finality affirmations are
-// withheld on Ours BECAUSE your person can un-tick, and Phase 5 stops rendering done rows at the
-// day boundary so that un-tick works all day.
+// withheld on Ours BECAUSE your person can un-tick, and Phase 5 stopped rendering done rows at the
+// day boundary so that un-tick worked all day. (They no longer drop. Since 2026-11-20 they fold under
+// "Finished" per phone, decideFold in ours-sync.ts.)
 describe('the completion log', () => {
   const DAY = '2026-08-09';
 
