@@ -492,6 +492,16 @@ the ladder is fixed and readable, never randomised.
 
 ## Backlog (deferred, with triggers)
 
+- **The glance stayed away on one phone until its notifications were switched off and on (found 2026-11-26).** An
+  early subscriber's Samsung never showed Today in your notifications, though Settings read "Comes at 12:00." the
+  same morning, which means notifications allowed, the category on and something open on Today. Switching DoubleDone's
+  notifications off and on again in Android's settings fixed it. The cause is unknown, because the status line read
+  the permission as granted throughout. Two things learned on the way: the "Allow alarms & reminders" link shows
+  whether or not access is allowed (the app cannot read that grant from Android 12 on), so it is no evidence either
+  way, and the arrival time is the phone's own clock, so a subscriber abroad sees it at his local hour. **Trigger:** a
+  second report of the glance missing while its status line reads as working. Then read that phone's whole channel
+  state (importance, lock screen, the phone's own blocks) and give the status line a door into Android's notification
+  settings, as Routines has.
 - **What the glance fix left open (found 2026-11-12, by its build and its review).** (1) The accepted cost: a swipe the
   app has not seen comes back once (AND-24), before the day's first open, or with the app open when it arrives, since
   no refresh runs for an arrival. A listener for the glance arriving (`addNotificationReceivedListener`, refresh on
