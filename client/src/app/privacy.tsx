@@ -22,7 +22,7 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 10 November 2026.</Text>
+        <Text style={styles.updated}>Last updated 27 November 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
@@ -33,7 +33,9 @@ export default function PrivacyScreen() {
 
         <Section styles={styles} heading="On your device by default">
           Your tasks live on your device. You can use the whole app, capture, the Calendar, all of it, with no account,
-          and what you write never leaves the device unless you choose an AI feature or sync.
+          and what you write is never sent to us unless you choose an AI feature or sync. On Android, your phone&apos;s
+          own backup to your Google account can include the app&apos;s data, your tasks with it, which is how a new phone
+          can bring them back. That backup is kept by Google for you, and we never see it.
         </Section>
 
         <Section styles={styles} heading="If you choose to sync">

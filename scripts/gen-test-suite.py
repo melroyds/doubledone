@@ -1001,6 +1001,10 @@ CASES = [
      "Open doubledone.app/privacy, then Settings, Privacy in the app. Read The AI features, then the end of Feature-usage counts.",
      "Both say the copy kept on our side is pseudonymous, never tied to you and never sold, and that after 90 days the text and the reply are deleted and only the rest of the row is kept. Neither says aggregate. Feature-usage counts ends by naming the server's own counts (a note's check, a month given for a note, the purchase checks). Both say Last updated 3 November 2026.",
      "iOS + Android + Web"),
+    ("PRV-07", "Privacy", "P2", "Nothing says what you write never leaves the device",
+     "PREREQ: the web after the push that carries this change (the phone apps show the new lines from their next store build). Open doubledone.app/privacy, then Settings > Privacy in the app, and read 'On your device by default'. Open doubledone.app in a private window and read the first line of the privacy list, in English and, with the browser set to another of the five languages, in that one. Then, signed out and with AI off in Settings, replay the welcome from Settings and read the note under the box on the capture step.",
+     "Both privacy copies say 'Last updated 27 November 2026.' (it replaces the date PRV-05 checks), and that what you write is never sent to us unless you choose an AI feature or sync, that on Android your phone's own backup to your Google account can include the app's data, your tasks with it, which is how a new phone can bring them back, and that the backup is kept by Google for you and we never see it. Neither says what you write never leaves the device. The front page's first privacy line says the same in short and names Android, in each language. The capture step's note reads 'Kept on this device. Nothing here is sent to us or to an AI.', never 'Nothing here is sent anywhere'.",
+     "iOS + Android + Web"),
 
     # --- Cross-platform / deploy ---------------------------------------------
     ("DEP-01", "Deploy", "P1", "Web loads + deep links",

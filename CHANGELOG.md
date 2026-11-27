@@ -28,6 +28,15 @@ next store build._
   your second open on this version). Nothing folds away while you look, and an item your person un-ticks comes back
   up. No number, and nothing says who ([`client/src/lib/ours-sync.ts`](client/src/lib/ours-sync.ts)).
 
+### Fixed
+- **The privacy copy no longer says what you write never leaves the device.** On Android, the phone's own backup to
+  your Google account can include the app's data, your tasks with it, which is how a new phone brings them back. The
+  privacy policy now says what you write is never sent to us unless you choose an AI feature or sync, and that Google
+  keeps that backup for you and we never see it. The front page's privacy line and the welcome's note with AI off say
+  the same in all five languages. Only the words changed, and backups work as before. It reaches the web when merged,
+  and the phones with the next store build
+  ([`client/src/lib/device-claims.test.ts`](client/src/lib/device-claims.test.ts)).
+
 ## [1.10.7] - 2026-11-15
 
 _Submitted to both stores on 2026-11-15 after founder testing, and live on both by 2026-11-16: the App Store's

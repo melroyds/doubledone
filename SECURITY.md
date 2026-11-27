@@ -29,7 +29,7 @@ Only the current release is supported.
 ### Local-first, anonymous by default
 
 - The daily loop works fully with no account: capture, Today, the Calendar, routines and Settle. Tasks,
-  routines and settings then live only on the device (AsyncStorage, which is localStorage on the web).
+  routines and settings then live on the device (AsyncStorage, which is localStorage on the web).
   An account comes in for sync, shared lists, buying Premium on Android, the Premium features that run
   on the server, and connecting an AI assistant. The Supabase client is not even created when sync is
   not configured ([`client/src/lib/supabase.ts`](client/src/lib/supabase.ts)).
@@ -45,6 +45,10 @@ Only the current release is supported.
   - a web push subscription, if you turn on the daily reminder in a browser
   - feedback you choose to send
   - on iOS and Android, the RevenueCat SDK, which starts when the app opens
+  - on Android, the phone's own backup to its owner's Google account, which copies the app's data, tasks
+    included (Expo's default `allowBackup`, with no backup rules). Google runs it for the person, we never
+    receive it, and from Android 9 with a screen lock set it is end-to-end encrypted. On iOS, AsyncStorage
+    keeps itself out of iCloud backups.
 - AI can be switched off entirely in Settings, and the app then runs with no generative AI at all.
 
 ### Sync, scoped by row-level security
