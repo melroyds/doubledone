@@ -105,6 +105,33 @@ describe('the glance and widget counts', () => {
   });
 });
 
+// Active devices (2026-11-27): four bare names, each at most once per device per its own period, so the day's and the
+// week's counters ARE their distinct devices. Nothing that could tell one device from another can ride along.
+describe('the active-device counts', () => {
+  it('passes the four names through bare, props dropped', () => {
+    expect(parseAppEvent({ name: 'day.opened' })).toBe('day.opened');
+    expect(parseAppEvent({ name: 'week.opened', props: { week: '2026-11-23' } })).toBe('week.opened');
+    expect(parseAppEvent({ name: 'device.new', props: { id: 'abc123' } })).toBe('device.new');
+    expect(parseAppEvent({ name: 'week.six.opened', props: { start: '2026-10-20' } })).toBe('week.six.opened');
+  });
+
+  it('stores them as a counter per day, nothing finer', async () => {
+    const db = await sqliteD1();
+    for (const e of ['day.opened', 'week.opened', 'device.new', 'day.opened']) await logAppEvent({ DB: db }, e);
+    expect(db.raw.prepare('SELECT event, n FROM app_event_counts ORDER BY event').all()).toEqual([
+      { event: 'day.opened', n: 2 },
+      { event: 'device.new', n: 1 },
+      { event: 'week.opened', n: 1 },
+    ]);
+  });
+
+  it('drops the near names nobody declared', () => {
+    for (const name of ['week.6.opened', 'week.six', 'day.open', 'device.old', 'app.opened', 'month.opened', 'device.new.ios']) {
+      expect(parseAppEvent({ name }), name).toBeNull();
+    }
+  });
+});
+
 // The Menu's two ways into Settings (2026-10-04): rooms.opened is folded to the door, and only
 // for Settings. Every other room, and any door we did not build, is dropped unwritten.
 describe('rooms.opened folding', () => {
@@ -226,8 +253,8 @@ describe('app_event_counts (real SQLite)', () => {
 });
 
 describe('logAppEvent', () => {
-  it('skips cleanly with no D1 binding', async () => {
-    await expect(logAppEvent({}, 'settle.opened')).resolves.toBeUndefined();
+  it('skips cleanly with no D1 binding, and reports that as nothing to retry', async () => {
+    await expect(logAppEvent({}, 'settle.opened')).resolves.toBe(true);
   });
 
   it('inserts the event through the prepared statement', async () => {
@@ -259,7 +286,8 @@ describe('logAppEvent', () => {
         throw new Error('boom');
       },
     };
-    await expect(logAppEvent({ DB: db as never }, 'settle.opened')).resolves.toBeUndefined();
+    // Never throws, and says it failed, so /event can answer an open count with a 503 the device keeps it for.
+    await expect(logAppEvent({ DB: db as never }, 'settle.opened')).resolves.toBe(false);
   });
 });
 

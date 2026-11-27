@@ -70,6 +70,14 @@ export const BEACON_EVENTS = new Set([
   // fail-closed guess is never counted), at most once a day per device (lib/widget-count). The one
   // number that best predicts demand for both glance surfaces.
   'widget.placed',
+  // Active devices (2026-11-27, lib/active): the app was opened today (once a UTC day per device), this week (once a
+  // UTC week), on a new install (once ever), and in that install's sixth week (once ever), each very rarely twice when
+  // an answer is lost and the name is sent again. Bare names, no device id: nothing in a count says which device sent
+  // it (lib/active's header says what can still be matched, and that we never try).
+  'day.opened',
+  'week.opened',
+  'device.new',
+  'week.six.opened',
 ]);
 
 // What may ride WITH a beacon, per name. Everything else is stripped HERE, on the device, so the
@@ -128,6 +136,37 @@ export function beaconRequest(name: string, props?: Record<string, unknown>): { 
       keepalive: true,
     },
   };
+}
+
+/** How long a count waits for the Worker before it is treated as unanswered and kept to try again. */
+export const SEND_TIMEOUT_MS = 15_000;
+
+/**
+ * Record an event like track, for the counts the Worker stores before it answers (lib/active's open counts, which keep
+ * an unanswered name to send again). Resolves true once the Worker says it stored the count (a 2xx whose body carries
+ * `stored: true`), and also when there is nothing to send (an event that stays on the device, or a dev session). False
+ * when no answer came (no network, a blocked request, the timeout), when the Worker asked to be tried later (429, a 5xx),
+ * and when a 2xx lacks the marker: an older Worker, after a rollback, answers these names with a plain 200 and stores
+ * nothing, and the repo's rule is that a status alone never proves a route did its work. A refusal such as a 403 counts
+ * as answered, because sending again would only be refused again. Never throws, and never surfaces anything.
+ */
+export async function trackSent(name: string): Promise<boolean> {
+  console.log(formatEvent({ name }));
+  const beacon = beaconRequest(name);
+  if (!beacon) return true;
+  const abort = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = abort ? setTimeout(() => abort.abort(), SEND_TIMEOUT_MS) : null;
+  try {
+    const res = await fetch(beacon.url, abort ? { ...beacon.init, signal: abort.signal } : beacon.init);
+    if (res.status === 429 || res.status >= 500) return false;
+    if (res.status >= 300) return true;
+    const body: unknown = await res.json().catch(() => null);
+    return typeof body === 'object' && body !== null && (body as { stored?: unknown }).stored === true;
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** Record an event: always the console line, plus the beacon for the allowlisted few.

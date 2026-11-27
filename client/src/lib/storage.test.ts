@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   claimWidgetCountDay,
+  loadActiveMemory,
+  saveActiveMemory,
   loadGlanceMemory,
   loadHold,
   loadReminderStyle,
@@ -641,5 +643,45 @@ describe('claimWidgetCountDay', () => {
       ...vi.mocked(AsyncStorage.multiRemove).mock.calls.flatMap(([ks]) => ks as string[]),
     ];
     expect(removed).not.toContain('doubledone.widgetcount.v1');
+  });
+});
+
+// The active-device counts' memory (lib/active): read back field by field, null when storage cannot be read (so the
+// counter sends nothing), a save that reports whether it landed, and a wipe that leaves it, because a deleted account
+// does not make the phone a new device.
+describe('the active-device memory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(AsyncStorage.getItem).mockImplementation(() => Promise.resolve(null));
+  });
+
+  it('reads its own key, and an absent value as an empty memory', async () => {
+    expect(await loadActiveMemory()).toEqual({});
+    expect(AsyncStorage.getItem).toHaveBeenCalledWith('doubledone.active.v1');
+    vi.mocked(AsyncStorage.getItem).mockImplementation((key: string) =>
+      Promise.resolve(key === 'doubledone.active.v1' ? '{"day":"2026-11-27","week":"2026-11-23","start":"before"}' : null),
+    );
+    expect(await loadActiveMemory()).toEqual({ day: '2026-11-27', week: '2026-11-23', start: 'before' });
+  });
+
+  it('answers null when storage cannot be read, never an empty memory that would count again', async () => {
+    vi.mocked(AsyncStorage.getItem).mockImplementationOnce(() => Promise.reject(new Error('disk')));
+    expect(await loadActiveMemory()).toBeNull();
+  });
+
+  it('saves under its key and says whether the write landed', async () => {
+    expect(await saveActiveMemory({ day: '2026-11-27' })).toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('doubledone.active.v1', '{"day":"2026-11-27"}');
+    vi.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    expect(await saveActiveMemory({ day: '2026-11-28' })).toBe(false);
+  });
+
+  it('is device bookkeeping, so the account wipe leaves it', async () => {
+    await wipeLocalData();
+    const removed = [
+      ...vi.mocked(AsyncStorage.removeItem).mock.calls.map(([k]) => k),
+      ...vi.mocked(AsyncStorage.multiRemove).mock.calls.flatMap(([ks]) => ks as string[]),
+    ];
+    expect(removed).not.toContain('doubledone.active.v1');
   });
 });

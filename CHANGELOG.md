@@ -18,7 +18,8 @@ versioning: [SemVer](https://semver.org/).
 ## [Unreleased]
 
 _Live on the web as 1.10.8 on 2026-11-21 ([PR #17](https://github.com/melroyds/doubledone/pull/17), merged as `060bda3`). The phones get it with the
-next store build._
+next store build. The active-device counts reach the web as 1.10.9 when their pull request merges, after the Worker
+that stores them is deployed._
 
 ### Added
 - **Finished items on a shared list fold away.** A ticked item stays in place for the day it was ticked. From the
@@ -27,6 +28,18 @@ next store build._
   person finished while you were away is shown in place first, even one ticked with no signal and sent later (from
   your second open on this version). Nothing folds away while you look, and an item your person un-ticks comes back
   up. No number, and nothing says who ([`client/src/lib/ours-sync.ts`](client/src/lib/ours-sync.ts)).
+- **Active devices are counted, with no device id.** Opening the app now sends a bare name to the existing usage
+  beacon: `day.opened` once a UTC day per device, `week.opened` once a UTC week, `device.new` once on a new install's
+  first open, and `week.six.opened` once if that install opens again in days 35 to 41. Each device records its claim
+  before sending, so a second open never makes a second claim, and a name that gets no answer (no signal, or a reply
+  lost on the way back) stays owed and goes again when the app comes back to the front, or the web back online, so
+  very rarely one arrives twice. The Worker answers these four only once they are stored, and says so, so an older
+  Worker's plain answer leaves them owed. On the web the landing page
+  at "/" is never counted, nor is automation or a crawler. The Analytics Centre gains an Active devices section
+  (yesterday, today so far, this and last week, fourteen days, eight weeks, and a week-six estimate that waits for
+  `ACTIVE_COUNT_FROM`, the day the phones began counting, and then ten weeks), and the Worker's flood alarm leaves the
+  daily and weekly open counts out. Both privacy copies say so, with the small note the device keeps, dated 27
+  November 2026 ([`client/src/lib/active.ts`](client/src/lib/active.ts), [`server/src/analytics.ts`](server/src/analytics.ts)).
 
 ## [1.10.7] - 2026-11-15
 

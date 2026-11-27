@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { BEACON_EVENTS, beaconRequest, formatEvent, TELEMETRY_PREFIX, track } from './telemetry';
+import { BEACON_EVENTS, beaconRequest, formatEvent, SEND_TIMEOUT_MS, TELEMETRY_PREFIX, track, trackSent } from './telemetry';
 
 describe('telemetry', () => {
   it('namespaces every event under the doubledone prefix', () => {
@@ -104,17 +104,19 @@ describe('the beacon (the few events that leave the device)', () => {
     expect(beaconRequest('reminder.enabled', { granted: true, style: 'glance' })).toBeNull();
   });
 
-  it('the allowlist is exactly these twenty-six (growing it is a deliberate act)', () => {
+  it('the allowlist is exactly these thirty (growing it is a deliberate act)', () => {
     // settle.* (2026-08), hold.* (2026-08-22), the held-card usage set (2026-08-22), the telemetry
-    // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25), the rest-day gate's two (2026-11-01)
-    // and the glance and widget three (2026-11-10): each addition pairs with the Worker allowlist AND the privacy policy
-    // in the same commit.
+    // review's three (2026-10-04), review.asked (2026-10-19), task.dragged (2026-10-25), the rest-day gate's two (2026-11-01),
+    // the glance and widget three (2026-11-10) and the four active-device counts (2026-11-27): each addition pairs with the
+    // Worker allowlist AND the privacy policy in the same commit.
     expect([...BEACON_EVENTS].sort()).toEqual([
       'breakdown.started',
       'bulk.big',
       'card.more',
       'card.opened',
       'day.closed.morning',
+      'day.opened',
+      'device.new',
       'glance.off',
       'glance.on',
       'hold.completed',
@@ -135,8 +137,17 @@ describe('the beacon (the few events that leave the device)', () => {
       'task.renamed',
       'task.reordered',
       'tiny.made',
+      'week.opened',
+      'week.six.opened',
       'widget.placed',
     ]);
+  });
+
+  it('sends the active-device counts bare, whatever rides with them', () => {
+    expect(beaconRequest('day.opened')?.init.body).toBe('{"name":"day.opened"}');
+    expect(beaconRequest('week.opened', { week: '2026-11-23' })?.init.body).toBe('{"name":"week.opened"}');
+    expect(beaconRequest('device.new', { start: '2026-11-27' })?.init.body).toBe('{"name":"device.new"}');
+    expect(beaconRequest('week.six.opened', { age: 35 })?.init.body).toBe('{"name":"week.six.opened"}');
   });
 
   it('track fires the beacon once for an allowlisted event and never for others', () => {
@@ -157,5 +168,74 @@ describe('the beacon (the few events that leave the device)', () => {
       }),
     );
     expect(() => track('settle.opened')).not.toThrow();
+  });
+});
+
+// trackSent (2026-11-27): the active-device counts keep a name that got no answer and send it again later, so they need
+// to know whether the Worker STORED it, which only a 2xx carrying `stored: true` says. A refusal counts as answered,
+// because asking again would be refused again.
+describe('trackSent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const stored = { status: 200, json: async () => ({ ok: true, stored: true }) };
+
+  it('answers true when the Worker says it stored the count, sending the same bare request as track', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(stored);
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await trackSent('day.opened')).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/event$/);
+    expect(fetchMock.mock.calls[0][1].body).toBe('{"name":"day.opened"}');
+    expect(fetchMock.mock.calls[0][1].keepalive).toBe(true);
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('answers false with no network or a blocked request, and when told to come back later', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Network request failed')));
+    expect(await trackSent('day.opened')).toBe(false);
+    for (const status of [429, 500, 503]) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status }));
+      expect(await trackSent('week.opened'), String(status)).toBe(false);
+    }
+  });
+
+  it('answers false to a 200 without the marker: an older or rolled-back Worker stores nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, json: async () => ({ ok: true }) }));
+    expect(await trackSent('device.new')).toBe(false);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, json: async () => Promise.reject(new SyntaxError('not json')) }));
+    expect(await trackSent('device.new')).toBe(false);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 204, json: async () => null }));
+    expect(await trackSent('week.six.opened')).toBe(false);
+  });
+
+  it('treats a refusal as answered, so a name the Worker will never take is not sent forever', async () => {
+    for (const status of [400, 403, 404]) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status }));
+      expect(await trackSent('device.new'), String(status)).toBe(true);
+    }
+  });
+
+  it('gives up after its timeout and answers false, so the name is kept for later', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new Error('aborted')))),
+      ),
+    );
+    const answer = trackSent('week.six.opened');
+    await vi.advanceTimersByTimeAsync(SEND_TIMEOUT_MS);
+    expect(await answer).toBe(false);
+  });
+
+  it('has nothing to send for an event that stays on the device, which counts as done', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await trackSent('task.added')).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,12 +23,12 @@ export default function PrivacyScreen() {
         <BackLink fallback="/settings" />
 
         <Text style={styles.title}>Privacy</Text>
-        <Text style={styles.updated}>Last updated 10 November 2026.</Text>
+        <Text style={styles.updated}>Last updated 27 November 2026.</Text>
 
         <Text style={styles.lead}>
           DoubleDone is built to need almost nothing from you. It runs on your device, and the main things that ever
           leave it are your tasks if you choose to sync, the text or photo you choose to send to an AI feature, and a
-          bare feature-usage count when you use certain features. The rest, such as what a purchase needs, has its
+          bare count when you open the app or use certain features. The rest, such as what a purchase needs, has its
           own section below. This is the plain version of what each of those means.
         </Text>
 
@@ -122,6 +123,18 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section styles={styles} heading="Feature-usage counts">
+          When you open the app, it tells our server that it was opened: once a day and once a week on each device, once
+          when a device opens it for the very first time, and once more if that device opens it again in its sixth week. If
+          one of these reaches us but our reply is lost on its way back, the app sends it again, so very rarely one arrives
+          twice. Days and weeks here run on UTC, the world’s standard time, so a new one can begin partway through your own
+          day. Nothing in these says which device sent them, so what we see is how many devices opened DoubleDone on a day or
+          in a week, and how many were still opening it six weeks on. While only a few devices are new in a week, a sixth-week
+          count could be matched back to one of them, and we never try to. To keep to these limits, the app keeps a small note
+          on your device: the day it was first opened, the last day and week it counted, whether its sixth week has been
+          counted, and any count still waiting to be sent. The note is never sent to us. On Android, your phone’s own backup
+          can include it with the rest of the app’s data, so a phone restored from that backup carries on as the same
+          device. Reading the website’s front page is not counted this way, only opening the app.
+          {'\n\n'}
           When you use certain features, the app tells our server the feature’s name so we can count how often it
           helps. Right now those features are the Settle breathing room (and whether you switched its breathing guide on
           or off), the Hold-me-to-it reminder contract (started, finished, or let go, and how far along it was, which we
@@ -141,7 +154,7 @@ export default function PrivacyScreen() {
           account, no name, nothing you typed, and never how long you stayed. (Older versions of the app also attach a
           small detail to a few of these, such as which reminder time you picked; the server throws it away unstored.)
           Like any internet request it arrives from your network address, but the address is never stored with the
-          count; what we keep is how many times each feature was used on each day, nothing finer. Our hosting provider
+          count; what we keep is how many of each arrived on each day, nothing finer. Our hosting provider
           keeps short-lived backups of that table (up to 30 days) and a log of each request, which can include when it
           arrived and the network address it came from (up to a week), for recovery and fault-finding. We do not use
           either to study how anyone uses the app. The server accepts a short fixed
@@ -253,7 +266,7 @@ export default function PrivacyScreen() {
   );
 }
 
-function Section({ styles, heading, children }: { styles: ReturnType<typeof makeStyles>; heading: string; children: string }) {
+function Section({ styles, heading, children }: { styles: ReturnType<typeof makeStyles>; heading: string; children: ReactNode }) {
   return (
     <View style={styles.section}>
       <Text style={styles.heading}>{heading}</Text>

@@ -318,7 +318,7 @@ These are your answers. Everything is traced to code.
 | Identifiers, User ID | Yes | **Yes** | No | App Functionality |
 | Identifiers, Device ID | Yes | **Yes** | No | App Functionality |
 | Purchases, Purchase History | Yes | **Yes** | No | App Functionality |
-| Usage Data, Product Interaction | Yes | No | No | Analytics |
+| Usage Data, Product Interaction (the feature-usage counts, and since 2026-11-27 the active-device counts, whose app opens are Apple's own example of it: no change to the label) | Yes | No | No | Analytics |
 | **Diagnostics** | **No** | | | |
 | Location | No | | | |
 | Health & Fitness | No | | | |

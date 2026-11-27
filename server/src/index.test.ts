@@ -99,6 +99,40 @@ describe('the app-event beacon (/event)', () => {
     expect(res.status).toBe(400);
   });
 
+  // The open counts (2026-11-27): a device keeps each until it is answered, so the answer must mean "stored".
+  it('stores an open count before it answers, and answers 503 when the write fails, so the device keeps it', async () => {
+    const db = await sqliteD1();
+    const stored = await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name: 'device.new' } }), makeEnv({ DB: db as never }), ctx);
+    expect(stored.status).toBe(200);
+    // The marker the device waits for: an older Worker answers a plain { ok: true } and stores nothing.
+    expect(await stored.json()).toEqual({ ok: true, stored: true });
+    expect(db.raw.prepare("SELECT event, n FROM app_event_counts WHERE event = 'device.new'").all()).toEqual([{ event: 'device.new', n: 1 }]);
+    const failing = makeEnv({
+      DB: {
+        prepare: () => {
+          throw new Error('D1_ERROR: Network connection lost');
+        },
+      } as never,
+    });
+    for (const name of ['day.opened', 'week.opened', 'device.new', 'week.six.opened']) {
+      const res = await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name } }), failing, ctx);
+      expect(res.status, name).toBe(503);
+    }
+  });
+
+  it('keeps every other name fire-and-forget, answering ok even when the write would fail', async () => {
+    const failing = makeEnv({
+      DB: {
+        prepare: () => {
+          throw new Error('D1_ERROR: Network connection lost');
+        },
+      } as never,
+    });
+    const res = await worker.fetch(req('POST', '/event', { origin: 'https://doubledone.app', body: { name: 'settle.opened' } }), failing, ctx);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
   it('rate-limits /event on its OWN key, never spending the paid-AI window of a shared IP', async () => {
     const keys: string[] = [];
     const env = makeEnv({

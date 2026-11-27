@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ActiveCount } from '@/lib/active-watch';
 import { useSessionState } from '@/lib/auth';
 import { dailyNudgeHour } from '@/lib/glance-refresh';
 import { setInbound } from '@/lib/inbound';
@@ -160,6 +161,10 @@ function RootStack() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Active devices (lib/active): this device's opens, as bare once-a-day, once-a-week and once-ever counts. On the
+          web it waits until the app is really opened, never for a visitor still on the landing page at "/". A
+          component that draws nothing, so following the path never re-renders the navigator. */}
+      <ActiveCount />
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Android nav-bar icons follow the IN-APP theme (which can differ from the system
           theme); the plugin's enforceContrast:false lets this style take effect under

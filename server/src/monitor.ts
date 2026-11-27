@@ -153,9 +153,9 @@ export function evaluateAlarms(m: Metric): Alarm[] {
       kind: 'app-events-volume',
       title: `${m.appEventsToday} app-event beacons today`,
       detail:
-        `Far above launch-normal for the feature-usage beacon (guard at ${THRESHOLDS.appEventsPerDay}/day). ` +
-        `Likely scripted POSTs to /event: the counts are unattributable by design, so consider deleting ` +
-        `that day's app_event_counts rows before trusting the Settle counts again.`,
+        `Far above launch-normal for the feature-usage beacon (guard at ${THRESHOLDS.appEventsPerDay}/day, day.opened ` +
+        `and week.opened left out). Likely scripted POSTs to /event: the counts are unattributable by design, so ` +
+        `consider deleting that day's rows for the names that jumped before trusting them again.`,
     });
   }
 
@@ -306,6 +306,32 @@ export async function recordAlert(db: D1LikeDatabase, kind: string, nowMs: numbe
   }
 }
 
+// The two open counts that grow with the people opening the app (2026-11-27): every device sends day.opened each day it
+// opens, and on a UTC Monday week.opened too.
+const OPEN_COUNTS_SQL = "'day.opened','week.opened'";
+
+/**
+ * Today's feature-usage beacon volume, for the scripted-flood guard. Defensive: app_event_counts may not exist yet
+ * (deploy-before-schema), and it is one counter per day per name, so today's total is a SUM. Two kinds of counter are
+ * left out. The store check's are the Worker's own, not the beacon's, so a flood of made-up purchase ids must not read
+ * as scripted /event posts. And day.opened and week.opened grow with the people opening the app, not with feature
+ * use, so counting them would trip a guard sized for feature use on an ordinary busy day. device.new and
+ * week.six.opened stay in: one per install at most, they never grow like that, and a flood of either would quietly
+ * skew the week-six estimate.
+ */
+export async function beaconVolumeToday(db: D1LikeDatabase): Promise<number> {
+  try {
+    const ev = await db
+      .prepare(
+        `SELECT COALESCE(SUM(n), 0) AS n FROM app_event_counts WHERE day >= date('now') AND event NOT LIKE 'premium.store.%' AND event NOT IN (${OPEN_COUNTS_SQL})`,
+      )
+      .first<{ n: number }>();
+    return Number(ev?.n ?? 0);
+  } catch {
+    return 0; // table absent: nothing to guard yet
+  }
+}
+
 async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Promise<Metric> {
   const spendRows = (
     await db
@@ -346,19 +372,7 @@ async function gatherMetrics(db: D1LikeDatabase, capUsd: number, now: Date): Pro
     .bind(now.getTime() - 86_400_000)
     .first<{ mx: number }>();
 
-  // The beacon's volume, defensively: app_event_counts may not exist yet (deploy-before-
-  // schema), and it is one counter per day per name, so today's total is a SUM. The store check's own
-  // counters are the Worker's, not the beacon's, so they are left out: a flood of made-up purchase ids
-  // must not read as scripted /event posts.
-  let appEventsToday = 0;
-  try {
-    const ev = await db
-      .prepare("SELECT COALESCE(SUM(n), 0) AS n FROM app_event_counts WHERE day >= date('now') AND event NOT LIKE 'premium.store.%'")
-      .first<{ n: number }>();
-    appEventsToday = Number(ev?.n ?? 0);
-  } catch {
-    // table absent: nothing to guard yet
-  }
+  const appEventsToday = await beaconVolumeToday(db);
   const storePremiumToday: Record<string, number> = {};
   try {
     const rows = (
