@@ -12353,3 +12353,67 @@ yesterday's tick.
 **Shipped 2026-11-21.** Merged on Melroy's word ("Merge.") as `060bda3` (PR #17, every CI check green), and live on
 the web as 1.10.8. Read back from doubledone.app: `version.json` says web 1.10.8, and the live bundle carries the
 Finished line's labels in all five languages. The phones get it with the next store build.
+
+## 2026-11-27: the privacy copy stops saying what you write never leaves the device, because Android backs it up
+
+**Found.** The adversarial review of the active-device counts (the same day) noticed that "On your device by
+default", in both privacy copies, said what you write "never leaves the device unless you choose an AI feature or
+sync". On Android that is untrue. `client/app.json` sets no `android.allowBackup`, Expo's config plugin defaults it to
+true (`@expo/config-plugins`, `AllowBackup.js`: `config.android?.allowBackup ?? true`), the app sets no backup rules,
+and AsyncStorage on Android is the SQLite database `RKStorage` in the app's databases folder. Android's Auto Backup
+includes that folder by default (its own page lists "files in the getDatabasePath() directory"), up to 25 MB, in the
+user's Google account. It restores the data whenever the app is installed, a new phone's setup included, and from
+Android 9 with a screen lock set it is end-to-end encrypted. iOS is different: AsyncStorage 2.2.0 marks its folder
+excluded from iCloud backup unless Info.plist says otherwise (`RNCAsyncStorage.mm`, where a missing
+`RCTAsyncStorageExcludeFromBackup` means YES), and `app.json` does not. The same claim was in two places the review did
+not name, each in five languages: the front page's first privacy line (`landing.priv1`, "never leaves it") and the
+welcome's capture note with AI off, signed out (`welcome.capturePrivacyNoAi`, "On this device only. Nothing here is
+sent anywhere.").
+
+**Decided: keep Android's backup, change the words.** The backup is the person's own, run by Google under their
+account, and we never receive it. For someone who never signs in, it is the only thing that carries their list to a
+new phone, and a list lost in a phone switch is the kind of loss this audience does not come back from. The copy now
+says what is true everywhere: what you write is never sent to us unless you choose an AI feature or sync. The privacy
+copies add that on Android your phone's own backup to your Google account can include the app's data, your tasks
+with it, which is how a new phone can bring them back, and that the backup is kept by Google for you and we never see
+it. Both are dated 27 November 2026. The front page says it in short ("though an Android phone's own Google backup can
+include it"), and the welcome's note becomes "Kept on this device. Nothing here is sent to us or to an AI." The four
+translations of each were read by a second, independent pass for natural wording, and it changed four of the
+eight. The French front-page line says the backup can keep "une copie" (a bare "l’" straight
+after "la synchro" could read as the sync). The French, Italian and Spanish welcome notes keep the English "here" ("what
+you write here"), without which they claimed nothing at all reaches us. The Italian front-page line now says the tasks
+are saved on the device ("sono salvate"), not that they stay there ("restano", which in Italian reads as never
+leaving), matching the other three languages.
+
+**The line drawn.** A sentence that says where your tasks are kept stays: "live on your device", "your tasks stay on
+this device", "keeps everything on this device". Each is still true, because a backup is a copy. A sentence that says
+nothing goes anywhere else goes: "never leaves", "sent anywhere", "on this device only". The privacy page's lead keeps
+"the main things that ever leave it", because it says main.
+
+**Decided against.**
+- **Turning Android's backup off** (`android.allowBackup: false`). It would make the old words true, but only for new
+  builds, it needs a store build, and it takes away a signed-out person's only way to keep their list through a new
+  phone. Melroy's call if he weighs it the other way, and the test below fails until both privacy copies change with
+  it.
+- **Backup rules that keep the database out of the cloud but allow a direct phone-to-phone transfer**
+  (`dataExtractionRules`). A real middle path, but on Android 11 and older one set of rules covers both, a new phone set
+  up from the cloud backup rather than from the old phone would arrive empty, and it is native config for a store
+  build. Not now.
+- **A Play Data safety change.** Play defines collection as transmitting data from your app off the device and
+  exempts end-to-end encrypted data. Our code sends nothing for the backup, we never receive it, and from Android 9
+  with a screen lock it is end-to-end encrypted. Play's help page does not mention OS backup at all, so this is our
+  reading, written into `docs/play-store-submission-pack.md` as ours. Apple's label is untouched, since iCloud backups
+  leave the tasks out.
+- **Naming iOS on the privacy page.** True today, but the page would then promise something about every file a future
+  iOS feature writes. It names the one platform that copies the tasks.
+
+**Not touched.** The active-device counts' own paragraph on `feat/active-devices` (PR #18), which already names the
+backup for its note, and that pull request's other edits to the privacy copies.
+
+**Also corrected.** `SECURITY.md` said tasks with no account "live only on the device". It now says they live on the
+device, and the list of what can still leave a signed-out device names Android's own backup.
+
+**Tests.** `client/src/lib/device-claims.test.ts`: both privacy copies carry the new sentences word for word and not
+the old one; `app.json` still leaves `allowBackup` at its default with no backup rules, so turning backups off fails
+until the copy changes; every language's `landing.priv1` names Android; and no string in any of the five catalogues
+uses that language's "never leaves", "sent anywhere" or "only on this device". Manual: PRV-07.

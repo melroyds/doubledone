@@ -42,6 +42,14 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**THE PRIVACY CLAIM ABOUT ANDROID BACKUPS, FIXED (2026-11-27, on `fix/privacy-android-backup`, a pull request open,
+NOT merged).** "What you write never leaves the device" was untrue on Android, whose own backup copies the app's data
+to the person's Google account (Expo's default `allowBackup`, no backup rules). Both privacy copies, the front page's
+privacy line and the welcome's AI-off note now say what you write is never sent to us unless you choose an AI feature
+or sync, and the policy names the backup (decision log 2026-11-27). Backups stay on, which keeps a signed-out list
+through a new phone. Turning them off is Melroy's call and would need a store build. **Next:** the merge on his word
+(a web deploy, no version bump). The phones carry the new lines from their next store build.
+
 **A "FINISHED" FOLD ON THE SHARED LIST, LIVE ON THE WEB AS 1.10.8 (2026-11-21, [PR #17](https://github.com/melroyds/doubledone/pull/17), merged as `060bda3` on Melroy's word).** It
 was parked an hour earlier with "a shared list gets cluttered" as its trigger, and Melroy's own list was it ("I see
 items from a week+ ago. It irks me."). The shared list is not one of the four frozen screens. A finished one-off now

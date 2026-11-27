@@ -138,6 +138,13 @@ data-deletion URL. No ads, no third-party analytics/trackers, no advertising ID.
 | Device or other IDs (RevenueCat install id; push endpoint; rate-limit IP) | Yes | No | **Required** (from 1.7.0) | App functionality; deliver reminders; **security/anti-fraud** | From 1.7.0, RevenueCat is configured at launch for EVERY user, so its anonymous install id makes this row Required (it was Optional when it was only the push subscription). Push subscription only if reminders enabled (no user_id, no task text). The scrapbook rate-limit IP is the item in to-do #1. Declare the security use, not silence. |
 | Location / Contacts / Health / Messages / Calendar / Audio / Files / Web history / Installed apps / Crash logs | **No** | No | n/a | n/a | Explicitly NOT collected. The audience is ADHD/autism/OCD, but the app collects no health data. **Location stays No with the assistant's time zone (2026-11-02, #24):** an account that connects an AI assistant keeps the NAME of the device's time zone (such as Australia/Melbourne, in Supabase `user_metadata.tz`) so the agent works on the same day as Today. It is read from the device's clock settings, not from any location permission or service, it is kept only for people who connect an assistant, and it goes on disconnect or account deletion. A time-zone name from the clock settings is not a position, so it is not Approximate location. Disclosed in the policy's "Connecting an AI assistant". |
 
+> **Android's own backup is not collection by us (2026-11-27).** The app leaves `allowBackup` at Expo's default
+> (true) with no backup rules, so Android's backup copies its local data, tasks included, into the user's own Google
+> account backup. Our code sends nothing for it and we never receive it, and from Android 9 with a screen lock set it
+> is end-to-end encrypted. Play defines collection as transmitting data from your app off the device, exempts data
+> that is end-to-end encrypted, and its help page does not mention OS backup at all, so nothing is declared for it.
+> That is our reading, not Google's ruling. The privacy policy names the backup in "On your device by default".
+
 ---
 
 ## Store listing, paste-ready
