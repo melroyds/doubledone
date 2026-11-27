@@ -393,7 +393,9 @@ async function run() {
         { name: 'welcome', route: '/welcome', tasks: TODAY_TASKS, theme: 'light', waitText: 'A calmer kind of to-do' },
         // The held card, which is where every relief tool actually lives. Screenshots of a to-do app
         // otherwise only ever show a list, and a list is the least interesting thing here.
-        // scrollEnd, or on the 6.5-inch screen the floating + lands on the card's Close / Select several row.
+        // scrollEnd keeps the framing these shots have always had. It once also kept the floating + off the card's
+        // Close / Select several row on the 6.5-inch screen. Since store 1.9 the + steps aside whenever a card is
+        // held (A11Y-09), checked again at 428x926 on 2026-11-27, so the shot no longer depends on it.
         { name: 'held-card', route: '/today', tasks: TODAY_TASKS, theme: 'light', waitText: 'Book the dentist', hold: 'Book the dentist', scrollEnd: true },
         // `motion: 'system'` on purpose. The other shots seed 'reduce', which is right for a still
         // photograph of a static screen and exactly wrong for the one screen whose subject IS the
