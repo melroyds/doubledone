@@ -12,6 +12,7 @@
 // is one `wrangler secret put` away. 503 when unconfigured, so an undeployed secret can
 // never mean an open page.
 
+import { ACTIVE_EVENTS } from './events';
 import { modelCostUsd, projectMonthEnd } from './monitor';
 
 type D1Like = {
@@ -26,6 +27,10 @@ export type AnalyticsEnv = {
   DB?: D1Like;
   ANALYTICS_TOKEN?: string;
   ANTHROPIC_MONTHLY_CAP_USD?: string;
+  // The UTC day (YYYY-MM-DD) every platform was counting new installs: the later of the days the iOS and Android builds
+  // carrying the count went live. The web counts from its merge, the phones only from their store builds, so until this
+  // names that day the week-six estimate would read low and stays hidden. A plain var in wrangler.jsonc.
+  ACTIVE_COUNT_FROM?: string;
 };
 
 export type PremiumRow = { store: string; status: string | null; cancelling: number; n: number };
@@ -33,6 +38,23 @@ export type DayRow = { day: string; calls: number; errors: number };
 export type EndpointRow = { endpoint: string; n: number };
 export type ModelTokens = { model: string; in_tok: number; out_tok: number };
 export type AppEventRow = { event: string; n: number };
+
+// Active devices (2026-11-27, the client's lib/active; the names live in events.ts). Four bare names, each sent once per
+// device per its own period (very rarely twice, when an answer is lost and the device sends it again), so a day's
+// day.opened is that day's distinct devices and a week's week.opened that week's. No id ties them.
+const ACTIVE_SET: ReadonlySet<string> = new Set(ACTIVE_EVENTS);
+const ACTIVE_IN = ACTIVE_EVENTS.map((e) => `'${e}'`).join(',');
+
+export type ActiveCountRow = { day: string; event: string; n: number };
+/** One day or one week of the counts: devices that opened the app, new installs, and sixth-week returns. */
+export type ActiveLine = { key: string; opened: number; fresh: number; six: number };
+export type ActiveSummary = {
+  days: ActiveLine[]; // the last 14 UTC days, today first, a quiet day as zeros
+  weeks: ActiveLine[]; // the last 8 UTC weeks by their Monday, this week first
+  weekSix: { returns: number; cohort: number } | null; // null until the count has run long enough to estimate it
+  // Why weekSix is null: 'from' while ACTIVE_COUNT_FROM is unset, 'history' while the counts are too young.
+  weekSixWait: 'from' | 'history' | null;
+};
 
 export type AnalyticsData = {
   premium: PremiumRow[];
@@ -51,6 +73,7 @@ export type AnalyticsData = {
   settleOpens: number; // all-time entries to the breathing room (the app-event beacon)
   settleOpens28d: number;
   appEvents28d: AppEventRow[]; // every beaconed event, last 28 days (future events appear on their own)
+  active: ActiveSummary | null; // null when the counts cannot be read
   generatedAt: string;
 };
 
@@ -67,9 +90,132 @@ export function flywheelRate(offered: number, withOutcome: number): number {
   return offered > 0 ? withOutcome / offered : 0;
 }
 
+const DAY_MS = 86_400_000;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const dayMs = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/** The Monday that starts the UTC week of a YYYY-MM-DD day. */
+export function mondayOf(iso: string): string {
+  const ms = dayMs(iso);
+  return isoDay(ms - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS);
+}
+
+/** The sixth week opens 35 days after a device's first open, so its returns are set against new devices 35 days back. */
+export const WEEK_SIX_SHIFT_DAYS = 35;
+/** ...and closes 41 days after it, so a return on a given day can come from a first open 35 to 41 days earlier. */
+const WEEK_SIX_LAST_DAY = 41;
+const WEEK_SIX_WINDOW_DAYS = 28;
+
+/**
+ * Fold the active-device counts into the page's days, weeks and week-six estimate. Pure. `today` is the UTC day the
+ * page is drawn on, and `firstDay` the first day any of the four names arrived (null if none ever has).
+ *
+ * `allFrom` is ACTIVE_COUNT_FROM: the day every platform began counting new installs. A week's opened figure is
+ * week.opened summed over its days (each device sends it once a week), NEVER the days
+ * added up, which would count a device once for every day it opened. The week-six estimate cannot follow one cohort,
+ * because no id joins a device.new to its later return, so it sets the sixth-week returns of the last 28 complete days
+ * against the new devices of the 28 days that ended 35 days earlier, when the sixth week opens. That is close while the
+ * number of new devices holds steady and leans while it grows or shrinks. It stays null until the counts reach back 69
+ * days, to the earliest first open whose sixth week can land in the returns window: opened sooner, its first weeks
+ * would miss the returns of devices that started just before the count, which never send one, and read low. The same
+ * holds for each platform, and the phones start counting new installs weeks after the web, so the 69 days run from
+ * the later of the first count and `allFrom`, and nothing is estimated while `allFrom` is unknown.
+ */
+export function summariseActive(rows: ActiveCountRow[], today: string, firstDay: string | null, allFrom: string | null = null): ActiveSummary {
+  const byDay = new Map<string, { opened: number; week: number; fresh: number; six: number }>();
+  for (const r of rows) {
+    if (!ACTIVE_SET.has(r.event)) continue;
+    const e = byDay.get(r.day) ?? { opened: 0, week: 0, fresh: 0, six: 0 };
+    const n = Number(r.n) || 0;
+    if (r.event === 'day.opened') e.opened += n;
+    else if (r.event === 'week.opened') e.week += n;
+    else if (r.event === 'device.new') e.fresh += n;
+    else e.six += n;
+    byDay.set(r.day, e);
+  }
+  const t = dayMs(today);
+  const days: ActiveLine[] = Array.from({ length: 14 }, (_, i) => {
+    const key = isoDay(t - i * DAY_MS);
+    const e = byDay.get(key);
+    return { key, opened: e?.opened ?? 0, fresh: e?.fresh ?? 0, six: e?.six ?? 0 };
+  });
+  const monday = dayMs(mondayOf(today));
+  const weeks: ActiveLine[] = Array.from({ length: 8 }, (_, i) => {
+    const start = monday - i * 7 * DAY_MS;
+    const line: ActiveLine = { key: isoDay(start), opened: 0, fresh: 0, six: 0 };
+    for (let k = 0; k < 7; k++) {
+      const e = byDay.get(isoDay(start + k * DAY_MS));
+      if (!e) continue;
+      line.opened += e.week;
+      line.fresh += e.fresh;
+      line.six += e.six;
+    }
+    return line;
+  });
+  const returnsFrom = t - WEEK_SIX_WINDOW_DAYS * DAY_MS;
+  const returnsTo = t - DAY_MS;
+  const cohortFrom = returnsFrom - WEEK_SIX_SHIFT_DAYS * DAY_MS;
+  const cohortTo = returnsTo - WEEK_SIX_SHIFT_DAYS * DAY_MS;
+  let weekSix: ActiveSummary['weekSix'] = null;
+  let weekSixWait: ActiveSummary['weekSixWait'] = null;
+  const fromMs = allFrom !== null && ISO_DAY.test(allFrom) ? dayMs(allFrom) : NaN;
+  if (!Number.isFinite(fromMs)) {
+    weekSixWait = 'from';
+  } else if (firstDay === null || Math.max(dayMs(firstDay), fromMs) > returnsFrom - WEEK_SIX_LAST_DAY * DAY_MS) {
+    weekSixWait = 'history';
+  } else {
+    let returns = 0;
+    let cohort = 0;
+    for (const [day, e] of byDay) {
+      const ms = dayMs(day);
+      if (ms >= returnsFrom && ms <= returnsTo) returns += e.six;
+      if (ms >= cohortFrom && ms <= cohortTo) cohort += e.fresh;
+    }
+    weekSix = { returns, cohort };
+  }
+  return { days, weeks, weekSix, weekSixWait };
+}
+
+/** The first UTC day the active-device rows must reach back to: the weeks table's oldest Monday or the start of the
+ *  week-six estimate's cohort window, whichever is older. */
+export function activeCutoff(today: string): string {
+  const weeksFrom = dayMs(mondayOf(today)) - 7 * 7 * DAY_MS;
+  const cohortFrom = dayMs(today) - (WEEK_SIX_WINDOW_DAYS + WEEK_SIX_SHIFT_DAYS) * DAY_MS;
+  return isoDay(Math.min(weeksFrom, cohortFrom));
+}
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const usd = (x: number) => `$${x.toFixed(2)}`;
+
+/** The Active devices section. Devices, not people, and the page says so. */
+export function renderActive(a: ActiveSummary | null): string {
+  if (!a) return '<h2>Active devices</h2>\n<div class="sub">The counts could not be read just now.</div>';
+  const [today, yesterday] = a.days;
+  const [thisWeek, lastWeek] = a.weeks;
+  const row = (l: ActiveLine) =>
+    `<tr><td>${esc(l.key)}</td><td class="num">${l.opened}</td><td class="num">${l.fresh}</td><td class="num">${l.six}</td></tr>`;
+  const head = (first: string) =>
+    `<tr><th>${first}</th><th class="num">opened</th><th class="num">new</th><th class="num">week six</th></tr>`;
+  let six: string;
+  if (!a.weekSix) {
+    six =
+      a.weekSixWait === 'from'
+        ? 'Week six: waiting for ACTIVE_COUNT_FROM, the day the phones began counting new installs (when their first store builds with the count went live). The estimate starts about ten weeks after it.'
+        : 'Week six: not enough history yet. The estimate needs about ten weeks of counts from every platform.';
+  } else if (a.weekSix.cohort === 0) six = 'Week six: no new devices in the matching four weeks yet.';
+  else {
+    six = `Week six: about ${pct(a.weekSix.returns / a.weekSix.cohort)} (${a.weekSix.returns} of ${a.weekSix.cohort}). The last four weeks of sixth-week returns, set against the new devices of the four weeks that ended five weeks earlier. An estimate from counts: close while new devices hold steady, leaning while they grow or shrink.`;
+  }
+  return `<h2>Active devices</h2>
+<div class="big">${yesterday.opened} yesterday</div>
+<div class="sub">${today.opened} so far today · ${thisWeek.opened} this week so far · ${lastWeek.opened} last week</div>
+<table>${head('week of')}${a.weeks.map(row).join('')}</table>
+<div class="sub">${esc(six)}</div>
+<table>${head('day')}${a.days.map(row).join('')}</table>
+<div class="sub">Devices, not people: a phone and a laptop are two, and a phone restored from its own backup stays the same device. Days and weeks run on UTC, and a week counts each device once however many days it opened, bar the rare count sent twice when its answer was lost on the way back. A store's own test devices count as new and never return: each Android build sent to a testing track adds a few, and each App Review one. The web counts from 1.10.9, the phones from their first store build that carries the count.</div>`;
+}
 
 /** Render the whole page. Pure: data in, HTML out, so the shape is unit-testable.
  *  Dusk colours, no JavaScript, tables that read on a phone. */
@@ -86,6 +232,7 @@ export function renderAnalyticsHtml(d: AnalyticsData): string {
     .join('');
   const epRows = d.endpoints7d.map((r) => `<tr><td>${esc(r.endpoint)}</td><td class="num">${r.n}</td></tr>`).join('');
   const overCap = d.spendProjectedUsd > d.capUsd;
+  const otherEvents = d.appEvents28d.filter((r) => !ACTIVE_SET.has(r.event));
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
@@ -107,6 +254,7 @@ export function renderAnalyticsHtml(d: AnalyticsData): string {
 <div class="big">${premiumTotal} premium</div>
 <div class="sub">${d.trialsActive} active trial${d.trialsActive === 1 ? '' : 's'}</div>
 <table><tr><th>store</th><th>status</th><th>renewal</th><th class="num">n</th></tr>${premiumRows || '<tr><td colspan="4">none yet</td></tr>'}</table>
+${renderActive(d.active)}
 
 <h2>AI spend</h2>
 <div class="big ${overCap ? 'warn' : 'ok'}">${usd(d.spendMtdUsd)} this month</div>
@@ -124,7 +272,7 @@ export function renderAnalyticsHtml(d: AnalyticsData): string {
 <h2>The room</h2>
 <div class="big">${d.settleOpens}</div>
 <div class="sub">times Settle was entered · ${d.settleOpens28d} in the last 28 days · counts only, never durations</div>
-${d.appEvents28d.length ? `<table><tr><th>event (28 days)</th><th class="num">n</th></tr>${d.appEvents28d.map((r) => `<tr><td>${esc(r.event)}</td><td class="num">${r.n}</td></tr>`).join('')}</table>` : ''}
+${otherEvents.length ? `<table><tr><th>event (28 days)</th><th class="num">n</th></tr>${otherEvents.map((r) => `<tr><td>${esc(r.event)}</td><td class="num">${r.n}</td></tr>`).join('')}</table>` : ''}
 
 <h2>AI calls by day (28 days)</h2>
 <table><tr><th>day</th><th class="num">calls</th><th class="num">errors</th></tr>${dayRows || '<tr><td colspan="3">none yet</td></tr>'}</table>
@@ -219,6 +367,24 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
   } catch {
     // table not applied yet: render zeros rather than a broken page
   }
+  // Active devices: their own read, so a failure here only blanks this section.
+  let active: ActiveSummary | null = null;
+  try {
+    const today = nowISO.slice(0, 10);
+    const rows = (
+      await env.DB.prepare(
+        `SELECT day, event, SUM(n) AS n FROM app_event_counts WHERE day >= ?1 AND event IN (${ACTIVE_IN}) GROUP BY day, event`,
+      )
+        .bind(activeCutoff(today))
+        .all<ActiveCountRow>()
+    ).results;
+    const first = await env.DB.prepare(`SELECT MIN(day) AS first FROM app_event_counts WHERE event IN (${ACTIVE_IN})`).first<{
+      first: string | null;
+    }>();
+    active = summariseActive(rows, today, first?.first ?? null, env.ACTIVE_COUNT_FROM ?? null);
+  } catch {
+    // leave the section saying it could not read the counts
+  }
 
   const spendMtdUsd = mtdSpend(tokens);
   const capUsd = Number(env.ANTHROPIC_MONTHLY_CAP_USD ?? '25') || 25;
@@ -241,6 +407,7 @@ export async function handleAnalytics(request: Request, env: AnalyticsEnv, nowMs
     settleOpens: settle?.n ?? 0,
     settleOpens28d: settle?.recent ?? 0,
     appEvents28d,
+    active,
     generatedAt: nowISO.slice(0, 16).replace('T', ' ') + ' UTC',
   });
   return new Response(html, {

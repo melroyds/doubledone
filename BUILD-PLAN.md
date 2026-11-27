@@ -42,6 +42,26 @@ The product is complete. Grouped by theme; every commit and its reasoning is in 
 
 ## Now and next
 
+**ACTIVE DEVICES, COUNTED WITH NO DEVICE ID (2026-11-27, built on `feat/active-devices`, a pull request open, NOT
+merged).** Melroy asked how to see daily active users, free as well as paid, and chose the daily and weekly counts
+plus the week-six counter. Opening the app now sends bare names to the beacon that already exists: `day.opened` once a
+UTC day per device, `week.opened` once a UTC week, `device.new` on a new install's first open, and `week.six.opened` on
+its first open in days 35 to 41, the spec's retention bar as a number. A name that gets no answer is kept and sent when
+it can be, so very rarely one arrives twice, and the Worker answers these four only once they are stored. A device
+already in use is never counted as new and the web's landing page is never counted. On the web neither is a browser
+that says it is automation or a crawler, but a store's own test devices do count, as new devices that never return.
+The Analytics Centre gains an Active devices section after Money. With no device id a week is its own count, and the
+week-six figure is an estimate the page explains and holds back until `ACTIVE_COUNT_FROM` names the day the phones
+began counting, and then for ten weeks. Three adversarial reviews shaped it (decision log 2026-11-27). **Open question
+for Melroy before the merge:** the device keeps a small note for these counts, and EU and UK rules on storing anything
+on a device for analytics may want consent (the privacy pages now disclose the note, and the question joins the
+lawyer's list). **Next, in this order:** Melroy's Worker deploy (until it is live, the daily and weekly counts lapse
+unsent at the end of their day or week, while the once-ever ones wait on each device); then the merge on his word,
+which makes the web 1.10.9; then TEL-05 and TEL-07 against a local Worker and ANA-02 on the deployed page. The phones
+count from their next store build (TEL-06, PRV-06): once both store builds carrying the count are live, set
+`ACTIVE_COUNT_FROM` in `server/wrangler.jsonc` to the later release day and deploy the Worker, or the week-six estimate
+never starts.
+
 **A "FINISHED" FOLD ON THE SHARED LIST, LIVE ON THE WEB AS 1.10.8 (2026-11-21, [PR #17](https://github.com/melroyds/doubledone/pull/17), merged as `060bda3` on Melroy's word).** It
 was parked an hour earlier with "a shared list gets cluttered" as its trigger, and Melroy's own list was it ("I see
 items from a week+ ago. It irks me."). The shared list is not one of the four frozen screens. A finished one-off now

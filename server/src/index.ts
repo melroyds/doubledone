@@ -28,7 +28,7 @@ import { buildSplitRequest, parseSplitResponse, SPLIT_MODEL } from './split';
 import { buildTinyRequest, parseTinyResponse, TINY_MODEL } from './tiny';
 import { buildStrategiseRequest, parseStrategiseResponse, STRATEGISE_MODEL } from './strategise';
 import { handleAnalytics } from './analytics';
-import { logAppEvent, parseAppEvent } from './events';
+import { ACTIVE_EVENTS, logAppEvent, parseAppEvent } from './events';
 import { handleRcWebhook } from './revenuecat';
 import { handleAppleReconcile } from './revenuecat-api';
 import { handleReviewCode, handleReviewEmail } from './review-otp';
@@ -142,6 +142,8 @@ const AI_ROUTES = new Set(['/chart', '/clarify', '/combine', '/decompose', '/ene
 // bill (the rate limiter bounds frequency, this bounds size). 100 KB is far above any real brain-dump or
 // goal. /ocr is exempt below: it legitimately carries a photo.
 const MAX_TEXT_AI_BODY = 100_000;
+
+const OPEN_COUNTS: ReadonlySet<string> = new Set(ACTIVE_EVENTS);
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
@@ -400,7 +402,20 @@ const router = {
       } catch {
         return Response.json({ error: 'invalid body' }, { status: 400, headers: cors });
       }
-      if (event) ctx.waitUntil(logAppEvent(env, event));
+      // The four open counts (2026-11-27) are kept on the device until they are answered (the client's lib/active), so
+      // they get a true answer: written, and said so with `stored: true`, or a 503 that keeps them owed. Answering before
+      // the write would clear a device's one new-install or sixth-week count even when D1 had failed to keep it. The
+      // marker is what the device waits for, because an older Worker (a rollback, or a deploy without these names)
+      // answers the same names with a plain 200 and stores nothing. Every other name, and every older app (which never
+      // reads the answer), stays fire-and-forget.
+      if (event && OPEN_COUNTS.has(event)) {
+        if (!(await logAppEvent(env, event))) {
+          return Response.json({ error: 'could not save that just now' }, { status: 503, headers: cors });
+        }
+        return Response.json({ ok: true, stored: true }, { headers: cors });
+      } else if (event) {
+        ctx.waitUntil(logAppEvent(env, event));
+      }
       return Response.json({ ok: true }, { headers: cors });
     }
 

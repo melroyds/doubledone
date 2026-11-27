@@ -8,8 +8,10 @@ import {
   buildAlertBody,
   buildDigestBody,
   buildOwnerEmail,
+  beaconVolumeToday,
   type Metric,
 } from './monitor';
+import { sqliteD1 } from './sqlite-d1.test-helper';
 
 const baseMetric = (over: Partial<Metric> = {}): Metric => ({
   capUsd: 25,
@@ -170,5 +172,41 @@ describe('buildOwnerEmail', () => {
   it('keeps the subject a single header line (no injection from a code-built subject)', () => {
     const raw = buildOwnerEmail({ from: 'a@b', to: 'c@d', subject: 'one line', body: 'x', uuid: 'u', date: 'd' });
     expect(raw.split('\r\n').filter((l) => l.startsWith('Subject:')).length).toBe(1);
+  });
+});
+
+// The flood guard on the feature-usage beacon (2026-11-27): day.opened and week.opened grow with the people opening the
+// app, and a Monday sends both from every device, so they are left out of the sum, as the store check's own counters
+// are. device.new and week.six.opened stay in, because a flood of either would skew the week-six estimate.
+describe('beaconVolumeToday', () => {
+  it("sums today's feature counts and the once-per-install counts, leaving out the daily and weekly opens", async () => {
+    const db = await sqliteD1();
+    const put = db.raw.prepare("INSERT INTO app_event_counts (day, event, n) VALUES (date('now'), ?, ?)");
+    put.run('settle.opened', 7);
+    put.run('card.opened', 5);
+    put.run('day.opened', 900);
+    put.run('week.opened', 900);
+    put.run('device.new', 3);
+    put.run('week.six.opened', 2);
+    put.run('premium.store.lookup', 400);
+    db.raw.prepare("INSERT INTO app_event_counts (day, event, n) VALUES (date('now', '-1 day'), 'settle.opened', 3000)").run();
+    expect(await beaconVolumeToday(db)).toBe(17);
+  });
+
+  it('a flood of made-up new devices still trips the alarm', async () => {
+    const db = await sqliteD1();
+    db.raw.prepare("INSERT INTO app_event_counts (day, event, n) VALUES (date('now'), 'device.new', 5000)").run();
+    const volume = await beaconVolumeToday(db);
+    expect(evaluateAlarms(baseMetric({ appEventsToday: volume })).map((a) => a.kind)).toContain('app-events-volume');
+  });
+
+  it('answers 0 when the table is not there yet', async () => {
+    const db = await sqliteD1();
+    db.raw.exec('DROP TABLE app_event_counts');
+    expect(await beaconVolumeToday(db)).toBe(0);
+  });
+
+  it('a busy day of opens alone never trips the alarm', () => {
+    expect(evaluateAlarms(baseMetric({ appEventsToday: 12 })).map((a) => a.kind)).not.toContain('app-events-volume');
   });
 });

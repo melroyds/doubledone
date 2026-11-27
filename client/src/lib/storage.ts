@@ -11,6 +11,7 @@ import { type HoldContract, parseHoldContract } from './hold';
 import { FRESH_REVIEW_MEMORY, parseReviewMemory, type ReviewMemory, serializeReviewMemory } from './review';
 import { parseReminderStyle, type ReminderStyle } from './glance';
 import { emptyGlanceMemory, type GlanceMemory, parseGlanceMemory, serializeGlanceMemory } from './glance-refresh';
+import { type ActiveMemory, parseActiveMemory } from './active';
 
 // Versioned so a future shape change can migrate rather than silently drop data.
 const STORAGE_KEY = 'doubledone.tasks.v1';
@@ -28,6 +29,7 @@ const SYNCOK_KEY = 'doubledone.syncok.v1'; // result of the last sync attempt, s
 const REMINDEROFFER_KEY = 'doubledone.reminderoffer.v1'; // one-time "offer the reminder after the first close-day"
 const WIDGETOFFER_KEY = 'doubledone.widgetoffer.v1'; // one-time "offer the home-screen widget" on the rested screen
 const WIDGETCOUNT_KEY = 'doubledone.widgetcount.v1'; // the last day (YYYY-MM-DD) this device counted a placed widget (lib/widget-count)
+const ACTIVE_KEY = 'doubledone.active.v1'; // what this device has counted toward active devices: days, weeks, its first open (lib/active)
 const SCRAPBOOKOFFER_KEY = 'doubledone.scrapbookoffer.v1'; // one-time "your week could be a keepsake" mention, the ladder's last rung
 const SETTLEGUIDE_KEY = 'doubledone.settleguide.v1'; // the breathing room's ONE remembered toggle (never a settings screen)
 const RENEWAL_KEY = 'doubledone.renewal.v1'; // what this device knows about an annual subscription's shape (see lib/renewal)
@@ -572,6 +574,29 @@ export async function claimWidgetCountDay(day: string): Promise<boolean> {
   try {
     if ((await AsyncStorage.getItem(WIDGETCOUNT_KEY)) === day) return false;
     await AsyncStorage.setItem(WIDGETCOUNT_KEY, day);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What this device has counted toward active devices (lib/active), or null when storage cannot be read, so the counter
+ * sends nothing rather than guess. A malformed value reads as an empty memory, field by field. Device bookkeeping, not
+ * personal content, so the account wipe leaves it: a deleted account does not make the phone a new device.
+ */
+export async function loadActiveMemory(): Promise<ActiveMemory | null> {
+  try {
+    return parseActiveMemory(await AsyncStorage.getItem(ACTIVE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** Store it. True only when the write landed, because the counts are sent only after their claim is stored. */
+export async function saveActiveMemory(mem: ActiveMemory): Promise<boolean> {
+  try {
+    await AsyncStorage.setItem(ACTIVE_KEY, JSON.stringify(mem));
     return true;
   } catch {
     return false;

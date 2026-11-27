@@ -16,9 +16,17 @@ import type { D1LikeDatabase } from './telemetry';
 
 export type EventsEnv = { DB?: D1LikeDatabase };
 
+// Active devices (2026-11-27). Each device sends day.opened once a UTC day it opens, week.opened once a UTC week,
+// device.new once on its first open and week.six.opened once if it opens in days 35 to 41 after that, each very rarely
+// twice (a request that arrived but whose answer was lost goes again). So a day's day.opened is that day's distinct
+// devices and a week's week.opened that week's, give or take those and a request crossing midnight UTC, with no id to
+// tie them. /event answers these four only once they are stored, because the device keeps each until it is answered.
+// Shared here so the Analytics Centre reads the same four.
+export const ACTIVE_EVENTS = ['day.opened', 'week.opened', 'device.new', 'week.six.opened'] as const;
+
 // The closed set of storable events. Adding one is a deliberate change HERE plus the
 // client-side BEACON_EVENTS allowlist; nothing else can ever enter the table.
-export const APP_EVENTS = new Set([
+export const APP_EVENTS = new Set<string>([
   'settle.opened',
   'settle.guide.on',
   'settle.guide.off',
@@ -72,6 +80,8 @@ export const APP_EVENTS = new Set([
   // A DoubleDone widget on this phone's home screen, at most once a day per device (the app's own
   // check that it is really there). Read as distinct days, the demand behind both glance surfaces.
   'widget.placed',
+  // Active devices (2026-11-27), above.
+  ...ACTIVE_EVENTS,
 ]);
 
 /** Normalise a raw client body to a storable event name, or null to drop it.
@@ -117,16 +127,19 @@ export function eventStatement(event: string): { sql: string; params: unknown[] 
   };
 }
 
-/** Fire-and-forget D1 upsert. Never throws: telemetry must never break a user
- *  request. Skips cleanly when no D1 binding is present (tests / local dev). */
-export async function logAppEvent(env: EventsEnv, event: string): Promise<void> {
-  if (!env.DB) return;
+/** The D1 upsert. Never throws: telemetry must never break a user request. Resolves true once the counter is
+ *  written, false when the write failed, and true when no D1 binding is present (tests / local dev), so a caller that
+ *  answers with it (the open counts, which a device keeps until they are stored) never asks for a retry that could
+ *  not help. Everything else fires and forgets it. */
+export async function logAppEvent(env: EventsEnv, event: string): Promise<boolean> {
+  if (!env.DB) return true;
   try {
     const { sql, params } = eventStatement(event);
     await env.DB.prepare(sql)
       .bind(...params)
       .run();
+    return true;
   } catch {
-    // best effort, swallow
+    return false;
   }
 }

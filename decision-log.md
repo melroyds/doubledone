@@ -12353,3 +12353,175 @@ yesterday's tick.
 **Shipped 2026-11-21.** Merged on Melroy's word ("Merge.") as `060bda3` (PR #17, every CI check green), and live on
 the web as 1.10.8. Read back from doubledone.app: `version.json` says web 1.10.8, and the live bundle carries the
 Finished line's labels in all five languages. The phones get it with the next store build.
+
+## 2026-11-27: active devices, counted with no device id: a day, a week, a new install and its sixth week
+
+**Asked.** Melroy wanted to know how many people use DoubleDone each day, free as well as paid. The Analytics Centre
+counted Premium accounts and AI calls, and had nothing at all for someone who opens Today and ticks a few things,
+which is most use. Three tiers were offered: a daily count, a weekly count, and the week-six retention counter, with a
+fourth (a third-party analytics SDK, or counting through Supabase) marked skip. His call: "I think Tier 1 and Tier 2
+make sense. If you can build Tier 3, please do."
+
+**Decided: four bare names on the beacon that already exists.** `day.opened`, `week.opened`, `device.new` and
+`week.six.opened` go through `/event`, the closed allowlist in `server/src/events.ts` and the `app_event_counts`
+counter, like every feature count since August. No new table, route or Worker secret, and no store form changes: an
+app launch is Apple's own example of Product Interaction, and Play's App interactions row was already declared, both
+for analytics and not linked to the person.
+
+**Decided: no device id, so a week is its own count.** Nothing in a count says which device sent it. That is the
+privacy design, and the reason the Analytics Centre never adds days up. Each device sends `day.opened` once a day it
+opens and `week.opened` once a week, so a day's counter is that day's distinct devices and a week's counter that
+week's. Seven days of `day.opened` added together would count a device once for every day it opened.
+
+**Decided: UTC days and weeks, on the device too.** The Worker files each count under `date('now')`, which is UTC. If
+the device claimed its own local day, one device could land twice in one server day (a Melbourne evening and the next
+Melbourne morning share a UTC day), and the figure would only be right on average. With both sides on UTC a day's
+figure is its distinct devices, give or take a request that crosses midnight UTC or a phone whose clock is off. The
+cost: "yesterday" on the page is a UTC day, 11am to 11am in Melbourne in summer, and the page and the privacy pages say
+days run on UTC. Weeks start Monday 00:00 UTC.
+
+**Decided: claim before sending, and keep what got no answer.** The device's memory (`doubledone.active.v1`: the
+last day and week it claimed, its first open, whether its sixth week is settled, and any name still owed) is written
+before a name leaves, so a second open never makes a second claim, and an unreadable memory or a failed write sends
+nothing that day. A name the Worker never answered stays owed and goes again at the next return to the front, or when
+the web comes back online: a day's count only within its UTC day (sent later, it would land beside that day's own), a
+week's within its week, the two once-ever names until they arrive. A return to the app while a claim is still running
+is not dropped: the running claim goes once more when it ends, reading the clock afresh. The Worker answers these four
+names only once they are stored (a 503 when the write fails keeps them owed). This bends the `widget.placed` rule, "a
+missed count beats a doubled one", on purpose: a request that arrived but whose answer was lost goes again, so very
+rarely a count arrives twice, and the privacy pages say so. The alternative was a lost day, or a lost sixth-week
+return for good, for every open without signal, which reads retention low. The memory is device bookkeeping, so
+deleting the account leaves it, as it leaves the widget's day.
+
+**Decided: a device in use before the count is never a new device.** A device is new when its first count finds the
+welcome not yet done (`loadOnboarded()` false, and a storage failure reads as done). Everyone already using the app
+meets the count long after their welcome, is marked `before`, sends no `device.new`, and never joins a week-six
+cohort. Without that, the week it ships would read as a flood of new devices, each with a sixth week measured from an
+update rather than an install.
+
+**Decided: the landing page is not the app, and on the web neither is a robot.** On the web "/" is the front page for
+anyone who has not begun, with the app mounted behind it. Nothing counts while the path is "/": the count starts when
+Begin is pressed, or when "/" hands a returning visitor on to Today. A browser that says it is driven
+(`navigator.webdriver`, which Playwright, Puppeteer and Selenium set) or names itself a crawler is never counted. It
+matters because Begin is a real link to /today, which a crawler that runs scripts can follow. Not a bare /bot/ match,
+because a phone brand, CUBOT, carries those letters. The social capture scripts already abort every request to the AI
+host, `/event` included. A store's own test devices cannot be told apart from JavaScript and do count (below).
+
+**Decided: the foreground only, one claim at a time across windows, and a component that draws nothing.** A count is
+tried as the app starts unless it starts in the background, and again each time it returns to the front. A tab opened
+behind others waits until it is looked at (react-native-web's AppState follows the page's visibility, and a
+prerendered page reads as background), and an iPhone app launched in the background waits the same way. Android's
+headless work (the widget, notification handling) never mounts the root layout. On the web the whole claim runs under
+a Web Lock (`navigator.locks`), so two windows coming to the front on a new day cannot both read yesterday's memory and
+both count. The root layout renders `<ActiveCount />`, which renders nothing, rather than calling the hook itself,
+because whoever follows the path re-renders on every navigation, and that should never be the navigator.
+
+**Decided: week six as an estimate, said plainly, and only once every platform has counted long enough.** No id joins
+a device's `device.new` to its later `week.six.opened`, so one cohort cannot be followed. The page sets the last 28
+complete days of sixth-week returns against the new devices of the 28 days that ended 35 days earlier, when the sixth
+week opens. That is close while new devices hold steady and leans while they grow or shrink, and the line says so. It
+needs 69 days of counts, as far back as a return in the window can come from, or it misses the returns of devices that
+started just before the count and reads low (a steady-growth test reads the true rate exactly once the 69 days are
+met). And it waits for `ACTIVE_COUNT_FROM`, a Worker var naming the day the phones began counting new installs,
+because the web starts with its merge and the phones only with their next store builds, weeks later, which would read
+low for weeks. Until it is set the page says what it is waiting for.
+
+**Decided against.**
+- **A random install id on each count.** Every figure would be exact and every cohort followable, and it would be the
+  first lasting identifier the beacon ever carried, with a device identifier tied to usage on both store forms. The
+  same goes for a token per claim to stop the rare resend on the server. Not for this product.
+- **Counting through Supabase** (a last-seen on the account). It sees only people who sync, and ties use to an
+  account.
+- **A third-party analytics SDK.** The skipped fourth tier: the privacy spine, and both store forms.
+- **Counting the Worker's own traffic** (AI calls, entitlement checks). Most opens never reach the Worker.
+- **The device's local day.** See UTC above.
+- **A retry timer while the app stays open.** A phone that regains signal while DoubleDone stays in front sends what it
+  owes at its next return to the front. A timer would close that gap at the cost of another moving part.
+- **A monthly count.** Not asked for, and the week plus the sixth week answer the spec's retention bar.
+- **Renaming the privacy section.** It stays "Feature-usage counts", because PRV-02 to PRV-05, TEL-01 and the Play
+  declaration notes point at it by that name. A new first paragraph says plainly that opening the app is counted, and
+  the lead now says "a bare count when you open the app or use certain features".
+
+**Known and accepted.**
+- Devices, not people. A phone and a laptop are two, and clearing a browser's data or reinstalling makes a new
+  device, with its own `device.new`. An Android phone restored from its own Google backup brings the note back and
+  carries on as the same device (Android's auto backup is on, and AsyncStorage is in it), which the privacy pages
+  say.
+- A store's own test devices count as new and never return: Google's pre-launch report opens each build sent to a
+  testing track on a few of Google's phones, and App Review adds one per iOS submission. The page says so. Read the
+  days a testing build went up with that in mind.
+- A phone that regains signal while the app stays in front waits for its next return to the front, and a day's count
+  still owed when the UTC day ends is dropped.
+- A browser without Web Locks can still count twice when two windows come to the front in the same instant.
+- The web counts from 1.10.9 once merged, the phones only from their next store build. Deploy the Worker first: until
+  it is live, a device's daily and weekly counts lapse at the end of their day or week (the once-ever ones wait).
+
+**Put to Melroy, not decided here: consent in the EU and UK.** The note on the device exists only for these counts,
+and EU and UK rules on storing anything on a device (ePrivacy Article 5(3), Germany's TDDDG section 25, which has no
+analytics exemption, and the UK's PECR regulation 6) may want consent for analytics, whatever leaves the device. The
+widget's daily note has done the same since 10 November. The privacy pages now disclose the note, and the question
+joins the lawyer's list, where the v1 legal drafts already wait. If the answer is consent, the count can be gated in
+one place (`client/src/lib/active-watch.ts`).
+
+**Reviewed: three adversarial rounds, a skeptic on every finding.**
+- **Round 1** (four lenses, eleven findings held, none refuted). An open with no signal used to lose its whole day
+  (the claim was stored, the send failed unseen, and every later open that day found the day claimed), and a
+  first sixth-week open made offline lost its return for good: hence the owed list and `trackSent`, which says
+  whether the Worker answered, with a 15-second limit. Two visible windows could both count on a new day: hence the
+  Web Lock. The week-six estimate opened six days early and read low: hence the 69 days. The monitor's 2,000-a-day
+  flood guard summed every beacon, so an ordinary busy Monday could trip it and its advice was to delete the day's
+  rows: hence the open counts left out. The privacy paragraph said "we can never follow one", which is untrue at small
+  numbers: rewritten. "Exactly" softened to "give or take" where a request crossing midnight UTC can move a day. The
+  EU and UK consent question came from this round.
+- **Round 2** (four lenses, sixteen held, none refuted). A return to the app while a send was stalled on a weak signal
+  was dropped by the running guard, so the owed count waited for yet another return: hence the queued run and the
+  clock read per claim. The Worker answered 200 before writing, so a failed write cleared a once-ever name the device
+  was keeping: hence stored-then-answered, with a 503. "At most once" was no longer true with the resend: the privacy
+  pages, the changelog and the comments now say "very rarely twice". "The note never leaves your device" was untrue on
+  Android: now "never sent to us", with the backup said. The flood guard left out too much (a flood of made-up new
+  devices would skew the week-six estimate unseen): now only the daily and weekly open counts are out. The estimate's
+  gate ran from the web's first day: hence `ACTIVE_COUNT_FROM`. Store test devices, QA cases a tester could not
+  actually follow (TEL-05 to TEL-07, PRV-06, ANA-02, rewritten), comments that still said "never joined", and a doc
+  comment knocked off `modelCostUsd` were fixed too. It also found the privacy pages' older line, "what you write never
+  leaves the device", has the same Android backup gap. That is its own change, offered to Melroy as a separate task.
+- **Round 3** (code only, two lenses). The client lens came back dry. Of the Worker lens's two findings,
+  one was refuted as the deliberate, documented exclusion of the open counts from the flood guard. The one
+  that held: an older Worker, after a rollback or a deploy without these names, answers them with the same
+  `200 {"ok":true}` it gives any unknown name and stores nothing, and the device read that as stored, so a new
+  install's one count, or its sixth-week return, could be cleared and lost for good. The repo's own rule (a status
+  alone never proves a route did its work) says the same. Now the Worker answers the four with `stored: true` once
+  written, and `trackSent` counts a 2xx as delivered only with that marker, so an older Worker leaves them owed. That
+  also stops the deploy order being load-bearing: before the Worker is live the daily and weekly counts lapse at the
+  end of their day or week, and the once-ever ones wait.
+
+**Tests.**
+- Client `active.test.ts`: the names and their match with the Worker's list, UTC days and weeks, the memory and its
+  owed list, and the counter (claim then send, one claim at a time, a return during a stalled send, the clock read per
+  claim, offline then online, a new run picking up what an old one owed, a day's count dropped past midnight, a
+  sixth-week return sent after its window, partial answers, storage failures, the one accepted double, and the lock).
+  Also automation, the wiring, and both privacy copies word for word.
+- Client `storage.test.ts` (the memory's key, its failure, and the wipe leaving it) and `telemetry.test.ts`
+  (`trackSent`: stored, an older Worker's plain 200, a body that will not parse, refusals, 429 and 5xx, the timeout,
+  and nothing to send).
+- Worker `events.test.ts` (the names, the counter, and `logAppEvent`'s answer), `index.test.ts` (`/event` stores the
+  four before answering, says `stored: true`, answers 503 when the write fails, and leaves every other name
+  fire-and-forget), `analytics.test.ts` (days, weeks from `week.opened`, the estimate's windows, the 69 days,
+  `ACTIVE_COUNT_FROM`, the steady-growth check, the section, the real SQL against SQLite with the real schema, and a
+  failed read blanking only the section) and `monitor.test.ts` (`beaconVolumeToday` against the real schema, and a
+  flood of new devices still alarming). A dry-run Worker bundle builds.
+
+**Browser checks.** Two runs of a release export, never production.
+- **The beacon pointed at a refused local port.** The landing page sent nothing. Begin sent exactly `day.opened`,
+  `week.opened` and `device.new`. A reload the same day sent nothing. An existing device sent only `day.opened` and
+  `week.opened` and was marked `before`. A sixth-week return sent `day.opened` and `week.six.opened`. Both privacy
+  copies render, the in-app one with its blank line.
+- **A real local Worker with its own local D1, on the finished code.** An open count is answered
+  `{"ok":true,"stored":true}` and is in the table, and any other name gets a plain `{"ok":true}`. Begin on a fresh
+  visit stored one of each, and Begin again the same UTC day sent nothing. With the Worker stopped, an open on a new
+  day claimed the day and kept `day.opened` owed. With it restarted, the browser's online event sent it once and
+  cleared it, and a second nudge sent nothing. The table held exactly what it should. The UTC day turned over during
+  the run (11am in Melbourne), and a page whose storage had been cleared counted as a new device on the new day, which
+  is right. The local rows were deleted afterwards.
+
+**Not shipped yet.** On `feat/active-devices` with a pull request open. In this order: Melroy's Worker deploy, his
+merge (the web becomes 1.10.9), then `ACTIVE_COUNT_FROM` once both store builds carrying the count are live.

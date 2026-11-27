@@ -19,7 +19,7 @@ Each fires to the `FEEDBACK_TO` inbox, de-duplicated so the same kind cannot rep
 | **Scrapbook budget** | global image generations today cross the daily guard | the Workers AI free-tier neuron budget is the wall the dollar query cannot see |
 | **Scrapbook abuse** | one source nears the per-IP 24h cap | a script trying to drain the shared image budget |
 | **Volume** | AI calls in an hour exceed the launch-normal ceiling | a surge (good) or an attack (bad); the endpoint mix tells you which |
-| **App events volume** | 2,000 or more feature-usage counts in one day | the `/event` beacon takes no token, so a flood is likely scripted and would poison the counts in `app_event_counts` |
+| **App events volume** | 2,000 or more feature-usage counts in one day (`day.opened` and `week.opened` are left out: they grow with the people opening the app, and a UTC Monday sends both from every device. `device.new` and `week.six.opened` stay in, one per install at most, because a flood of either would skew the week-six estimate) | the `/event` beacon takes no token, so a flood is likely scripted and would poison the counts in `app_event_counts` |
 | **Stripe** | a dispute, refund, or failed payment arrives on the webhook, or the webhook cannot read a subscription from Stripe (at most one email per 6 hours) | real-money events Stripe's dashboard no longer emails about, and a broken `STRIPE_SECRET_KEY` found inside Stripe's three days of retries instead of after them |
 | **RevenueCat** | a delivery fails the HMAC signature check (at most one email per 6 hours), or a TRANSFER event arrives | a signing secret out of step with the dashboard, or a purchase moving between accounts, which writes nothing |
 | **Store check** | today's `premium.store.capped`, `.capped.known`, `.throttled`, `.overused` or `.sandbox.spent` is above 0, or `.error` reaches 10, or `.unknown` reaches 30 | Premium without an account (below) is being flooded, throttled or misused, or App Review could be locked out of what it bought |
@@ -38,6 +38,11 @@ The custom alarms only protect you while the cron is firing. If the cron silentl
 
 **Configuration** (Worker secrets and vars, see [`server/wrangler.jsonc`](../server/wrangler.jsonc)):
 - `ANTHROPIC_MONTHLY_CAP_USD` (var, default `25`): the spend baseline. Tunable without a code change.
+- `ACTIVE_COUNT_FROM` (var, unset until the phones count): the UTC day (YYYY-MM-DD) every platform began counting new
+  installs, which is the later of the days the iOS and Android builds carrying the active-device counts went live.
+  The Analytics Centre's week-six estimate waits for it, then for 69 days, because the web starts counting new
+  installs weeks before the phones and an estimate before that would read low. Set it in `server/wrangler.jsonc` and
+  deploy.
 - `SEND_EMAIL` (binding) + `FEEDBACK_TO` (secret): the alert email path, shared with in-app feedback.
 - `HEARTBEAT_URL` (secret, optional): the dead-man's-switch ping. Set with `npx wrangler secret put HEARTBEAT_URL`.
 
@@ -220,8 +225,9 @@ If the Play Console asks for the exact-alarm declaration, the answer is: **exact
 **`GET https://api.doubledone.app/admin/analytics?token=<ANALYTICS_TOKEN>`** is the owner's
 morning glance, bookmarkable on a phone. Token-gated (the `ANALYTICS_TOKEN` Worker secret,
 same shared-secret posture as the RevenueCat webhook), read-only, no-store, noindex,
-server-rendered from D1 with no client involvement. Six sections: **Money** (premium by
-store/status + active trials), **AI spend** (month-to-date vs the cap, with the month-end
+server-rendered from D1 with no client involvement. Seven sections: **Money** (premium by
+store/status + active trials), **Active devices** (since 2026-11-27: devices that opened the app yesterday, today so
+far, this and last week, fourteen days and eight weeks, plus the week-six estimate), **AI spend** (month-to-date vs the cap, with the month-end
 projection and the 7-day endpoint mix), **The moat** (decompositions offered vs
 came-back-with-a-finished-step, median days to the first step), **Scrapbooks** (all-time and
 28-day counts), **The room** (Settle opens, plus every feature-usage count over 28 days), and
@@ -233,7 +239,7 @@ Set or rotate the token (pick any long random string; it lives only in the Worke
 
 Unset, the page answers 503, never an open dashboard. Stripe and RevenueCat's own dashboards
 remain the deep-dive for money; Play Console and App Store Connect for installs. The client's
-`track()` calls stay on the device, except a closed list of twenty-six feature names, which post to
+`track()` calls stay on the device, except a closed list of thirty names, which post to
 `/event` and land in D1 `app_event_counts` as one counter per name per day
 ([`client/src/lib/telemetry.ts`](../client/src/lib/telemetry.ts),
 [`server/src/events.ts`](../server/src/events.ts)).
